@@ -236,26 +236,32 @@ agent_communication:
 frontend:
   - task: "Home: search, list, rate actions"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented UI and API integration; needs automated testing"
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED mobile UI tests (iPhone 14 & Galaxy S21): Search flow works (Elon query returns results with score/votes), suggestion chips functional, Like/Dislike voting sends proper API requests to correct backend URL, pull-to-refresh works, navigation to person page successful. Minor: subtitle text selector needs adjustment but core functionality working."
   - task: "Person page: chart + like/dislike + live trends"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/person.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented with 5s polling and chart; needs automated testing"
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED person page tests: Navigation works, header shows score/likes/dislikes meta, LineChart renders with SVG elements (react-native-gifted-charts), Like/Dislike voting functional with 5s polling, Trends section displays with Δ values and 6s refresh cycle. Fixed missing expo-linear-gradient dependency during testing."
 metadata:
   created_by: "main_agent"
   version: "1.0"
@@ -263,14 +269,13 @@ metadata:
   run_ui: true
 
 test_plan:
-  current_focus:
-    - "Home: search flow triggers POST /searches and populates list"
-    - "Rate: like/dislike sends X-Device-ID and updates counts"
-    - "Person page: chart renders and trends update on poll"
+  current_focus: []
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
     message: "Frontend implemented. Please run mobile-sized UI tests for Home and Person screens, validate API wiring and polling."
+  - agent: "testing"
+    message: "✅ MOBILE UI TESTING COMPLETE: All core functionality working on both iPhone 14 (390x844) and Galaxy S21 (360x800). Home screen: search, voting, suggestions, navigation all functional. Person page: chart rendering, voting, trends with live updates all working. Network requests properly routed to EXPO_PUBLIC_BACKEND_URL/api/*. Fixed expo-linear-gradient dependency issue. Frontend is ready for production."
