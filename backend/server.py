@@ -140,6 +140,21 @@ SEED_PEOPLE = [
 ]
 
 
+async def ensure_indexes():
+    # persons
+    await db.persons.create_index("slug", unique=True)
+    await db.persons.create_index([("approved", 1), ("total_votes", -1), ("score", -1)])
+    await db.persons.create_index([("name", "text")])
+    # votes (one per device/person)
+    await db.votes.create_index([("person_id", 1), ("device_id", 1)], unique=True)
+    # vote_events for time window aggregations
+    await db.vote_events.create_index([("created_at", 1), ("person_id", 1)])
+    # ticks for charts
+    await db.person_ticks.create_index([("person_id", 1), ("created_at", 1)])
+    # searches for suggestions
+    await db.searches.create_index([("created_at", 1), ("query", 1)])
+
+
 async def seed_people():
     count = await db.persons.count_documents({})
     if count > 0:
@@ -174,6 +189,7 @@ async def seed_people():
 
 @app.on_event("startup")
 async def on_startup():
+    await ensure_indexes()
     await seed_people()
 
 
