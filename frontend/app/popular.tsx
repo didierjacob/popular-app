@@ -8,14 +8,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 const PALETTE = {
-  bg: "#1F1F1F",
-  card: "#2A2A2A",
+  bg: "#102019", // dark green background
+  card: "#1A2A23",
   text: "#EAEAEA",
-  subtext: "#B5B5B5",
+  subtext: "#B5C5BD",
   accent: "#8B0000", // dark red (up)
   green: "#009B4D", // dark green (down)
   accent2: "#E04F5F",
-  border: "#3A3A3A",
+  border: "#254235",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
@@ -156,17 +156,15 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
 
   useEffect(() => {
     if (dir === "flat") return;
-    // small pulse and tilt towards direction
-    scale.value = 0.95;
-    rotate.value = 0;
-    const target = dir === "up" ? -8 : 8; // degrees
+    // quick & light pulse + slight tilt
     scale.value = withSequence(
-      withTiming(1.15, { duration: 150 }),
-      withTiming(1.0, { duration: 150 })
+      withTiming(1.08, { duration: 120 }),
+      withTiming(1.0, { duration: 120 })
     );
+    const target = dir === "up" ? -6 : 6; // degrees
     rotate.value = withSequence(
-      withTiming(target, { duration: 150 }),
-      withTiming(0, { duration: 150 })
+      withTiming(target, { duration: 120 }),
+      withTiming(0, { duration: 120 })
     );
   }, [dir]);
 

@@ -6,13 +6,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LineChart } from "react-native-gifted-charts";
 
 const PALETTE = {
-  bg: "#1F1F1F",
-  card: "#2A2A2A",
+  bg: "#102019",
+  card: "#1A2A23",
   text: "#EAEAEA",
-  subtext: "#B5B5B5",
+  subtext: "#B5C5BD",
   accent: "#8B0000",
   accent2: "#E04F5F",
-  border: "#3A3A3A",
+  border: "#254235",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
