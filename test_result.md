@@ -129,6 +129,9 @@ backend:
       - working: true
         agent: "main"
         comment: "GET /api/people supports query and returns approved list"
+      - working: true
+        agent: "testing"
+        comment: "Verified case-insensitive query filtering works correctly, returns proper JSON structure"
   - task: "Add person"
     implemented: true
     working: true
@@ -140,6 +143,9 @@ backend:
       - working: true
         agent: "main"
         comment: "POST /api/people creates if slug unique; returns existing otherwise"
+      - working: true
+        agent: "testing"
+        comment: "Confirmed new person creation with category assignment and duplicate slug handling returns existing person"
   - task: "Voting with device header"
     implemented: true
     working: true
