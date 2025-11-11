@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
@@ -65,6 +65,8 @@ async function getDeviceId() {
   return id;
 }
 
+type FilterCat = "all" | "politics" | "culture" | "business";
+
 // Types
 interface Person {
   id: string;
@@ -85,6 +87,24 @@ export default function Index() {
   const [people, setPeople] = useState<Person[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
+  const [filter, setFilter] = useState<FilterCat>("all");
+
+  const loadSavedFilter = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem("popularity_home_filter");
+      if (saved === "all" || saved === "politics" || saved === "culture" || saved === "business") {
+        setFilter(saved);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadSavedFilter();
+  }, [loadSavedFilter]);
+
+  useEffect(() => {
+    AsyncStorage.setItem("popularity_home_filter", filter).catch(() => {});
+  }, [filter]);
 
   const fetchPeople = useCallback(async (q?: string) => {
     setLoading(true);
@@ -144,6 +164,11 @@ export default function Index() {
       router.push({ pathname: "/person", params: { id: person.id, name: person.name } });
     } catch (e) {}
   }, [query, fetchPeople, router]);
+
+  const filteredPeople = useMemo(() => {
+    if (filter === "all") return people;
+    return people.filter(p => p.category === filter);
+  }, [people, filter]);
 
   const renderPerson = ({ item }: { item: Person }) => {
     return (
@@ -216,6 +241,9 @@ export default function Index() {
             </View>
           </View>
 
+          {/* Category Filter Bar */}
+          <FilterBar filter={filter} setFilter={setFilter} />
+
           {loading ? (
             <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
           ) : (
@@ -232,7 +260,7 @@ export default function Index() {
 
               <Text style={styles.sectionTitle}>Popular</Text>
               <FlashList
-                data={people}
+                data={filteredPeople}
                 keyExtractor={(it) => it.id}
                 renderItem={renderPerson}
                 estimatedItemSize={84}
@@ -244,6 +272,33 @@ export default function Index() {
         </Pressable>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: FilterCat) => void }) {
+  const tabs: { key: FilterCat; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "politics", label: "Politics" },
+    { key: "culture", label: "Culture" },
+    { key: "business", label: "Business" },
+  ];
+
+  const onTap = async (key: FilterCat) => {
+    setFilter(key);
+    try { await AsyncStorage.setItem("popularity_home_filter", key); } catch {}
+  };
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
+      {tabs.map(t => {
+        const active = filter === t.key;
+        return (
+          <TouchableOpacity key={t.key} onPress={() => onTap(t.key)} style={[styles.chip, active ? { backgroundColor: PALETTE.accent } : {}]}>
+            <Text style={[styles.chipText, active ? { color: "white" } : {}]}>{t.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -317,7 +372,7 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
     borderWidth: 1,
   },
-  chipText: { color: PALETTE.text },
+  chipText: { color: PALETTE.text, fontWeight: '600' },
   personRow: {
     flexDirection: "row",
     alignItems: "center",
