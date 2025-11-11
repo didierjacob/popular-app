@@ -48,6 +48,19 @@ export default function Popular() {
   const [dirs, setDirs] = useState<Record<string, Direction>>({});
   const [filter, setFilter] = useState<FilterCat>("all");
 
+  // persist last selected category
+  const loadSavedFilter = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem("popularity_popular_filter");
+      if (saved === "all" || saved === "politics" || saved === "culture" || saved === "business") {
+        setFilter(saved as FilterCat);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadSavedFilter(); }, [loadSavedFilter]);
+  useEffect(() => { AsyncStorage.setItem("popularity_popular_filter", filter).catch(() => {}); }, [filter]);
+
   const load = useCallback(async () => {
     try {
       const fetched = await apiGet<Person[]>("/people");
