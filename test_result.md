@@ -115,6 +115,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Inserted 30 seed people with initial ticks"
+      - working: true
+        agent: "testing"
+        comment: "Verified 20+ seeded people available via GET /api/people endpoint"
   - task: "List/search people"
     implemented: true
     working: true
