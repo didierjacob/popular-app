@@ -17,6 +17,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 const PALETTE = {
   // Greener theme
@@ -90,6 +91,35 @@ export default function Index() {
   const [lastSearches, setLastSearches] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
   const [filter, setFilter] = useState<FilterCat>("all");
+
+  // Title motion animation (quick move to right and back every 10s)
+  const tx = useSharedValue(0);
+  const skew = useSharedValue(0);
+  useEffect(() => {
+    const run = () => {
+      tx.value = 0;
+      skew.value = 0;
+      tx.value = withSequence(
+        withTiming(22, { duration: 160, easing: Easing.out(Easing.cubic) }),
+        withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
+      );
+      skew.value = withSequence(
+        withTiming(8, { duration: 160, easing: Easing.out(Easing.cubic) }),
+        withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
+      );
+    };
+    // initial slight delay then every 10s
+    const t0 = setTimeout(run, 800);
+    const id = setInterval(run, 10000);
+    return () => { clearTimeout(t0); clearInterval(id); };
+  }, [tx, skew]);
+
+  const titleAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { skewX: `${skew.value}deg` },
+    ],
+  }));
 
   const loadSavedFilter = useCallback(async () => {
     try {
@@ -231,16 +261,7 @@ export default function Index() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <View style={{ position: 'relative' }}>
-              {/* Silver contour layers */}
-              <Text style={[styles.title, styles.titleSilverTL]}>Popularity</Text>
-              <Text style={[styles.title, styles.titleSilverTR]}>Popularity</Text>
-              <Text style={[styles.title, styles.titleSilverBL]}>Popularity</Text>
-              <Text style={[styles.title, styles.titleSilverBR]}>Popularity</Text>
-              <Text style={[styles.title, styles.titleEmbossLight]}>Popularity</Text>
-              <Text style={[styles.title, styles.titleEmbossDark]}>Popularity</Text>
-              <Text style={styles.title}>Popularity</Text>
-            </View>
+            <Animated.Text style={[styles.title, titleAnimStyle]}>Popularity</Animated.Text>
             <Text style={styles.subtitle}>Watch their ratings move up and down live</Text>
           </View>
 
@@ -338,24 +359,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "800",
     color: PALETTE.text,
-  },
-  // Silver contour layers
-  titleSilverTL: { position: 'absolute', top: -1, left: -1, color: '#C0C0C099' },
-  titleSilverTR: { position: 'absolute', top: -1, right: -1, color: '#C0C0C099' },
-  titleSilverBL: { position: 'absolute', bottom: -1, left: -1, color: '#C0C0C099' },
-  titleSilverBR: { position: 'absolute', bottom: -1, right: -1, color: '#C0C0C099' },
-  // Emboss highlights
-  titleEmbossLight: {
-    position: 'absolute',
-    top: -0.5,
-    left: -0.5,
-    color: '#FFFFFF55',
-  },
-  titleEmbossDark: {
-    position: 'absolute',
-    top: 0.5,
-    left: 0.5,
-    color: '#00000088',
   },
   subtitle: {
     fontSize: 14,
