@@ -231,3 +231,46 @@ agent_communication:
     message: "Backend MVP implemented and sanity-tested with curl. Proceed to automated backend testing."
   - agent: "testing"
     message: "Comprehensive backend testing completed successfully. All 24 test cases passed (100% success rate). Tested: seeding/listing, person creation, voting mechanics with edge cases, chart data with window validation, trends aggregation, search tracking, and error handling. Backend API is fully functional and ready for frontend integration."
+
+
+frontend:
+  - task: "Home: search, list, rate actions"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented UI and API integration; needs automated testing"
+  - task: "Person page: chart + like/dislike + live trends"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/person.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented with 5s polling and chart; needs automated testing"
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 3
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Home: search flow triggers POST /searches and populates list"
+    - "Rate: like/dislike sends X-Device-ID and updates counts"
+    - "Person page: chart renders and trends update on poll"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Frontend implemented. Please run mobile-sized UI tests for Home and Person screens, validate API wiring and polling."
