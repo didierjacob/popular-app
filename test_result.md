@@ -171,6 +171,9 @@ backend:
       - working: true
         agent: "main"
         comment: "GET /api/people/{id}/chart returns ticks in window"
+      - working: true
+        agent: "testing"
+        comment: "Verified chart endpoints: 60m and 24h windows work correctly, invalid window returns 400, invalid person ID returns 400, returns proper JSON structure with points array"
   - task: "Trends"
     implemented: true
     working: true
@@ -182,6 +185,9 @@ backend:
       - working: true
         agent: "main"
         comment: "GET /api/trends aggregates vote_events deltas"
+      - working: true
+        agent: "testing"
+        comment: "Confirmed trends aggregation works correctly: orders by delta desc, respects limit parameter, aggregates vote_events within time window"
   - task: "Search suggestions tracking"
     implemented: true
     working: true
@@ -193,6 +199,9 @@ backend:
       - working: true
         agent: "main"
         comment: "POST /api/searches and GET /api/search-suggestions operational"
+      - working: true
+        agent: "testing"
+        comment: "Verified search tracking: empty query returns 400, valid searches recorded, suggestions endpoint returns proper terms array with window and limit support"
 frontend:
   - task: "Home screen scaffold"
     implemented: false
