@@ -485,6 +485,56 @@ async def search_suggestions(window: str = Query(default="24h"), limit: int = Qu
     return {"terms": terms}
 
 
+@api_router.get("/search-suggestions/by-category")
+async def search_suggestions_by_category(window: str = Query(default="24h"), perCatLimit: int = Query(default=8, le=20)):
+    """
+    Returns top searched names within window, joined to persons, split by category.
+    Shape: { politics: ["..."], culture: ["..."], business: ["..."] }
+    """
+    m = re.match(r"^(\d+)([mh])$", window)
+    if not m:
+        raise HTTPException(status_code=400, detail="Invalid window; use like '60m' or '24h'")
+    value, unit = int(m.group(1)), m.group(2)
+    if unit == 'm':
+        start = now_utc() - timedelta(minutes=value)
+    else:
+        start = now_utc() - timedelta(hours=value)
+
+    pipeline = [
+        {"$match": {"created_at": {"$gte": start}}},
+        {"$group": {"_id": "$query", "count": {"$sum": 1}}},
+        {"$lookup": {
+            "from": "persons",
+            "localField": "_id",
+            "foreignField": "name",
+            "as": "person"
+        }},
+        {"$unwind": "$person"},
+        {"$group": {"_id": "$person.category", "items": {"$push": {"name": "$person.name", "count": "$count"}}}},
+        {"$project": {"category": "$_id", "items": 1, "_id": 0}},
+    ]
+
+    docs = await db.searches.aggregate(pipeline).to_list(length=1000)
+    result = {"politics": [], "culture": [], "business": []}
+    for d in docs:
+        cat = d.get("category")
+        items = d.get("items", [])
+        # sort by count desc and unique by name
+        items_sorted = sorted(items, key=lambda x: x.get("count", 0), reverse=True)
+        seen = set()
+        out = []
+        for it in items_sorted:
+            nm = it.get("name")
+            if nm and nm not in seen:
+                seen.add(nm)
+                out.append(nm)
+            if len(out) >= perCatLimit:
+                break
+        if cat in result:
+            result[cat] = out
+    return result
+
+
 # Include the router in the main app
 app.include_router(api_router)
 

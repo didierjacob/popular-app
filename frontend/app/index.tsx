@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
@@ -14,10 +14,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Constants from "expo-constants";
 import { FlashList } from "@shopify/flash-list";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 const PALETTE = {
   bg: "#1F1F1F",
@@ -85,6 +84,7 @@ export default function Index() {
   const [refreshing, setRefreshing] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
 
   const fetchPeople = useCallback(async (q?: string) => {
     setLoading(true);
@@ -105,16 +105,24 @@ export default function Index() {
     }
   }, []);
 
+  const fetchByCategory = useCallback(async () => {
+    try {
+      const data = await apiGet<{ politics: string[]; culture: string[]; business: string[] }>("/search-suggestions/by-category?window=24h&perCatLimit=12");
+      setByCat({ politics: data.politics || [], culture: data.culture || [], business: data.business || [] });
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchPeople();
     fetchSuggestions();
-  }, [fetchPeople, fetchSuggestions]);
+    fetchByCategory();
+  }, [fetchPeople, fetchSuggestions, fetchByCategory]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchPeople(query || undefined), fetchSuggestions()]);
+    await Promise.all([fetchPeople(query || undefined), fetchSuggestions(), fetchByCategory()]);
     setRefreshing(false);
-  }, [fetchPeople, fetchSuggestions, query]);
+  }, [fetchPeople, fetchSuggestions, fetchByCategory, query]);
 
   const dismissKeyboard = () => Keyboard.dismiss();
 
@@ -169,18 +177,28 @@ export default function Index() {
     }
   }, [fetchPeople, query]);
 
+  const renderChips = (items: string[]) => (
+    <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
+      {items.map((s) => (
+        <TouchableOpacity key={s} style={styles.chip} onPress={() => { setQuery(s); fetchPeople(s); }}>
+          <Text style={styles.chipText}>{s}</Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Text style={styles.title}>Popularity</Text>
-            <Text style={styles.subtitle}>Rate public figures. Watch their “price” move.</Text>
+            <Text style={styles.subtitle}>Rate public figures. Watch their ratings go up and down live</Text>
           </View>
 
           <View style={styles.searchCard}>
             <TextInput
-              placeholder="Search a person..."
+              placeholder="Donald Trump"
               placeholderTextColor={PALETTE.subtext}
               style={styles.input}
               value={query}
@@ -192,8 +210,8 @@ export default function Index() {
               <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
                 <Text style={styles.primaryText}>Rate</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.card, borderColor: PALETTE.border, borderWidth: 1 }]}>
-                <Text style={styles.secondaryText}>Search</Text>
+              <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
+                <Text style={styles.primaryText}>Watch</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -203,13 +221,14 @@ export default function Index() {
           ) : (
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
-              <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
-                {suggestions.map((s) => (
-                  <TouchableOpacity key={s} style={styles.chip} onPress={() => { setQuery(s); fetchPeople(s); }}>
-                    <Text style={styles.chipText}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              {renderChips(suggestions)}
+
+              <Text style={styles.sectionTitle}>Politics</Text>
+              {renderChips(byCat.politics)}
+              <Text style={styles.sectionTitle}>Culture</Text>
+              {renderChips(byCat.culture)}
+              <Text style={styles.sectionTitle}>Business</Text>
+              {renderChips(byCat.business)}
 
               <Text style={styles.sectionTitle}>Popular</Text>
               <FlashList
@@ -277,11 +296,6 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     color: "white",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  secondaryText: {
-    color: PALETTE.text,
     fontWeight: "700",
     fontSize: 16,
   },
