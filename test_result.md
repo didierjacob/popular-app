@@ -143,11 +143,14 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "POST /api/people/{id}/vote updates aggregates, ticks, and vote_events; tested with curl"
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive voting tests passed: X-Device-ID validation, first vote increments, idempotent same votes, vote switching updates deltas correctly, score adjustments working properly"
   - task: "Chart data"
     implemented: true
     working: true
