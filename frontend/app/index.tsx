@@ -265,7 +265,7 @@ export default function Index() {
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
             <Animated.Text style={[styles.title, titleAnimStyle]}>Popularity</Animated.Text>
-            <Text style={styles.subtitle}>Watch their ratings move up and down live</Text>
+            <Text style={styles.subtitle}>Rate them. Watch their ratings move up and down live</Text>
           </View>
 
           <View style={styles.searchCard}>
