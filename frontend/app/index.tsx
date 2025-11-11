@@ -19,13 +19,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 const PALETTE = {
-  bg: "#1F1F1F",
-  card: "#2A2A2A",
+  bg: "#102019", // darker green alternative to grey tone
+  card: "#1A2A23",
   text: "#EAEAEA",
-  subtext: "#B5B5B5",
+  subtext: "#B5C5BD",
   accent: "#8B0000", // dark red
   accent2: "#E04F5F", // secondary accent
-  border: "#3A3A3A",
+  border: "#254235",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || ""; // ingress will route /api -> backend
@@ -86,6 +86,7 @@ export default function Index() {
   const [refreshing, setRefreshing] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [lastSearches, setLastSearches] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
   const [filter, setFilter] = useState<FilterCat>("all");
 
@@ -98,13 +99,8 @@ export default function Index() {
     } catch {}
   }, []);
 
-  useEffect(() => {
-    loadSavedFilter();
-  }, [loadSavedFilter]);
-
-  useEffect(() => {
-    AsyncStorage.setItem("popularity_home_filter", filter).catch(() => {});
-  }, [filter]);
+  useEffect(() => { loadSavedFilter(); }, [loadSavedFilter]);
+  useEffect(() => { AsyncStorage.setItem("popularity_home_filter", filter).catch(() => {}); }, [filter]);
 
   const fetchPeople = useCallback(async (q?: string) => {
     setLoading(true);
@@ -120,9 +116,14 @@ export default function Index() {
     try {
       const data = await apiGet<{ terms: string[] }>("/search-suggestions?window=24h&limit=10");
       setSuggestions(data.terms);
-    } catch (e) {
-      // ignore
-    }
+    } catch {}
+  }, []);
+
+  const fetchLast = useCallback(async () => {
+    try {
+      const data = await apiGet<{ terms: string[] }>("/last-searches?limit=5");
+      setLastSearches(data.terms);
+    } catch {}
   }, []);
 
   const fetchByCategory = useCallback(async () => {
@@ -135,14 +136,15 @@ export default function Index() {
   useEffect(() => {
     fetchPeople();
     fetchSuggestions();
+    fetchLast();
     fetchByCategory();
-  }, [fetchPeople, fetchSuggestions, fetchByCategory]);
+  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchPeople(query || undefined), fetchSuggestions(), fetchByCategory()]);
+    await Promise.all([fetchPeople(query || undefined), fetchSuggestions(), fetchLast(), fetchByCategory()]);
     setRefreshing(false);
-  }, [fetchPeople, fetchSuggestions, fetchByCategory, query]);
+  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, query]);
 
   const dismissKeyboard = () => Keyboard.dismiss();
 
@@ -150,9 +152,10 @@ export default function Index() {
     dismissKeyboard();
     try {
       await apiPost("/searches", { query });
+      fetchLast();
     } catch {}
     fetchPeople(query);
-  }, [query, fetchPeople]);
+  }, [query, fetchPeople, fetchLast]);
 
   const onAddPerson = useCallback(async () => {
     const name = query.trim();
@@ -170,36 +173,32 @@ export default function Index() {
     return people.filter(p => p.category === filter);
   }, [people, filter]);
 
-  const renderPerson = ({ item }: { item: Person }) => {
-    return (
-      <View style={styles.personRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.personName}>{item.name}</Text>
-          <Text style={styles.personMeta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
-        </View>
-        <View style={styles.actions}>
-          <TouchableOpacity style={[styles.rateBtn, styles.like]} onPress={() => handleVote(item.id, 1)}>
-            <Text style={styles.rateText}>Like</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.rateBtn, styles.dislike]} onPress={() => handleVote(item.id, -1)}>
-            <Text style={styles.rateText}>Dislike</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.openBtn} onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}>
-            <Text style={styles.openText}>Open</Text>
-          </TouchableOpacity>
-        </View>
+  const renderPerson = ({ item }: { item: Person }) => (
+    <View style={styles.personRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.personName}>{item.name}</Text>
+        <Text style={styles.personMeta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
       </View>
-    );
-  };
+      <View style={styles.actions}>
+        <TouchableOpacity style={[styles.rateBtn, styles.like]} onPress={() => handleVote(item.id, 1)}>
+          <Text style={styles.rateText}>Like</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.rateBtn, styles.dislike]} onPress={() => handleVote(item.id, -1)}>
+          <Text style={styles.rateText}>Dislike</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.openBtn} onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}>
+          <Text style={styles.openText}>Open</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   const handleVote = useCallback(async (id: string, value: 1 | -1) => {
     const device = await getDeviceId();
     try {
       await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": device });
       await fetchPeople(query || undefined);
-    } catch (e) {
-      // show minimal feedback later
-    }
+    } catch {}
   }, [fetchPeople, query]);
 
   const renderChips = (items: string[]) => (
@@ -217,7 +216,11 @@ export default function Index() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <Text style={styles.title}>Popularity</Text>
+            <View style={{ position: 'relative' }}>
+              <Text style={[styles.title, styles.titleEmbossLight]}>Popularity</Text>
+              <Text style={[styles.title, styles.titleEmbossDark]}>Popularity</Text>
+              <Text style={styles.title}>Popularity</Text>
+            </View>
             <Text style={styles.subtitle}>Rate public figures. Watch their ratings go up and down live</Text>
           </View>
 
@@ -238,6 +241,9 @@ export default function Index() {
               <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
                 <Text style={styles.primaryText}>Watch</Text>
               </TouchableOpacity>
+              <TouchableOpacity onPress={fetchLast} style={[styles.primaryBtn, { backgroundColor: PALETTE.card, borderColor: PALETTE.border, borderWidth: 1 }] }>
+                <Text style={styles.secondaryText}>Last searches</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -250,6 +256,9 @@ export default function Index() {
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderChips(suggestions)}
+
+              <Text style={styles.sectionTitle}>Last searches</Text>
+              {renderChips(lastSearches)}
 
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
@@ -310,8 +319,20 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: "800",
     color: PALETTE.text,
+  },
+  titleEmbossLight: {
+    position: 'absolute',
+    top: -1,
+    left: -1,
+    color: '#ffffff55',
+  },
+  titleEmbossDark: {
+    position: 'absolute',
+    top: 1,
+    left: 1,
+    color: '#00000080',
   },
   subtitle: {
     fontSize: 14,
@@ -351,6 +372,11 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     color: "white",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  secondaryText: {
+    color: PALETTE.text,
     fontWeight: "700",
     fontSize: 16,
   },

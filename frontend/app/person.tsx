@@ -50,13 +50,13 @@ export default function Person() {
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const id = params.id as string;
   const [name, setName] = useState(params.name || "");
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [chart, setChart] = useState<ChartPoint[]>([]);
   const [person, setPerson] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setInitialLoading(true);
     try {
       const [p, c] = await Promise.all([
         apiGet(`/people/${id}`),
@@ -67,19 +67,19 @@ export default function Person() {
       setName(cRes.name);
       setChart(cRes.points.map(pt => ({ t: pt.t, score: pt.score })));
     } finally {
-      setLoading(false);
+      if (!silent) setInitialLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    fetchData();
-    const i = setInterval(fetchData, 5000);
+    fetchData(false);
+    const i = setInterval(() => fetchData(true), 5000);
     return () => clearInterval(i);
   }, [fetchData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchData();
+    await fetchData(true);
     setRefreshing(false);
   }, [fetchData]);
 
@@ -87,7 +87,7 @@ export default function Person() {
     const device = await getDeviceId();
     try {
       await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": device || "web" });
-      await fetchData();
+      await fetchData(true);
     } catch {}
   };
 
@@ -95,7 +95,7 @@ export default function Person() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
-      {loading ? (
+      {initialLoading ? (
         <View style={styles.center}> 
           <ActivityIndicator color={PALETTE.accent2} />
         </View>

@@ -535,6 +535,20 @@ async def search_suggestions_by_category(window: str = Query(default="24h"), per
     return result
 
 
+@api_router.get("/last-searches")
+async def last_searches(limit: int = Query(default=5, le=20)):
+    """Return the last unique searches (most recent first)."""
+    pipeline = [
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$query", "created_at": {"$first": "$created_at"}}},
+        {"$sort": {"created_at": -1}},
+        {"$limit": limit},
+        {"$project": {"_id": 0, "term": "$_id"}}
+    ]
+    rows = await db.searches.aggregate(pipeline).to_list(length=limit)
+    return {"terms": [r["term"] for r in rows]}
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
