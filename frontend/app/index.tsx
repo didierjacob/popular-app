@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -17,7 +19,6 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 const PALETTE = {
   // Greener theme
@@ -93,33 +94,35 @@ export default function Index() {
   const [filter, setFilter] = useState<FilterCat>("all");
 
   // Title motion animation (quick move to right and back every 10s)
-  const tx = useSharedValue(0);
-  const skew = useSharedValue(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const rotate = useRef(new Animated.Value(0)).current; // deg
+
   useEffect(() => {
     const run = () => {
-      tx.value = 0;
-      skew.value = 0;
-      tx.value = withSequence(
-        withTiming(22, { duration: 160, easing: Easing.out(Easing.cubic) }),
-        withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
-      );
-      skew.value = withSequence(
-        withTiming(8, { duration: 160, easing: Easing.out(Easing.cubic) }),
-        withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) })
-      );
+      translateX.setValue(0);
+      rotate.setValue(0);
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(translateX, { toValue: 22, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(translateX, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(rotate, { toValue: 1, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(rotate, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+      ]).start();
     };
-    // initial slight delay then every 10s
     const t0 = setTimeout(run, 800);
     const id = setInterval(run, 10000);
     return () => { clearTimeout(t0); clearInterval(id); };
-  }, [tx, skew]);
+  }, [translateX, rotate]);
 
-  const titleAnimStyle = useAnimatedStyle(() => ({
+  const titleAnimStyle = {
     transform: [
-      { translateX: tx.value },
-      { skewX: `${skew.value}deg` },
+      { translateX },
+      { rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "6deg"] }) },
     ],
-  }));
+  } as any;
 
   const loadSavedFilter = useCallback(async () => {
     try {

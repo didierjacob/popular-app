@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Animated, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 const PALETTE = {
   bg: "#0F2F22", // greener
@@ -151,32 +150,31 @@ function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: Fi
 }
 
 function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () => void }) {
-  const scale = useSharedValue(1);
-  const rotate = useSharedValue(0); // deg
+  const scale = useRef(new Animated.Value(1)).current;
+  const rot = useRef(new Animated.Value(0)).current; // 0..1
 
   useEffect(() => {
     if (dir === "flat") return;
-    // quick & light pulse + slight tilt
-    scale.value = withSequence(
-      withTiming(1.08, { duration: 120 }),
-      withTiming(1.0, { duration: 120 })
-    );
-    const target = dir === "up" ? -6 : 6; // degrees
-    rotate.value = withSequence(
-      withTiming(target, { duration: 120 }),
-      withTiming(0, { duration: 120 })
-    );
-  }, [dir]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: scale.value },
-      { rotate: `${rotate.value}deg` },
-    ],
-  }));
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.08, duration: 120, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1.0, duration: 120, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(rot, { toValue: 1, duration: 120, useNativeDriver: true }),
+        Animated.timing(rot, { toValue: 0, duration: 120, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, [dir, scale, rot]);
 
   const iconName = dir === "up" ? "arrow-up" : dir === "down" ? "arrow-down" : undefined;
   const iconColor = dir === "up" ? PALETTE.accent : dir === "down" ? PALETTE.green : PALETTE.subtext;
+  const styleAnim = {
+    transform: [
+      { scale },
+      { rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", dir === "up" ? "-6deg" : "6deg"] }) },
+    ],
+  } as any;
 
   return (
     <TouchableOpacity style={styles.row} onPress={onOpen}>
@@ -186,7 +184,7 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
       </View>
       <View style={styles.indicator}>
         {iconName ? (
-          <Animated.View style={animatedStyle}>
+          <Animated.View style={styleAnim}>
             <Ionicons name={iconName as any} size={16} color={iconColor} />
           </Animated.View>
         ) : (
