@@ -279,6 +279,39 @@ frontend:
   - task: "Home title motion + UI refinements (greener theme, last searches rectangle)"
     implemented: true
     working: true
+
+frontend:
+  - task: "Home: subtitle text update"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Changed subtitle to 'Rate them. Watch their ratings move up and down live'"
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 5
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Home: verify new subtitle text"
+    - "Home: title 10s animation stable"
+    - "Popular: sorted by score desc, arrows and animation ok"
+    - "Person: navigation from Popular works; silent polling"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Please re-run UI tests to validate the new subtitle and confirm Popular/Person flows after recent fixes."
+
     file: "/app/frontend/app/index.tsx"
     stuck_count: 0
     priority: "medium"
