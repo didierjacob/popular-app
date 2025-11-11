@@ -44,7 +44,8 @@ export default function Popular() {
 
   const load = useCallback(async () => {
     try {
-      const list = await apiGet<Person[]>("/people");
+      const fetched = await apiGet<Person[]>("/people");
+      const list = [...fetched].sort((a, b) => b.score - a.score); // highest score first
       // compute directions vs previous
       const prev = prevScoresRef.current;
       const nextDirs: Record<string, Direction> = {};
