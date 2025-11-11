@@ -80,9 +80,10 @@ class PopularityAPITester:
     def test_add_person(self):
         """Test 2: Add person functionality"""
         try:
-            # Test creating new person
+            # Test creating new person with unique name
+            unique_name = f"Test Celebrity {uuid.uuid4().hex[:8]}"
             new_person = {
-                "name": "Test Celebrity",
+                "name": unique_name,
                 "category": "culture"
             }
             
