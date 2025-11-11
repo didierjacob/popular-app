@@ -1,30 +1,340 @@
-import { Text, View, StyleSheet, Image } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Constants from "expo-constants";
+import { FlashList } from "@shopify/flash-list";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Link, useRouter } from "expo-router";
 
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+const PALETTE = {
+  bg: "#1F1F1F",
+  card: "#2A2A2A",
+  text: "#EAEAEA",
+  subtext: "#B5B5B5",
+  accent: "#8B0000", // dark red
+  accent2: "#E04F5F", // secondary accent
+  border: "#3A3A3A",
+};
+
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || ""; // ingress will route /api -> backend
+const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
+
+// Simple API helper
+async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(API(path));
+  if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
+  return res.json();
+}
+
+async function apiPost<T>(path: string, body?: any, headers?: Record<string, string>): Promise<T> {
+  const res = await fetch(API(path), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(headers || {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`POST ${path} ${res.status} ${txt}`);
+  }
+  return res.json();
+}
+
+// Device ID (for anonymous voting)
+const DEVICE_KEY = "popularity_device_id";
+async function getDeviceId() {
+  let id = await AsyncStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    await AsyncStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
+
+// Types
+interface Person {
+  id: string;
+  name: string;
+  category?: "politics" | "culture" | "business" | "other";
+  approved: boolean;
+  score: number;
+  likes: number;
+  dislikes: number;
+  total_votes: number;
+}
 
 export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  const fetchPeople = useCallback(async (q?: string) => {
+    setLoading(true);
+    try {
+      const data = await apiGet<Person[]>(`/people${q ? `?query=${encodeURIComponent(q)}` : ""}`);
+      setPeople(data);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchSuggestions = useCallback(async () => {
+    try {
+      const data = await apiGet<{ terms: string[] }>("/search-suggestions?window=24h&limit=10");
+      setSuggestions(data.terms);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPeople();
+    fetchSuggestions();
+  }, [fetchPeople, fetchSuggestions]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchPeople(query || undefined), fetchSuggestions()]);
+    setRefreshing(false);
+  }, [fetchPeople, fetchSuggestions, query]);
+
+  const dismissKeyboard = () => Keyboard.dismiss();
+
+  const onSearch = useCallback(async () => {
+    dismissKeyboard();
+    try {
+      await apiPost("/searches", { query });
+    } catch {}
+    fetchPeople(query);
+  }, [query, fetchPeople]);
+
+  const onAddPerson = useCallback(async () => {
+    const name = query.trim();
+    if (!name) return;
+    try {
+      const person = await apiPost<Person>("/people", { name });
+      setQuery("");
+      await fetchPeople();
+      router.push({ pathname: "/person", params: { id: person.id, name: person.name } });
+    } catch (e) {}
+  }, [query, fetchPeople, router]);
+
+  const renderPerson = ({ item }: { item: Person }) => {
+    return (
+      <View style={styles.personRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.personName}>{item.name}</Text>
+          <Text style={styles.personMeta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+        </View>
+        <View style={styles.actions}>
+          <TouchableOpacity style={[styles.rateBtn, styles.like]} onPress={() => handleVote(item.id, 1)}>
+            <Text style={styles.rateText}>Like</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.rateBtn, styles.dislike]} onPress={() => handleVote(item.id, -1)}>
+            <Text style={styles.rateText}>Dislike</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.openBtn} onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}>
+            <Text style={styles.openText}>Open</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const handleVote = useCallback(async (id: string, value: 1 | -1) => {
+    const device = await getDeviceId();
+    try {
+      await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": device });
+      await fetchPeople(query || undefined);
+    } catch (e) {
+      // show minimal feedback later
+    }
+  }, [fetchPeople, query]);
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
-    </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Popularity</Text>
+            <Text style={styles.subtitle}>Rate public figures. Watch their “price” move.</Text>
+          </View>
+
+          <View style={styles.searchCard}>
+            <TextInput
+              placeholder="Search a person..."
+              placeholderTextColor={PALETTE.subtext}
+              style={styles.input}
+              value={query}
+              onChangeText={setQuery}
+              returnKeyType="search"
+              onSubmitEditing={onSearch}
+            />
+            <View style={styles.searchActions}>
+              <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
+                <Text style={styles.primaryText}>Rate</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.card, borderColor: PALETTE.border, borderWidth: 1 }]}>
+                <Text style={styles.secondaryText}>Search</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
+          ) : (
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Trending searches</Text>
+              <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
+                {suggestions.map((s) => (
+                  <TouchableOpacity key={s} style={styles.chip} onPress={() => { setQuery(s); fetchPeople(s); }}>
+                    <Text style={styles.chipText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.sectionTitle}>Popular</Text>
+              <FlashList
+                data={people}
+                keyExtractor={(it) => it.id}
+                renderItem={renderPerson}
+                estimatedItemSize={84}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
+                contentContainerStyle={{ paddingBottom: 24 }}
+              />
+            </View>
+          )}
+        </Pressable>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: PALETTE.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: PALETTE.subtext,
+    marginTop: 4,
+  },
+  searchCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 12,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+  },
+  input: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.select({ ios: 12, android: 10 }),
+    color: PALETTE.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  searchActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+  primaryBtn: {
     flex: 1,
-    backgroundColor: "#0c0c0c",
+    height: 44,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
+  primaryText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 16,
   },
+  secondaryText: {
+    color: PALETTE.text,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  sectionTitle: {
+    color: PALETTE.subtext,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  chips: {
+    paddingHorizontal: 12,
+  },
+  chip: {
+    backgroundColor: PALETTE.card,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginHorizontal: 4,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+  },
+  chipText: { color: PALETTE.text },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomColor: PALETTE.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  personName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
+  personMeta: { color: PALETTE.subtext, marginTop: 4 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rateBtn: {
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  like: { backgroundColor: PALETTE.accent },
+  dislike: { backgroundColor: PALETTE.accent2 },
+  rateText: { color: "white", fontWeight: "700" },
+  openBtn: {
+    height: 36,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PALETTE.card,
+  },
+  openText: { color: PALETTE.text, fontWeight: "700" },
 });
