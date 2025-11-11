@@ -274,6 +274,60 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+
+frontend:
+  - task: "Home title motion + UI refinements (greener theme, last searches rectangle)"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented 10s cycle skew+slide animation on title, greener palette, Donald Tr... placeholder, last searches rectangle"
+  - task: "Popular tab: quick arrow animation + greener theme + filters persistence"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/popular.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Green palette applied, quick arrow animation, filter persistence"
+  - task: "Person page: silent polling + green theme"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/person.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Silent 5s polling and green palette applied"
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 4
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Home: title animation repeats every 10s without layout shift or jank"
+    - "Home: last searches rectangle shows up to 5 items and chips trigger search"
+    - "Popular: up/down/flat indicators animate lightly and list sorts by score desc"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Please validate the new animation, greener theme, and last searches rectangle on Home; confirm Popular and Person remain functional."
+
 agent_communication:
   - agent: "main"
     message: "Frontend implemented. Please run mobile-sized UI tests for Home and Person screens, validate API wiring and polling."
