@@ -169,7 +169,7 @@ class PopularityAPITester:
                           f"Likes: {vote_result3['likes']}, Dislikes: {vote_result3['dislikes']}")
             
             # Test score adjustment
-            score_adjusted = vote_result3["score"] == (100.0 - 2)  # Initial 100 + 1 - 2 = 99
+            score_adjusted = vote_result3["score"] == 99.0  # Initial 100 + 1 - 2 = 99
             self.log_result("Voting - Score Adjustment", score_adjusted,
                           f"Score: {vote_result3['score']}")
             
