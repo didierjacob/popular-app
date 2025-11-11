@@ -19,13 +19,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 const PALETTE = {
-  bg: "#102019", // darker green alternative to grey tone
-  card: "#1A2A23",
+  // Greener theme
+  bg: "#0F2F22",
+  card: "#1C3A2C",
   text: "#EAEAEA",
-  subtext: "#B5C5BD",
+  subtext: "#C9D8D2",
   accent: "#8B0000", // dark red
   accent2: "#E04F5F", // secondary accent
-  border: "#254235",
+  border: "#2E6148",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || ""; // ingress will route /api -> backend
@@ -211,22 +212,41 @@ export default function Index() {
     </ScrollView>
   );
 
+  const renderLastRectangle = (items: string[]) => (
+    <View style={styles.lastCard}>
+      {items.length === 0 ? (
+        <Text style={styles.lastText}>No recent searches</Text>
+      ) : (
+        items.map((s) => (
+          <TouchableOpacity key={s} onPress={() => { setQuery(s); fetchPeople(s); }} style={styles.lastRow}>
+            <Text style={styles.lastText}>{s}</Text>
+          </TouchableOpacity>
+        ))
+      )}
+    </View>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
             <View style={{ position: 'relative' }}>
+              {/* Silver contour layers */}
+              <Text style={[styles.title, styles.titleSilverTL]}>Popularity</Text>
+              <Text style={[styles.title, styles.titleSilverTR]}>Popularity</Text>
+              <Text style={[styles.title, styles.titleSilverBL]}>Popularity</Text>
+              <Text style={[styles.title, styles.titleSilverBR]}>Popularity</Text>
               <Text style={[styles.title, styles.titleEmbossLight]}>Popularity</Text>
               <Text style={[styles.title, styles.titleEmbossDark]}>Popularity</Text>
               <Text style={styles.title}>Popularity</Text>
             </View>
-            <Text style={styles.subtitle}>Rate public figures. Watch their ratings go up and down live</Text>
+            <Text style={styles.subtitle}>Watch their ratings move up and down live</Text>
           </View>
 
           <View style={styles.searchCard}>
             <TextInput
-              placeholder="Donald Trump"
+              placeholder="Donald Tr..."
               placeholderTextColor={PALETTE.subtext}
               style={styles.input}
               value={query}
@@ -240,9 +260,6 @@ export default function Index() {
               </TouchableOpacity>
               <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
                 <Text style={styles.primaryText}>Watch</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={fetchLast} style={[styles.primaryBtn, { backgroundColor: PALETTE.card, borderColor: PALETTE.border, borderWidth: 1 }] }>
-                <Text style={styles.secondaryText}>Last searches</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -258,7 +275,7 @@ export default function Index() {
               {renderChips(suggestions)}
 
               <Text style={styles.sectionTitle}>Last searches</Text>
-              {renderChips(lastSearches)}
+              {renderLastRectangle(lastSearches)}
 
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
@@ -322,17 +339,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: PALETTE.text,
   },
+  // Silver contour layers
+  titleSilverTL: { position: 'absolute', top: -1, left: -1, color: '#C0C0C099' },
+  titleSilverTR: { position: 'absolute', top: -1, right: -1, color: '#C0C0C099' },
+  titleSilverBL: { position: 'absolute', bottom: -1, left: -1, color: '#C0C0C099' },
+  titleSilverBR: { position: 'absolute', bottom: -1, right: -1, color: '#C0C0C099' },
+  // Emboss highlights
   titleEmbossLight: {
     position: 'absolute',
-    top: -1,
-    left: -1,
-    color: '#ffffff55',
+    top: -0.5,
+    left: -0.5,
+    color: '#FFFFFF55',
   },
   titleEmbossDark: {
     position: 'absolute',
-    top: 1,
-    left: 1,
-    color: '#00000080',
+    top: 0.5,
+    left: 0.5,
+    color: '#00000088',
   },
   subtitle: {
     fontSize: 14,
@@ -399,6 +422,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { color: PALETTE.text, fontWeight: '600' },
+  lastCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  lastRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomColor: PALETTE.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  lastText: { color: PALETTE.text },
   personRow: {
     flexDirection: "row",
     alignItems: "center",

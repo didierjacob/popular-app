@@ -8,14 +8,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 
 const PALETTE = {
-  bg: "#102019", // dark green background
-  card: "#1A2A23",
+  bg: "#0F2F22", // greener
+  card: "#1C3A2C",
   text: "#EAEAEA",
-  subtext: "#B5C5BD",
+  subtext: "#C9D8D2",
   accent: "#8B0000", // dark red (up)
   green: "#009B4D", // dark green (down)
   accent2: "#E04F5F",
-  border: "#254235",
+  border: "#2E6148",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
