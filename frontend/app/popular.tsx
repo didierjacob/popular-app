@@ -167,8 +167,8 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
     ]).start();
   }, [dir, scale, rot]);
 
-  const iconName = dir === "up" ? "arrow-up" : dir === "down" ? "arrow-down" : undefined;
   const iconColor = dir === "up" ? PALETTE.accent : dir === "down" ? PALETTE.green : PALETTE.subtext;
+  const arrowChar = dir === "up" ? "▲" : dir === "down" ? "▼" : "–";
   const styleAnim = {
     transform: [
       { scale },
@@ -183,13 +183,9 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
         <Text style={styles.meta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
       </View>
       <View style={styles.indicator}>
-        {iconName ? (
-          <Animated.View style={styleAnim}>
-            <Ionicons name={iconName as any} size={16} color={iconColor} />
-          </Animated.View>
-        ) : (
-          <Text style={{ color: PALETTE.subtext, fontWeight: '700' }}>–</Text>
-        )}
+        <Animated.View accessible accessibilityLabel={`direction-${dir}`} style={styleAnim}>
+          <Text style={{ color: iconColor, fontWeight: '800' }}>{arrowChar}</Text>
+        </Animated.View>
       </View>
     </TouchableOpacity>
   );
