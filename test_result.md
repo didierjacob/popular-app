@@ -469,3 +469,5 @@ agent_communication:
     message: "Frontend implemented. Please run mobile-sized UI tests for Home and Person screens, validate API wiring and polling."
   - agent: "testing"
     message: "✅ MOBILE UI TESTING COMPLETE: All core functionality working on both iPhone 14 (390x844) and Galaxy S21 (360x800). Home screen: search, voting, suggestions, navigation all functional. Person page: chart rendering, voting, trends with live updates all working. Network requests properly routed to EXPO_PUBLIC_BACKEND_URL/api/*. Fixed expo-linear-gradient dependency issue. Frontend is ready for production."
+  - agent: "main"
+    message: "Latest UI changes implemented: 1) Home screen vote buttons reduced to height:28, small up/down arrows added under names, 'Last searches' replaced with second 'Trending searches' rectangle. 2) Navigation simplified: 'Popular' tab removed entirely from tab bar. 3) List page renamed to 'List' with silent 5s refresh. Backend endpoints remain unchanged. Running backend tests first to ensure API stability before frontend testing."
