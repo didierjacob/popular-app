@@ -330,7 +330,7 @@ agent_communication:
     implemented: true
     working: false
     file: "/app/frontend/app/popular.tsx"
-    stuck_count: 2
+    stuck_count: 3
     priority: "medium"
     needs_retesting: false
     status_history:
@@ -343,6 +343,9 @@ agent_communication:
       - working: false
         agent: "testing"
         comment: "❌ PARTIALLY FIXED: Sorting is now correct (101,101,101,101,100,100 - properly descending), greener theme applied, but arrow indicators still missing. Only en dashes (–) found for flat state, no up/down arrows (#8B0000 for up, #009B4D for down) detected. Need to implement proper arrow indicators for score changes."
+      - working: false
+        agent: "testing"
+        comment: "❌ STILL MISSING ARROWS: Re-run testing confirms sorting works correctly (98,98,98,98,98,98,98,98 - descending), greener theme applied, filter persistence works, but arrow indicators still completely missing. No up (#8B0000), down (#009B4D), or flat (en dash) arrows detected. The arrow indicator logic needs implementation."
   - task: "Person page: silent polling + green theme"
     implemented: true
     working: false
