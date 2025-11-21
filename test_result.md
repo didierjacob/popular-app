@@ -327,7 +327,7 @@ agent_communication:
     implemented: true
     working: false
     file: "/app/frontend/app/popular.tsx"
-    stuck_count: 1
+    stuck_count: 2
     priority: "medium"
     needs_retesting: false
     status_history:
@@ -337,6 +337,9 @@ agent_communication:
       - working: false
         agent: "testing"
         comment: "❌ FAILED Popular page tests: Navigation works and Culture filter persists correctly, but list sorting is incorrect (scores: [97, 97, 97, 97, 97] - not sorted by highest desc), and no arrow indicators detected (0 SVG/text arrows found). The sorting logic needs to be fixed to properly order by score descending."
+      - working: false
+        agent: "testing"
+        comment: "❌ PARTIALLY FIXED: Sorting is now correct (101,101,101,101,100,100 - properly descending), greener theme applied, but arrow indicators still missing. Only en dashes (–) found for flat state, no up/down arrows (#8B0000 for up, #009B4D for down) detected. Need to implement proper arrow indicators for score changes."
   - task: "Person page: silent polling + green theme"
     implemented: true
     working: "NA"
