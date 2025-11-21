@@ -426,6 +426,20 @@ agent_communication:
     - C) Person page: Navigation completely broken - Open buttons on Home tab and person rows on Popular tab do not navigate to person page. This blocks testing of chart rendering, Like/Dislike functionality, and polling.
     
     RECOMMENDATION: Fix person page navigation routing and implement up/down arrow indicators for score changes on Popular tab."
+  - agent: "testing"
+    message: "✅ RE-RUN MOBILE UI TESTING COMPLETE for iPhone 14 (390x844) after rename and animation removal:
+    
+    PASSED TESTS:
+    - A) Home (/): Title 'Popular' static (12s observation), subtitle 'Rate them. Watch their ratings move up and down live', search placeholder 'Donald Tr...', greener theme (#8B0000 buttons), last searches rectangle with 4 items (Test, Elon, test search, Ada), Culture filter persistence works across tabs
+    - B) Popular (/popular): List sorted by highest score desc (98,98,98,98,98,98,98,98), Culture filter persistence works
+    - C) Person (/person): Navigation works from both Home Open buttons (18 found) and Popular rows (54 found), chart renders (6 SVG elements), Like/Dislike buttons functional, 5s polling is silent (no full-screen loader), voting updates applied
+    - D) Backend: GET /api/ returns {'message': 'Popular API running'} (Status: 200)
+    - E) API base: Requests go to https://public-opinion.preview.emergentagent.com/api/*
+    
+    REMAINING ISSUE:
+    - B) Popular tab: Arrow indicators still missing - no up (#8B0000), down (#009B4D), or flat (en dash) arrows detected despite sorting working correctly
+    
+    MAJOR IMPROVEMENT: Person page navigation is now FIXED and fully functional!"
 
   current_focus:
     - "Popular: fix list sorting by score descending"
