@@ -196,7 +196,7 @@ async def on_startup():
 # -------------------- Routes --------------------
 @api_router.get("/")
 async def root():
-    return {"message": "Popularity API running"}
+    return {"message": "Popular API running"}
 
 
 @api_router.post("/status", response_model=StatusCheck)
