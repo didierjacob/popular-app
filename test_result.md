@@ -348,7 +348,7 @@ agent_communication:
         comment: "❌ STILL MISSING ARROWS: Re-run testing confirms sorting works correctly (98,98,98,98,98,98,98,98 - descending), greener theme applied, filter persistence works, but arrow indicators still completely missing. No up (#8B0000), down (#009B4D), or flat (en dash) arrows detected. The arrow indicator logic needs implementation."
   - task: "Person page: silent polling + green theme"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/person.tsx"
     stuck_count: 2
     priority: "high"
@@ -363,6 +363,9 @@ agent_communication:
       - working: false
         agent: "testing"
         comment: "❌ CRITICAL: Person page navigation completely broken. Open buttons on Home tab (13 found) and person rows on Popular tab do not navigate to person page. Cannot test chart rendering, Like/Dislike functionality, or polling. This is a high priority routing issue that blocks core functionality."
+      - working: true
+        agent: "testing"
+        comment: "✅ FIXED: Person page navigation now works perfectly! Open buttons on Home (18 found) and person rows on Popular (54 found) both navigate correctly. Chart renders with 6 SVG elements, Like/Dislike buttons functional, 5s polling is silent (no full-screen loader), voting updates applied within polling window. All functionality working as expected."
 metadata:
   created_by: "main_agent"
   version: "1.0"
