@@ -33,25 +33,20 @@ export default function CategoryList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const title = useMemo(() => {
-    if (catKey === "politics") return "Politics";
-    if (catKey === "culture") return "Culture";
-    if (catKey === "business") return "Business";
-    return "All";
-  }, [catKey]);
+  const title = useMemo(() => "List", []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const qs = catKey && catKey !== "all" ? `?category=${encodeURIComponent(catKey)}` : "";
       const data = await apiGet<Person[]>(`/people${qs}`);
       setItems([...data].sort((a, b) => b.score - a.score));
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, [catKey]);
 
-  useEffect(() => { load(); const i = setInterval(load, 5000); return () => clearInterval(i); }, [load]);
+  useEffect(() => { load(false); const i = setInterval(() => load(true), 5000); return () => clearInterval(i); }, [load]);
 
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
+  const onRefresh = useCallback(async () => { setRefreshing(true); await load(true); setRefreshing(false); }, [load]);
 
   const renderItem = ({ item }: { item: Person }) => (
     <TouchableOpacity style={styles.row} onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}>

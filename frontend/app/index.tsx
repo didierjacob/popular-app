@@ -223,6 +223,15 @@ export default function Index() {
       <View style={{ flex: 1 }}>
         <Text style={styles.personName}>{item.name}</Text>
         <Text style={styles.personMeta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+        {/* Arrow mini controls */}
+        <View style={styles.arrowRow}>
+          <TouchableOpacity style={[styles.arrowBtn, { backgroundColor: PALETTE.accent }]} onPress={() => handleVote(item.id, 1)}>
+            <Text style={styles.arrowText}>▲</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.arrowBtn, { backgroundColor: PALETTE.accent2 }]} onPress={() => handleVote(item.id, -1)}>
+            <Text style={styles.arrowText}>▼</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.rateBtn, styles.like]} onPress={() => handleVote(item.id, 1)}>
@@ -301,7 +310,7 @@ export default function Index() {
 
           {/* Category Filter Bar (smaller chips) */}
           <FilterBarSmall onNavigate={(key) => {
-            if (key === 'all') router.push('/popular'); else router.push({ pathname: '/category/[key]', params: { key } });
+            router.push({ pathname: '/category/[key]', params: { key } });
           }} />
 
           {/* Featured mini chart */}
@@ -339,8 +348,8 @@ export default function Index() {
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderRectangle(suggestions, 'No trending searches', 4)}
 
-              <Text style={styles.sectionTitle}>Last searches</Text>
-              {renderRectangle(lastSearches, 'No recent searches', 4)}
+              <Text style={styles.sectionTitle}>Trending searches</Text>
+              {renderRectangle(lastSearches, 'No trending searches', 4)}
 
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
@@ -488,29 +497,32 @@ const styles = StyleSheet.create({
   lastText: { color: PALETTE.text },
   personRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomColor: PALETTE.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    gap: 10,
   },
   personName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
-  personMeta: { color: PALETTE.subtext, marginTop: 4 },
-  actions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  personMeta: { color: PALETTE.subtext, marginTop: 2 },
+  arrowRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  arrowBtn: { height: 24, paddingHorizontal: 8, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  arrowText: { color: 'white', fontWeight: '800', fontSize: 12 },
+  actions: { flexDirection: "column", alignItems: "flex-end", gap: 6 },
   rateBtn: {
-    height: 32,
-    paddingHorizontal: 8,
+    height: 28,
+    paddingHorizontal: 6,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   like: { backgroundColor: PALETTE.accent },
   dislike: { backgroundColor: PALETTE.accent2 },
-  rateText: { color: "white", fontWeight: "700", fontSize: 12 },
+  rateText: { color: "white", fontWeight: "700", fontSize: 11 },
   openBtn: {
-    height: 32,
-    paddingHorizontal: 8,
+    height: 28,
+    paddingHorizontal: 6,
     borderRadius: 8,
     borderColor: PALETTE.border,
     borderWidth: 1,
@@ -518,7 +530,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PALETTE.card,
   },
-  openText: { color: PALETTE.text, fontWeight: "700", fontSize: 12 },
+  openText: { color: PALETTE.text, fontWeight: "700", fontSize: 11 },
   smallChip: {
     backgroundColor: PALETTE.card,
     paddingHorizontal: 10,
