@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Popularity",
-    "slug": "popularity",
+    "name": "Popular",
+    "slug": "popular",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "popularity",
+    "scheme": "popular",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

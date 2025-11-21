@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
-  Animated,
-  Easing,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -92,37 +90,6 @@ export default function Index() {
   const [lastSearches, setLastSearches] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
   const [filter, setFilter] = useState<FilterCat>("all");
-
-  // Title motion animation (quick move to right and back every 10s)
-  const translateX = useRef(new Animated.Value(0)).current;
-  const rotate = useRef(new Animated.Value(0)).current; // deg
-
-  useEffect(() => {
-    const run = () => {
-      translateX.setValue(0);
-      rotate.setValue(0);
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(translateX, { toValue: 22, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(translateX, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(rotate, { toValue: 1, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(rotate, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        ]),
-      ]).start();
-    };
-    const t0 = setTimeout(run, 800);
-    const id = setInterval(run, 10000);
-    return () => { clearTimeout(t0); clearInterval(id); };
-  }, [translateX, rotate]);
-
-  const titleAnimStyle = {
-    transform: [
-      { translateX },
-      { rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "6deg"] }) },
-    ],
-  } as any;
 
   const loadSavedFilter = useCallback(async () => {
     try {
@@ -264,7 +231,7 @@ export default function Index() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <Animated.Text style={[styles.title, titleAnimStyle]}>Popularity</Animated.Text>
+            <Text style={styles.title}>Popular</Text>
             <Text style={styles.subtitle}>Rate them. Watch their ratings move up and down live</Text>
           </View>
 
