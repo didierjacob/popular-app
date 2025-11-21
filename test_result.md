@@ -412,10 +412,8 @@ metadata:
 test_plan:
   current_focus:
     - "Popular: implement up/down arrow indicators for score changes"
-    - "Person: fix navigation routing from Open buttons and Popular rows"
   stuck_tasks:
     - "Popular tab: quick arrow animation + greener theme + filters persistence"
-    - "Person page: silent polling + green theme"
   test_all: false
   test_priority: "stuck_first"
 
