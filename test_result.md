@@ -376,15 +376,18 @@ frontend:
         comment: "✅ PASSED: Header shows 'Popular' with no movement over 12 seconds, subtitle 'Rate them. Watch their ratings move up and down live' correct, greener theme applied, search placeholder 'Donald Tr...' present, last searches rectangle functional."
   - task: "App metadata rename"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app.json"
     stuck_count: 0
     priority: "low"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Changed expo app name and slug to Popular/popular."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED: App metadata updated, backend API returns 'Popular API running' message correctly."
 metadata:
   created_by: "main_agent"
   version: "1.0"
