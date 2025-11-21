@@ -202,10 +202,27 @@ export default function Index() {
     } catch {}
   }, [fetchPeople, query]);
 
+  const openPersonByName = useCallback(async (name: string) => {
+    try {
+      // record search
+      await apiPost('/searches', { query: name });
+    } catch {}
+    try {
+      const results = await apiGet<Person[]>(`/people?query=${encodeURIComponent(name)}`);
+      if (results && results.length > 0) {
+        router.push({ pathname: '/person', params: { id: results[0].id, name: results[0].name } });
+        return;
+      }
+    } catch {}
+    // fallback: just search list
+    setQuery(name);
+    fetchPeople(name);
+  }, [fetchPeople, router]);
+
   const renderChips = (items: string[]) => (
     <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
       {items.map((s) => (
-        <TouchableOpacity key={s} style={styles.chip} onPress={() => { setQuery(s); fetchPeople(s); }}>
+        <TouchableOpacity key={s} style={styles.chip} onPress={() => openPersonByName(s)}>
           <Text style={styles.chipText}>{s}</Text>
         </TouchableOpacity>
       ))}
