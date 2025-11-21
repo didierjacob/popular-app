@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { LineChart } from "react-native-gifted-charts";
 
 const PALETTE = {
@@ -91,6 +91,11 @@ export default function Index() {
   const [lastSearches, setLastSearches] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
   const [filter, setFilter] = useState<FilterCat>("all");
+
+  // Featured mini chart
+  const [featured, setFeatured] = useState<Person | null>(null);
+  const [featuredPoints, setFeaturedPoints] = useState<{ value: number }[]>([]);
+  const rotateTimer = useRef<any>(null);
 
   const loadSavedFilter = useCallback(async () => {
     try {
@@ -175,6 +180,44 @@ export default function Index() {
     return people.filter(p => p.category === filter);
   }, [people, filter]);
 
+  // Open by name utility
+  const openPersonByName = useCallback(async (name: string) => {
+    try { await apiPost('/searches', { query: name }); } catch {}
+    try {
+      const results = await apiGet<Person[]>(`/people?query=${encodeURIComponent(name)}`);
+      if (results && results.length > 0) {
+        router.push({ pathname: '/person', params: { id: results[0].id, name: results[0].name } });
+        return;
+      }
+    } catch {}
+    setQuery(name);
+    fetchPeople(name);
+  }, [fetchPeople, router]);
+
+  // Featured rotation logic
+  const pickRandomFeatured = useCallback(async () => {
+    if (!people || people.length === 0) return;
+    const idx = Math.floor(Math.random() * people.length);
+    const p = people[idx];
+    setFeatured(p);
+    try {
+      const chart = await apiGet<{ id: string; name: string; points: { t: string; score: number }[] }>(`/people/${p.id}/chart?window=24h`);
+      const pts = chart.points.map(pt => ({ value: pt.score }))
+        .slice(-30); // keep small slice
+      setFeaturedPoints(pts);
+    } catch {}
+  }, [people]);
+
+  useEffect(() => {
+    if (!people || people.length === 0) return;
+    // initial pick
+    pickRandomFeatured();
+    // rotate every 10s
+    if (rotateTimer.current) clearInterval(rotateTimer.current);
+    rotateTimer.current = setInterval(pickRandomFeatured, 10000);
+    return () => { if (rotateTimer.current) clearInterval(rotateTimer.current); };
+  }, [people, pickRandomFeatured]);
+
   const renderPerson = ({ item }: { item: Person }) => (
     <View style={styles.personRow}>
       <View style={{ flex: 1 }}>
@@ -203,23 +246,6 @@ export default function Index() {
     } catch {}
   }, [fetchPeople, query]);
 
-  const openPersonByName = useCallback(async (name: string) => {
-    try {
-      // record search
-      await apiPost('/searches', { query: name });
-    } catch {}
-    try {
-      const results = await apiGet<Person[]>(`/people?query=${encodeURIComponent(name)}`);
-      if (results && results.length > 0) {
-        router.push({ pathname: '/person', params: { id: results[0].id, name: results[0].name } });
-        return;
-      }
-    } catch {}
-    // fallback: just search list
-    setQuery(name);
-    fetchPeople(name);
-  }, [fetchPeople, router]);
-
   const renderChips = (items: string[]) => (
     <ScrollView horizontal contentContainerStyle={styles.chips} showsHorizontalScrollIndicator={false}>
       {items.map((s) => (
@@ -230,13 +256,13 @@ export default function Index() {
     </ScrollView>
   );
 
-  const renderTrendingRectangle = (items: string[]) => (
+  const renderRectangle = (items: string[], emptyText: string, max = 4) => (
     <View style={styles.lastCard}>
-      {(items.slice(0,5)).length === 0 ? (
-        <Text style={styles.lastText}>No trending searches</Text>
+      {(items.slice(0, max)).length === 0 ? (
+        <Text style={styles.lastText}>{emptyText}</Text>
       ) : (
-        items.slice(0,5).map((s) => (
-          <TouchableOpacity key={s} onPress={() => { setQuery(s); fetchPeople(s); }} style={styles.lastRow}>
+        items.slice(0, max).map((s) => (
+          <TouchableOpacity key={s} onPress={() => openPersonByName(s)} style={styles.lastRow}>
             <Text style={styles.lastText}>{s}</Text>
           </TouchableOpacity>
         ))
@@ -264,7 +290,7 @@ export default function Index() {
               onSubmitEditing={onSearch}
             />
             <View style={styles.searchActions}>
-              <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
+              <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }] }>
                 <Text style={styles.primaryText}>Rate</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
@@ -278,15 +304,43 @@ export default function Index() {
             if (key === 'all') router.push('/popular'); else router.push({ pathname: '/category/[key]', params: { key } });
           }} />
 
+          {/* Featured mini chart */}
+          {featured && (
+            <TouchableOpacity style={styles.featureCard} onPress={() => router.push({ pathname: '/person', params: { id: featured.id, name: featured.name } })}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.featureTitle}>{featured.name}</Text>
+                <Text style={styles.featureMeta}>{featured.category} • Score {Math.round(featured.score)}</Text>
+              </View>
+              <LineChart
+                areaChart
+                data={featuredPoints}
+                curved
+                color={PALETTE.accent2}
+                thickness={2}
+                startFillColor={PALETTE.accent2}
+                startOpacity={0.25}
+                endOpacity={0.05}
+                hideDataPoints
+                yAxisThickness={0}
+                xAxisThickness={0}
+                backgroundColor={PALETTE.card}
+                rulesColor={PALETTE.border}
+                noOfSections={3}
+                height={80}
+                initialSpacing={0}
+              />
+            </TouchableOpacity>
+          )}
+
           {loading ? (
             <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
           ) : (
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
-              {renderTrendingRectangle(suggestions)}
+              {renderRectangle(suggestions, 'No trending searches', 4)}
 
               <Text style={styles.sectionTitle}>Last searches</Text>
-              {renderTrendingRectangle(lastSearches)}
+              {renderRectangle(lastSearches, 'No recent searches', 4)}
 
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
@@ -300,7 +354,7 @@ export default function Index() {
                 data={filteredPeople}
                 keyExtractor={(it) => it.id}
                 renderItem={renderPerson}
-                estimatedItemSize={84}
+                estimatedItemSize={80}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
                 contentContainerStyle={{ paddingBottom: 24 }}
               />
@@ -393,6 +447,17 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
+  featureCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    padding: 12,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+  },
+  featureTitle: { color: PALETTE.text, fontWeight: '700', fontSize: 16 },
+  featureMeta: { color: PALETTE.subtext },
   chips: {
     paddingHorizontal: 12,
   },
@@ -432,20 +497,20 @@ const styles = StyleSheet.create({
   },
   personName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
   personMeta: { color: PALETTE.subtext, marginTop: 4 },
-  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 6 },
   rateBtn: {
-    height: 36,
-    paddingHorizontal: 10,
+    height: 32,
+    paddingHorizontal: 8,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   like: { backgroundColor: PALETTE.accent },
   dislike: { backgroundColor: PALETTE.accent2 },
-  rateText: { color: "white", fontWeight: "700" },
+  rateText: { color: "white", fontWeight: "700", fontSize: 12 },
   openBtn: {
-    height: 36,
-    paddingHorizontal: 10,
+    height: 32,
+    paddingHorizontal: 8,
     borderRadius: 8,
     borderColor: PALETTE.border,
     borderWidth: 1,
@@ -453,7 +518,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PALETTE.card,
   },
-  openText: { color: PALETTE.text, fontWeight: "700" },
+  openText: { color: PALETTE.text, fontWeight: "700", fontSize: 12 },
   smallChip: {
     backgroundColor: PALETTE.card,
     paddingHorizontal: 10,
