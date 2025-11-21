@@ -35,6 +35,12 @@ export default function RootLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="popular"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
