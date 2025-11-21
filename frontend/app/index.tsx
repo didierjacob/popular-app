@@ -212,12 +212,12 @@ export default function Index() {
     </ScrollView>
   );
 
-  const renderLastRectangle = (items: string[]) => (
+  const renderTrendingRectangle = (items: string[]) => (
     <View style={styles.lastCard}>
-      {items.length === 0 ? (
-        <Text style={styles.lastText}>No recent searches</Text>
+      {(items.slice(0,5)).length === 0 ? (
+        <Text style={styles.lastText}>No trending searches</Text>
       ) : (
-        items.map((s) => (
+        items.slice(0,5).map((s) => (
           <TouchableOpacity key={s} onPress={() => { setQuery(s); fetchPeople(s); }} style={styles.lastRow}>
             <Text style={styles.lastText}>{s}</Text>
           </TouchableOpacity>
@@ -255,18 +255,20 @@ export default function Index() {
             </View>
           </View>
 
-          {/* Category Filter Bar */}
-          <FilterBar filter={filter} setFilter={setFilter} />
+          {/* Category Filter Bar (smaller chips) */}
+          <FilterBarSmall onNavigate={(key) => {
+            if (key === 'all') router.push('/popular'); else router.push({ pathname: '/category/[key]', params: { key } });
+          }} />
 
           {loading ? (
             <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
           ) : (
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
-              {renderChips(suggestions)}
+              {renderTrendingRectangle(suggestions)}
 
               <Text style={styles.sectionTitle}>Last searches</Text>
-              {renderLastRectangle(lastSearches)}
+              {renderTrendingRectangle(lastSearches)}
 
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
@@ -292,29 +294,20 @@ export default function Index() {
   );
 }
 
-function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: FilterCat) => void }) {
+function FilterBarSmall({ onNavigate }: { onNavigate: (key: FilterCat) => void }) {
   const tabs: { key: FilterCat; label: string }[] = [
     { key: "all", label: "All" },
     { key: "politics", label: "Politics" },
     { key: "culture", label: "Culture" },
     { key: "business", label: "Business" },
   ];
-
-  const onTap = async (key: FilterCat) => {
-    setFilter(key);
-    try { await AsyncStorage.setItem("popularity_home_filter", key); } catch {}
-  };
-
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
-      {tabs.map(t => {
-        const active = filter === t.key;
-        return (
-          <TouchableOpacity key={t.key} onPress={() => onTap(t.key)} style={[styles.chip, active ? { backgroundColor: PALETTE.accent } : {}]}>
-            <Text style={[styles.chipText, active ? { color: "white" } : {}]}>{t.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 4, gap: 8 }}>
+      {tabs.map(t => (
+        <TouchableOpacity key={t.key} onPress={() => onNavigate(t.key)} style={styles.smallChip}>
+          <Text style={styles.smallChipText}>{t.label}</Text>
+        </TouchableOpacity>
+      ))}
     </ScrollView>
   );
 }
@@ -443,4 +436,14 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.card,
   },
   openText: { color: PALETTE.text, fontWeight: "700" },
+  smallChip: {
+    backgroundColor: PALETTE.card,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+    marginHorizontal: 4,
+  },
+  smallChipText: { color: PALETTE.text, fontSize: 12, fontWeight: '600' },
 });

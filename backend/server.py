@@ -232,11 +232,17 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
 
 
 @api_router.get("/people", response_model=List[PersonOut])
-async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50)):
+async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50), category: Optional[str] = Query(default=None)):
     filter_q: Dict[str, Any] = {"approved": True}
     if query:
         regex = re.escape(query.strip())
         filter_q["name"] = {"$regex": regex, "$options": "i"}
+    if category:
+        cat = category.strip().lower()
+        if cat != "all":
+            if cat not in {"politics", "culture", "business", "other"}:
+                raise HTTPException(status_code=400, detail="Invalid category")
+            filter_q["category"] = cat
     cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
     docs = await cursor.to_list(length=limit)
     return [person_to_out(d) for d in docs]

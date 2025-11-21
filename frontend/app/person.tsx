@@ -52,20 +52,24 @@ export default function Person() {
   const [name, setName] = useState(params.name || "");
   const [initialLoading, setInitialLoading] = useState(true);
   const [chart, setChart] = useState<ChartPoint[]>([]);
+  const [chartWeek, setChartWeek] = useState<ChartPoint[]>([]);
   const [person, setPerson] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
     try {
-      const [p, c] = await Promise.all([
+      const [p, c24, c168] = await Promise.all([
         apiGet(`/people/${id}`),
         apiGet(`/people/${id}/chart?window=24h`),
+        apiGet(`/people/${id}/chart?window=168h`),
       ]);
       setPerson(p);
-      const cRes = c as ChartRes;
+      const cRes = c24 as ChartRes;
+      const wRes = c168 as ChartRes;
       setName(cRes.name);
       setChart(cRes.points.map(pt => ({ t: pt.t, score: pt.score })));
+      setChartWeek(wRes.points.map(pt => ({ t: pt.t, score: pt.score })));
     } finally {
       if (!silent) setInitialLoading(false);
     }
@@ -91,7 +95,14 @@ export default function Person() {
     } catch {}
   };
 
-  const lineData = chart.map((p, idx) => ({ value: p.score, label: idx % 4 === 0 ? "" : "" }));
+  // Build datasets
+  const lineData = chart.map((p) => ({ value: p.score }));
+
+  // Simple predicted low/high from recent windows (UI hint, not ML)
+  const dayLow = useMemo(() => Math.min(...(chart.map(p => p.score).concat(person?.score ?? []))), [chart, person]);
+  const dayHigh = useMemo(() => Math.max(...(chart.map(p => p.score).concat(person?.score ?? []))), [chart, person]);
+  const weekLow = useMemo(() => Math.min(...(chartWeek.map(p => p.score).concat(person?.score ?? []))), [chartWeek, person]);
+  const weekHigh = useMemo(() => Math.max(...(chartWeek.map(p => p.score).concat(person?.score ?? []))), [chartWeek, person]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
@@ -108,7 +119,7 @@ export default function Person() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.section}>Price-like chart (24h)</Text>
+            <Text style={styles.section}>Live ratings</Text>
             <LineChart
               areaChart
               data={lineData}
@@ -116,8 +127,8 @@ export default function Person() {
               color={PALETTE.accent2}
               thickness={2}
               startFillColor={PALETTE.accent2}
-              startOpacity={0.3}
-              endOpacity={0.0}
+              startOpacity={0.25}
+              endOpacity={0.05}
               hideDataPoints
               yAxisColor={PALETTE.border}
               xAxisColor={PALETTE.border}
@@ -126,6 +137,18 @@ export default function Person() {
               noOfSections={4}
               initialSpacing={0}
             />
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.section}>Predictions</Text>
+            <View style={styles.predRow}>
+              <Text style={styles.predLabel}>24h</Text>
+              <Text style={styles.predValue}>Low {Math.round(dayLow)} • High {Math.round(dayHigh)}</Text>
+            </View>
+            <View style={styles.predRow}>
+              <Text style={styles.predLabel}>7d</Text>
+              <Text style={styles.predValue}>Low {Math.round(weekLow)} • High {Math.round(weekHigh)}</Text>
+            </View>
           </View>
 
           <View style={[styles.row, { justifyContent: 'space-between' }]}>
@@ -186,4 +209,7 @@ const styles = StyleSheet.create({
   trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
   trendName: { color: PALETTE.text },
   trendDelta: { color: PALETTE.accent2, fontWeight: '700' },
+  predRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  predLabel: { color: PALETTE.subtext, fontWeight: '700' },
+  predValue: { color: PALETTE.text },
 });
