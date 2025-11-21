@@ -402,13 +402,13 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Home: header shows 'Popular' with no movement; subtitle matches latest copy"
-    - "Home: last searches rectangle and greener theme persist; chips/search still work"
-    - "Popular: list sorted by score desc; arrow directions/colors; filter persistence"
-    - "Person: navigation from Popular works; silent polling"
-  stuck_tasks: []
+    - "Popular: implement up/down arrow indicators for score changes"
+    - "Person: fix navigation routing from Open buttons and Popular rows"
+  stuck_tasks:
+    - "Popular tab: quick arrow animation + greener theme + filters persistence"
+    - "Person page: silent polling + green theme"
   test_all: false
-  test_priority: "high_first"
+  test_priority: "stuck_first"
 
 agent_communication:
   - agent: "main"
