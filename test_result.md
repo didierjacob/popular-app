@@ -362,15 +362,18 @@ test_plan:
 frontend:
   - task: "Rename app to Popular and remove Home title animation"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Replaced title with static 'Popular', removed animation, updated subtitle copy."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED: Header shows 'Popular' with no movement over 12 seconds, subtitle 'Rate them. Watch their ratings move up and down live' correct, greener theme applied, search placeholder 'Donald Tr...' present, last searches rectangle functional."
   - task: "App metadata rename"
     implemented: true
     working: false
