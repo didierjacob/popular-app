@@ -283,15 +283,18 @@ frontend:
 frontend:
   - task: "Home: subtitle text update"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/app/index.tsx"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Changed subtitle to 'Rate them. Watch their ratings move up and down live'"
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED: Subtitle text verified as 'Rate them. Watch their ratings move up and down live' on mobile UI testing"
 metadata:
   created_by: "main_agent"
   version: "1.0"
