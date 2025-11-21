@@ -358,6 +358,50 @@ metadata:
   run_ui: true
 
 test_plan:
+
+frontend:
+  - task: "Rename app to Popular and remove Home title animation"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Replaced title with static 'Popular', removed animation, updated subtitle copy."
+  - task: "App metadata rename"
+    implemented: true
+    working: false
+    file: "/app/frontend/app.json"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Changed expo app name and slug to Popular/popular."
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 6
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Home: header shows 'Popular' with no movement; subtitle matches latest copy"
+    - "Home: last searches rectangle and greener theme persist; chips/search still work"
+    - "Popular: list sorted by score desc; arrow directions/colors; filter persistence"
+    - "Person: navigation from Popular works; silent polling"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Please validate the app rename and animation removal; confirm no regressions across Home/Popular/Person."
+
   current_focus:
     - "Popular: fix list sorting by score descending"
     - "Popular: implement arrow indicators for score changes"
