@@ -342,10 +342,10 @@ agent_communication:
         comment: "❌ PARTIALLY FIXED: Sorting is now correct (101,101,101,101,100,100 - properly descending), greener theme applied, but arrow indicators still missing. Only en dashes (–) found for flat state, no up/down arrows (#8B0000 for up, #009B4D for down) detected. Need to implement proper arrow indicators for score changes."
   - task: "Person page: silent polling + green theme"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/app/person.tsx"
-    stuck_count: 1
-    priority: "medium"
+    stuck_count: 2
+    priority: "high"
     needs_retesting: false
     status_history:
       - working: true
@@ -354,6 +354,9 @@ agent_communication:
       - working: "NA"
         agent: "testing"
         comment: "⚠️ UNABLE TO TEST Person page: Could not navigate to Person page from Popular list. Clicking on person rows with score information did not trigger navigation. This suggests the click handlers or routing may not be properly configured for person navigation."
+      - working: false
+        agent: "testing"
+        comment: "❌ CRITICAL: Person page navigation completely broken. Open buttons on Home tab (13 found) and person rows on Popular tab do not navigate to person page. Cannot test chart rendering, Like/Dislike functionality, or polling. This is a high priority routing issue that blocks core functionality."
 metadata:
   created_by: "main_agent"
   version: "1.0"
