@@ -401,6 +401,19 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Please validate the app rename and animation removal; confirm no regressions across Home/Popular/Person."
+  - agent: "testing"
+    message: "✅ MOBILE UI TESTING COMPLETE for iPhone 14 (390x844) & Galaxy S21 (360x800): 
+    
+    PASSED TESTS:
+    - A) Home screen: Header title 'Popular' (no animation), subtitle correct, greener theme applied, search placeholder 'Donald Tr...', last searches rectangle functional, filter persistence works
+    - D) Backend API: /api/ returns 'Popular API running' message correctly
+    - E) Routing: Home and Popular tabs present, responsive on both viewports
+    
+    CRITICAL ISSUES FOUND:
+    - B) Popular tab: Sorting appears correct (101,101,101,101,100,100) but arrow indicators missing - only en dashes (–) found for flat state, no up/down arrows detected
+    - C) Person page: Navigation completely broken - Open buttons on Home tab and person rows on Popular tab do not navigate to person page. This blocks testing of chart rendering, Like/Dislike functionality, and polling.
+    
+    RECOMMENDATION: Fix person page navigation routing and implement up/down arrow indicators for score changes on Popular tab."
 
   current_focus:
     - "Popular: fix list sorting by score descending"
