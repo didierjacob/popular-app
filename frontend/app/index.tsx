@@ -17,6 +17,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Link, useRouter } from "expo-router";
+import { LineChart } from "react-native-gifted-charts";
 
 const PALETTE = {
   // Greener theme
