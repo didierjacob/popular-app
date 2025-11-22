@@ -91,6 +91,8 @@ export default function Index() {
   const [lastSearches, setLastSearches] = useState<string[]>([]);
   const [byCat, setByCat] = useState<{ politics: string[]; culture: string[]; business: string[] }>({ politics: [], culture: [], business: [] });
   const [filter, setFilter] = useState<FilterCat>("all");
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [pendingPersonName, setPendingPersonName] = useState("");
 
   // Featured mini chart
   const [featured, setFeatured] = useState<Person | null>(null);
