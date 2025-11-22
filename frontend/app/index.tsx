@@ -166,16 +166,26 @@ export default function Index() {
     fetchPeople(query);
   }, [query, fetchPeople, fetchLast]);
 
-  const onAddPerson = useCallback(async () => {
-    const name = query.trim();
+  const onAddPerson = useCallback(async (category?: string) => {
+    const name = category ? pendingPersonName : query.trim();
     if (!name) return;
+    
+    // If no category provided, show modal to select one
+    if (!category) {
+      setPendingPersonName(name);
+      setShowCategoryModal(true);
+      return;
+    }
+    
     try {
-      const person = await apiPost<Person>("/people", { name });
+      const person = await apiPost<Person>("/people", { name, category });
       setQuery("");
+      setPendingPersonName("");
+      setShowCategoryModal(false);
       await fetchPeople();
       router.push({ pathname: "/person", params: { id: person.id, name: person.name } });
     } catch (e) {}
-  }, [query, fetchPeople, router]);
+  }, [query, pendingPersonName, fetchPeople, router]);
 
   const filteredPeople = useMemo(() => {
     if (filter === "all") return people;
