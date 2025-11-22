@@ -233,17 +233,6 @@ const styles = StyleSheet.create({
   name: { color: PALETTE.text, fontSize: 16, fontWeight: '600' },
   meta: { color: PALETTE.subtext, marginTop: 4 },
   indicator: { width: 28, alignItems: 'center' },
-  actions: { flexDirection: 'column', alignItems: 'flex-end', gap: 6 },
-  rateBtn: {
-    height: 14,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  like: { backgroundColor: PALETTE.accent },
-  dislike: { backgroundColor: PALETTE.green },
-  rateText: { color: 'white', fontWeight: '700', fontSize: 11 },
   chip: {
     backgroundColor: PALETTE.card,
     paddingHorizontal: 12,
