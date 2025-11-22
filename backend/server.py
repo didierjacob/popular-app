@@ -373,11 +373,39 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
             "updated_at": now_utc(),
         })
 
-    # update person aggregates
-    new_score = float(person.get("score", 100.0)) + float(delta)
+    # Calculate new score based on likes and dislikes ratio with scaling
+    # This ensures scores reflect the volume and sentiment of votes
+    new_likes = int(person.get("likes", 0)) + inc_doc.get("likes", 0)
+    new_dislikes = int(person.get("dislikes", 0)) + inc_doc.get("dislikes", 0)
+    new_total_votes = int(person.get("total_votes", 0)) + inc_doc.get("total_votes", 0)
+    
+    # Calculate score: base 100 + (likes - dislikes) with scaling factor
+    # Scaling increases impact as vote count grows
+    if new_total_votes > 0:
+        net_sentiment = new_likes - new_dislikes
+        
+        # Progressive scaling: more votes = bigger impact per vote
+        if new_total_votes < 10:
+            scale = 1  # 1-9 votes: 1x impact
+        elif new_total_votes < 50:
+            scale = 2  # 10-49 votes: 2x impact
+        elif new_total_votes < 100:
+            scale = 5  # 50-99 votes: 5x impact
+        elif new_total_votes < 500:
+            scale = 10  # 100-499 votes: 10x impact
+        elif new_total_votes < 1000:
+            scale = 20  # 500-999 votes: 20x impact
+        else:
+            scale = 50  # 1000+ votes: 50x impact
+        
+        new_score = 100.0 + (net_sentiment * scale)
+    else:
+        new_score = 100.0
+    
+    # Update person aggregates with calculated score
     await db.persons.update_one(
         {"_id": oid},
-        {"$inc": {"score": float(delta), **inc_doc}, "$set": {"updated_at": now_utc()}}
+        {"$inc": inc_doc, "$set": {"score": new_score, "updated_at": now_utc()}}
     )
     await db.person_ticks.insert_one({"person_id": oid, "score": new_score, "created_at": now_utc()})
     await write_vote_event(oid, x_device_id, int(delta))
