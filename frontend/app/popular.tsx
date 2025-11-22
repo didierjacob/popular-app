@@ -36,7 +36,30 @@ interface Person {
 
 type Direction = "up" | "down" | "flat";
 
-type FilterCat = "all" | "politics" | "culture" | "business";
+type FilterCat = "all" | "politics" | "culture" | "business" | "sport";
+
+async function apiPost<T>(path: string, body?: any, headers?: Record<string, string>): Promise<T> {
+  const res = await fetch(API(path), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(headers || {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`POST ${path} ${res.status}`);
+  return res.json();
+}
+
+const DEVICE_KEY = "popularity_device_id";
+async function getDeviceId() {
+  let id = await AsyncStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    await AsyncStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
 
 export default function Popular() {
   const router = useRouter();
@@ -51,7 +74,7 @@ export default function Popular() {
   const loadSavedFilter = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem("popularity_popular_filter");
-      if (saved === "all" || saved === "politics" || saved === "culture" || saved === "business") {
+      if (saved === "all" || saved === "politics" || saved === "culture" || saved === "business" || saved === "sport") {
         setFilter(saved as FilterCat);
       }
     } catch {}
