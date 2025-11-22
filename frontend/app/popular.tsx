@@ -126,9 +126,8 @@ export default function Popular() {
   }, [load]);
 
   const displayed = useMemo(() => {
-    const base = filter === "all" ? items : items.filter(it => it.category === filter);
-    return base; // already sorted by score desc
-  }, [items, filter]);
+    return items; // filtering now handled in load function
+  }, [items]);
 
   const renderItem = ({ item }: { item: Person }) => (
     <Row 
