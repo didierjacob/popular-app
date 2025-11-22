@@ -348,9 +348,6 @@ export default function Index() {
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderRectangle(suggestions, 'No trending searches', 4)}
 
-              <Text style={styles.sectionTitle}>Trending searches</Text>
-              {renderRectangle(lastSearches, 'No trending searches', 4)}
-
               <Text style={styles.sectionTitle}>Politics</Text>
               {renderChips(byCat.politics)}
               <Text style={styles.sectionTitle}>Culture</Text>
@@ -358,7 +355,10 @@ export default function Index() {
               <Text style={styles.sectionTitle}>Business</Text>
               {renderChips(byCat.business)}
 
-              <Text style={styles.sectionTitle}>Popular</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                <Text style={styles.sectionTitle} style={{ margin: 0 }}>Popular</Text>
+                <Text style={{ color: '#009B4D', fontSize: 18, fontWeight: '700' }}>↑</Text>
+              </View>
               <FlashList
                 data={filteredPeople}
                 keyExtractor={(it) => it.id}
