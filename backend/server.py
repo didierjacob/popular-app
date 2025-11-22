@@ -281,13 +281,13 @@ async def add_person(body: PersonCreate):
         "approved": True,  # basic moderation on later
         "created_at": now,
         "updated_at": now,
-        "score": 100.0,
+        "score": 50,  # Neutral starting score
         "likes": 0,
         "dislikes": 0,
         "total_votes": 0,
     }
     res = await db.persons.insert_one(doc)
-    await db.person_ticks.insert_one({"person_id": res.inserted_id, "score": 100.0, "created_at": now})
+    await db.person_ticks.insert_one({"person_id": res.inserted_id, "score": 50, "created_at": now})
     doc["_id"] = res.inserted_id
     return person_to_out(doc)
 
