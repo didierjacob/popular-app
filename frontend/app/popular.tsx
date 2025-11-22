@@ -190,7 +190,7 @@ function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: Fi
   );
 }
 
-function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () => void }) {
+function Row({ item, dir, onOpen, onLike, onDislike }: { item: Person; dir: Direction; onOpen: () => void; onLike: () => void; onDislike: () => void }) {
   const scale = useRef(new Animated.Value(1)).current;
   const rot = useRef(new Animated.Value(0)).current; // 0..1
 
@@ -218,17 +218,33 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
   } as any;
 
   return (
-    <TouchableOpacity style={styles.row} onPress={onOpen}>
-      <View style={{ flex: 1 }}>
+    <View style={styles.row}>
+      <TouchableOpacity style={{ flex: 1 }} onPress={onOpen}>
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.meta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+      </TouchableOpacity>
+      
+      <View style={styles.actions}>
+        <TouchableOpacity 
+          style={[styles.rateBtn, styles.like]} 
+          onPress={(e) => { e.stopPropagation(); onLike(); }}
+        >
+          <Text style={styles.rateText}>Like</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.rateBtn, styles.dislike]} 
+          onPress={(e) => { e.stopPropagation(); onDislike(); }}
+        >
+          <Text style={styles.rateText}>Dislike</Text>
+        </TouchableOpacity>
       </View>
+
       <View style={styles.indicator}>
         <Animated.View accessible accessibilityLabel={`direction-${dir}`} style={styleAnim}>
           <Text style={{ color: iconColor, fontWeight: '800' }}>{arrowChar}</Text>
         </Animated.View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
