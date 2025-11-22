@@ -580,4 +580,53 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   smallChipText: { color: PALETTE.text, fontSize: 12, fontWeight: '600' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+    borderColor: PALETTE.border,
+    borderWidth: 1,
+  },
+  modalTitle: {
+    color: PALETTE.text,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  categoryBtn: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  categoryBtnText: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    padding: 12,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
