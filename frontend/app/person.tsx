@@ -4,6 +4,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, Toucha
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LineChart } from "react-native-gifted-charts";
+import { Ionicons } from "@expo/vector-icons";
 
 const PALETTE = {
   bg: "#0F2F22",
