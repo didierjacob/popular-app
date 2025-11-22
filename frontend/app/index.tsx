@@ -346,14 +346,7 @@ export default function Index() {
           ) : (
             <View style={{ flex: 1 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
-              {renderRectangle(suggestions, 'No trending searches', 4)}
-
-              <Text style={styles.sectionTitle}>Politics</Text>
-              {renderChips(byCat.politics)}
-              <Text style={styles.sectionTitle}>Culture</Text>
-              {renderChips(byCat.culture)}
-              <Text style={styles.sectionTitle}>Business</Text>
-              {renderChips(byCat.business)}
+              {renderRectangle(suggestions, 'No trending searches', 8)}
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
                 <Text style={[styles.sectionTitle, { margin: 0 }]}>Popular</Text>
