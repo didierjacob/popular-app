@@ -157,6 +157,7 @@ function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: Fi
     { key: "politics", label: "Politics" },
     { key: "culture", label: "Culture" },
     { key: "business", label: "Business" },
+    { key: "sport", label: "Sport" },
   ];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
