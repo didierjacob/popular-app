@@ -94,7 +94,6 @@ export default function List() {
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       <View style={styles.header}>
         <Text style={styles.title}>Top 20 Popular</Text>
-        <Text style={styles.subtitle}>Les personnalités les plus votées</Text>
       </View>
       <FlashList
         data={people}
