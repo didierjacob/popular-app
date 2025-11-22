@@ -67,13 +67,13 @@ async function getDeviceId() {
   return id;
 }
 
-type FilterCat = "all" | "politics" | "culture" | "business";
+type FilterCat = "all" | "politics" | "culture" | "business" | "sport";
 
 // Types
 interface Person {
   id: string;
   name: string;
-  category?: "politics" | "culture" | "business" | "other";
+  category?: "politics" | "culture" | "business" | "sport" | "other";
   approved: boolean;
   score: number;
   likes: number;
