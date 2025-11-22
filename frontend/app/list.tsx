@@ -70,14 +70,14 @@ export default function List() {
       <View style={styles.rank}>
         <Text style={styles.rankText}>#{index + 1}</Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.meta} numberOfLines={1}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+        <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
           {item.category} • Score {item.score} • {item.total_votes} votes
         </Text>
       </View>
       <View style={styles.scoreBox}>
-        <Text style={styles.scoreText}>{item.score}</Text>
+        <Text style={styles.scoreText} numberOfLines={1}>{item.score}</Text>
       </View>
     </TouchableOpacity>
   );
