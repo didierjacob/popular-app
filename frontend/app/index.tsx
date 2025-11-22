@@ -352,22 +352,9 @@ export default function Index() {
           {loading ? (
             <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
           ) : (
-            <View style={{ flex: 1 }}>
+            <View style={{ paddingBottom: 24 }}>
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderRectangle(suggestions, 'No trending searches', 8)}
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-                <Text style={[styles.sectionTitle, { margin: 0 }]}>Popular</Text>
-                <Text style={{ color: '#009B4D', fontSize: 18, fontWeight: '700' }}>↑</Text>
-              </View>
-              <FlashList
-                data={filteredPeople}
-                keyExtractor={(it) => it.id}
-                renderItem={renderPerson}
-                estimatedItemSize={80}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
-                contentContainerStyle={{ paddingBottom: 24 }}
-              />
             </View>
           )}
         </Pressable>
