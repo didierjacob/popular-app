@@ -374,6 +374,7 @@ function FilterBarSmall({ onNavigate }: { onNavigate: (key: FilterCat) => void }
     { key: "politics", label: "Politics" },
     { key: "culture", label: "Culture" },
     { key: "business", label: "Business" },
+    { key: "sport", label: "Sport" },
   ];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 4, gap: 8 }}>
