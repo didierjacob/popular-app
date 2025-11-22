@@ -85,29 +85,33 @@ export default function Popular() {
 
   const load = useCallback(async () => {
     try {
-      const fetched = await apiGet<Person[]>("/people");
-      const list = [...fetched].sort((a, b) => b.score - a.score); // highest score first
-      // compute directions vs previous
-      const prev = prevScoresRef.current;
+      const qry = filter === "all" ? "" : `?category=${filter}`;
+      const list = await apiGet<Person[]>(`/people${qry}`);
+      
+      // Select random 15 personalities for instant polling
+      const shuffled = [...list].sort(() => Math.random() - 0.5);
+      const randomSelection = shuffled.slice(0, 15);
+      
+      // Compute direction animation for new scores
       const nextDirs: Record<string, Direction> = {};
-      list.forEach(p => {
-        const prevVal = prev[p.id];
-        if (typeof prevVal === "number") {
-          if (p.score > prevVal) nextDirs[p.id] = "up";
-          else if (p.score < prevVal) nextDirs[p.id] = "down";
+      randomSelection.forEach((p) => {
+        const prev = prevScoresRef.current[p.id];
+        if (prev !== undefined) {
+          if (p.score > prev) nextDirs[p.id] = "up";
+          else if (p.score < prev) nextDirs[p.id] = "down";
           else nextDirs[p.id] = "flat";
         } else {
           nextDirs[p.id] = "flat";
         }
       });
       // update caches
-      prevScoresRef.current = Object.fromEntries(list.map(p => [p.id, p.score]));
+      prevScoresRef.current = Object.fromEntries(randomSelection.map(p => [p.id, p.score]));
       setDirs(nextDirs);
-      setItems(list);
+      setItems(randomSelection);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filter]);
 
   useEffect(() => {
     load();
