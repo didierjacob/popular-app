@@ -298,14 +298,9 @@ export default function Index() {
               returnKeyType="search"
               onSubmitEditing={onSearch}
             />
-            <View style={styles.searchActions}>
-              <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }] }>
-                <Text style={styles.primaryText}>Rate</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onSearch} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent }]}>
-                <Text style={styles.primaryText}>Watch</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent, marginTop: 12 }] }>
+              <Text style={styles.primaryText}>Rate</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Category Filter Bar (smaller chips) */}
