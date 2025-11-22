@@ -264,6 +264,10 @@ async def add_person(body: PersonCreate):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
+    
+    # Normalize name to Title Case (e.g., "trump" -> "Trump", "elon musk" -> "Elon Musk")
+    name = name.title()
+    
     slug = slugify(name)
     existing = await db.persons.find_one({"slug": slug})
     if existing:
