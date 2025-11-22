@@ -143,6 +143,9 @@ export default function Popular() {
         <View style={styles.center}><ActivityIndicator color={PALETTE.accent2} /></View>
       ) : (
         <>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Instant polling</Text>
+          </View>
           <FilterBar filter={filter} setFilter={setFilter} />
           <FlashList
             data={displayed}
