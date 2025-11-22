@@ -501,6 +501,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "column", alignItems: "flex-end", gap: 4 },
   rateBtn: {
     height: 10,
+    width: 50,
     paddingHorizontal: 4,
     borderRadius: 6,
     alignItems: "center",
@@ -511,6 +512,7 @@ const styles = StyleSheet.create({
   rateText: { color: "white", fontWeight: "700", fontSize: 9 },
   openBtn: {
     height: 10,
+    width: 50,
     paddingHorizontal: 4,
     borderRadius: 8,
     borderColor: PALETTE.border,
@@ -519,7 +521,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: PALETTE.card,
   },
-  openText: { color: PALETTE.text, fontWeight: "700", fontSize: 11 },
+  openText: { color: PALETTE.text, fontWeight: "700", fontSize: 9 },
   smallChip: {
     backgroundColor: PALETTE.card,
     paddingHorizontal: 10,
