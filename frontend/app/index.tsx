@@ -234,8 +234,8 @@ export default function Index() {
   const renderPerson = ({ item }: { item: Person }) => (
     <View style={styles.personRow}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.personName}>{item.name}</Text>
-        <Text style={styles.personMeta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+        <Text style={styles.personName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+        <Text style={styles.personMeta} numberOfLines={1} ellipsizeMode="tail">{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
         {/* Arrow mini controls */}
         <View style={styles.arrowRow}>
           <TouchableOpacity style={[styles.arrowBtn, { backgroundColor: PALETTE.accent }]} onPress={() => handleVote(item.id, 1)}>
