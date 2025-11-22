@@ -227,6 +227,18 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: PALETTE.bg },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+  },
+  headerTitle: {
+    color: PALETTE.text,
+    fontSize: 24,
+    fontWeight: '700',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
