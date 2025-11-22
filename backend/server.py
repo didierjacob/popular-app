@@ -235,12 +235,23 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
 async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50), category: Optional[str] = Query(default=None)):
     filter_q: Dict[str, Any] = {"approved": True}
     if query:
-        regex = re.escape(query.strip())
-        filter_q["name"] = {"$regex": regex, "$options": "i"}
+        # Search for partial matches in name (case-insensitive)
+        # This allows "trump" to match "Donald Trump", "elon" to match "Elon Musk", etc.
+        search_term = query.strip()
+        # Split the search term into words and create a regex that matches any part of the name
+        words = search_term.split()
+        if len(words) == 1:
+            # Single word search: match anywhere in the name
+            regex = re.escape(words[0])
+            filter_q["name"] = {"$regex": regex, "$options": "i"}
+        else:
+            # Multiple words: match all words in any order
+            regexes = [{"name": {"$regex": re.escape(word), "$options": "i"}} for word in words]
+            filter_q["$and"] = regexes
     if category:
         cat = category.strip().lower()
         if cat != "all":
-            if cat not in {"politics", "culture", "business", "other"}:
+            if cat not in {"politics", "culture", "business", "sport", "other"}:
                 raise HTTPException(status_code=400, detail="Invalid category")
             filter_q["category"] = cat
     cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
