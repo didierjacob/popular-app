@@ -372,6 +372,41 @@ export default function Index() {
           )}
         </Pressable>
       </KeyboardAvoidingView>
+
+      {/* Category Selection Modal */}
+      <Modal
+        visible={showCategoryModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Sélectionnez une catégorie</Text>
+            <Text style={styles.modalSubtitle}>{pendingPersonName}</Text>
+            
+            <TouchableOpacity style={[styles.categoryBtn, { backgroundColor: '#2E6148' }]} onPress={() => onAddPerson('politics')}>
+              <Text style={styles.categoryBtnText}>Politics</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.categoryBtn, { backgroundColor: '#2E6148' }]} onPress={() => onAddPerson('culture')}>
+              <Text style={styles.categoryBtnText}>Culture</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.categoryBtn, { backgroundColor: '#2E6148' }]} onPress={() => onAddPerson('business')}>
+              <Text style={styles.categoryBtnText}>Business</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.categoryBtn, { backgroundColor: '#2E6148' }]} onPress={() => onAddPerson('sport')}>
+              <Text style={styles.categoryBtnText}>Sport</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowCategoryModal(false); setPendingPersonName(''); }}>
+              <Text style={styles.cancelBtnText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
