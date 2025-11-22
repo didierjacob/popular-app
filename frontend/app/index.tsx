@@ -303,13 +303,13 @@ export default function Index() {
 
           <View style={styles.searchCard}>
             <TextInput
-              placeholder="Donald Tr..."
+              placeholder="Enter a name..."
               placeholderTextColor={PALETTE.subtext}
               style={styles.input}
               value={query}
               onChangeText={setQuery}
               returnKeyType="search"
-              onSubmitEditing={onSearch}
+              onSubmitEditing={() => onAddPerson()}
             />
             <TouchableOpacity onPress={onAddPerson} style={[styles.primaryBtn, { backgroundColor: PALETTE.accent, marginTop: 12 }] }>
               <Text style={styles.primaryText}>Rate</Text>
