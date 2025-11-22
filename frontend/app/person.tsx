@@ -166,7 +166,10 @@ export default function Person() {
       ) : (
         <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}> 
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>{"< Back"}</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/')} style={styles.homeBtn}>
+              <Ionicons name="home-outline" size={20} color={PALETTE.text} />
+              <Text style={styles.homeText}>Home</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
             <Text style={styles.meta}>Score {person?.score?.toFixed(0)} • Likes {person?.likes} • Dislikes {person?.dislikes}</Text>
           </View>
