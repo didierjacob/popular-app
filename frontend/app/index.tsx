@@ -324,9 +324,9 @@ export default function Index() {
           {/* Featured mini chart */}
           {featured && (
             <TouchableOpacity style={styles.featureCard} onPress={() => router.push({ pathname: '/person', params: { id: featured.id, name: featured.name } })}>
-              <Text style={styles.featureTitle}>{featured.name}</Text>
+              <Text style={styles.featureTitle} numberOfLines={1} ellipsizeMode="tail">{featured.name}</Text>
               <View style={{ height: 8 }} />
-              <Text style={styles.featureMeta}>{featured.category} • Score {Math.round(featured.score)}</Text>
+              <Text style={styles.featureMeta} numberOfLines={1} ellipsizeMode="tail">{featured.category} • Score {Math.round(featured.score)}</Text>
               <View style={{ height: 8 }} />
               <LineChart
                 areaChart
