@@ -189,6 +189,26 @@ export default function Person() {
               rulesColor={PALETTE.border}
               noOfSections={4}
               initialSpacing={0}
+              showReferenceLine1
+              referenceLine1Position={dayHigh}
+              referenceLine1Config={{
+                color: '#009B4D',
+                thickness: 1,
+                dashWidth: 4,
+                dashGap: 4,
+                labelText: `24h High: ${Math.round(dayHigh)}`,
+                labelTextStyle: { color: '#009B4D', fontSize: 10 },
+              }}
+              showReferenceLine2
+              referenceLine2Position={dayLow}
+              referenceLine2Config={{
+                color: '#8B0000',
+                thickness: 1,
+                dashWidth: 4,
+                dashGap: 4,
+                labelText: `24h Low: ${Math.round(dayLow)}`,
+                labelTextStyle: { color: '#8B0000', fontSize: 10 },
+              }}
             />
           </View>
 
