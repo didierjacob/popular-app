@@ -66,7 +66,7 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
-Category = Literal["politics", "culture", "business", "other"]
+Category = Literal["politics", "culture", "business", "sport", "other"]
 
 
 class PersonCreate(BaseModel):
