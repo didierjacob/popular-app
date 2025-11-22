@@ -288,6 +288,6 @@ const styles = StyleSheet.create({
   trendName: { color: PALETTE.text },
   trendDelta: { color: PALETTE.accent2, fontWeight: '700' },
   predRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  predLabel: { color: PALETTE.subtext, fontWeight: '700' },
-  predValue: { color: PALETTE.text },
+  predLabel: { color: PALETTE.subtext, fontWeight: '700', width: 40, flexShrink: 0 },
+  predValue: { color: PALETTE.text, flex: 1, textAlign: 'right', flexShrink: 1, numberOfLines: 1 },
 });
