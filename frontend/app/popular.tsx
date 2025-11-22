@@ -126,8 +126,25 @@ export default function Popular() {
     return base; // already sorted by score desc
   }, [items, filter]);
 
+  const handleVote = useCallback(async (personId: string, value: 1 | -1) => {
+    try {
+      const deviceId = await getDeviceId();
+      await apiPost(`/people/${personId}/vote`, { value }, { "X-Device-ID": deviceId });
+      // Reload data after vote
+      await load();
+    } catch (error) {
+      console.error("Vote failed:", error);
+    }
+  }, [load]);
+
   const renderItem = ({ item }: { item: Person }) => (
-    <Row item={item} dir={dirs[item.id] || "flat"} onOpen={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })} />
+    <Row 
+      item={item} 
+      dir={dirs[item.id] || "flat"} 
+      onOpen={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
+      onLike={() => handleVote(item.id, 1)}
+      onDislike={() => handleVote(item.id, -1)}
+    />
   );
 
   return (
