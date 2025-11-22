@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
   arrowText: { color: 'white', fontWeight: '800', fontSize: 12 },
   actions: { flexDirection: "column", alignItems: "flex-end", gap: 6 },
   rateBtn: {
-    height: 28,
+    height: 14,
     paddingHorizontal: 6,
     borderRadius: 8,
     alignItems: "center",
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   dislike: { backgroundColor: PALETTE.accent2 },
   rateText: { color: "white", fontWeight: "700", fontSize: 11 },
   openBtn: {
-    height: 28,
+    height: 14,
     paddingHorizontal: 6,
     borderRadius: 8,
     borderColor: PALETTE.border,
