@@ -220,11 +220,11 @@ export default function Person() {
             <Text style={styles.section}>Predictions</Text>
             <View style={styles.predRow}>
               <Text style={styles.predLabel}>24h</Text>
-              <Text style={styles.predValue}>Low {Math.round(dayLow)} • High {Math.round(dayHigh)}</Text>
+              <Text style={styles.predValue} numberOfLines={1} ellipsizeMode="tail">Low {Math.round(dayLow)} • High {Math.round(dayHigh)}</Text>
             </View>
             <View style={styles.predRow}>
               <Text style={styles.predLabel}>7d</Text>
-              <Text style={styles.predValue}>Low {Math.round(weekLow)} • High {Math.round(weekHigh)}</Text>
+              <Text style={styles.predValue} numberOfLines={1} ellipsizeMode="tail">Low {Math.round(weekLow)} • High {Math.round(weekHigh)}</Text>
             </View>
           </View>
 
