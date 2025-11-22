@@ -356,7 +356,7 @@ export default function Index() {
               {renderChips(byCat.business)}
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-                <Text style={styles.sectionTitle} style={{ margin: 0 }}>Popular</Text>
+                <Text style={[styles.sectionTitle, { margin: 0 }]}>Popular</Text>
                 <Text style={{ color: '#009B4D', fontSize: 18, fontWeight: '700' }}>↑</Text>
               </View>
               <FlashList
