@@ -13,6 +13,7 @@ const PALETTE = {
   bgLight: "#1C3A2C",
   text: "#EAEAEA",
   accent: "#009B4D",
+  subtext: "#C9D8D2",
 };
 
 interface SplashScreenProps {
@@ -20,35 +21,41 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  const opacity = useSharedValue(0);
+  const letterOpacity = useSharedValue(0);
   const rotation = useSharedValue(0);
   const scale = useSharedValue(0.8);
+  const textOpacity = useSharedValue(0);
 
   useEffect(() => {
-    // Fade in + scale + rotate
-    opacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
-    scale.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.2)) });
+    // Fade in letter + scale
+    letterOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
+    scale.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.back(1.2)) });
     
-    // Subtle rotation animation
-    rotation.value = withSequence(
-      withTiming(-5, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-      withTiming(5, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-      withTiming(0, { duration: 400, easing: Easing.inOut(Easing.ease) })
-    );
+    // Full 360 degree rotation
+    rotation.value = withTiming(360, { duration: 1600, easing: Easing.inOut(Easing.ease) });
 
-    // Fade out and finish
+    // Bottom text fade in after 200ms, then fade out before end
+    setTimeout(() => {
+      textOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
+    }, 200);
+
+    setTimeout(() => {
+      textOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) });
+    }, 1400);
+
+    // Fade out letter and finish
     const timer = setTimeout(() => {
-      opacity.value = withTiming(0, { duration: 300 }, () => {
+      letterOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) }, () => {
         onFinish();
       });
-    }, 1700);
+    }, 1600);
 
     return () => clearTimeout(timer);
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const animatedLetterStyle = useAnimatedStyle(() => {
     return {
-      opacity: opacity.value,
+      opacity: letterOpacity.value,
       transform: [
         { rotate: `${rotation.value}deg` },
         { scale: scale.value }
@@ -56,10 +63,21 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     };
   });
 
+  const animatedTextStyle = useAnimatedStyle(() => {
+    return {
+      opacity: textOpacity.value,
+    };
+  });
+
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.letterContainer, animatedStyle]}>
+      <Animated.View style={[styles.letterContainer, animatedLetterStyle]}>
         <Text style={styles.letter}>P</Text>
+      </Animated.View>
+      
+      <Animated.View style={[styles.bottomTextContainer, animatedTextStyle]}>
+        <Text style={styles.bottomText}>No registration required.</Text>
+        <Text style={styles.bottomText}>Your vote is anonymous.</Text>
       </Animated.View>
     </View>
   );
@@ -84,5 +102,18 @@ const styles = StyleSheet.create({
     textShadowColor: PALETTE.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
+  },
+  bottomTextContainer: {
+    position: "absolute",
+    bottom: 60,
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  bottomText: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: PALETTE.subtext,
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
