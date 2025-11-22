@@ -274,7 +274,8 @@ function Trends() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: PALETTE.bg },
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  back: { color: PALETTE.subtext, marginBottom: 8 },
+  homeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  homeText: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
   title: { color: PALETTE.text, fontSize: 24, fontWeight: '700' },
   meta: { color: PALETTE.subtext, marginTop: 4 },
   card: { backgroundColor: PALETTE.card, marginHorizontal: 16, marginTop: 16, borderRadius: 12, padding: 12, borderColor: PALETTE.border, borderWidth: 1 },
