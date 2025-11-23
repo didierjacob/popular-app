@@ -265,12 +265,16 @@ export default function Person() {
           </View>
 
           <View style={[styles.row, { justifyContent: 'space-between' }]}>
-            <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent }]} onPress={() => like(1)}>
-              <Text style={styles.ctaText}>Like</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} onPress={() => like(-1)}>
-              <Text style={styles.ctaText}>Dislike</Text>
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
+              <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent }]} onPress={() => like(1)}>
+                <Text style={styles.ctaText}>Like</Text>
+              </TouchableOpacity>
+            </Animated.View>
+            <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
+              <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} onPress={() => like(-1)}>
+                <Text style={styles.ctaText}>Dislike</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
           <Trends />
