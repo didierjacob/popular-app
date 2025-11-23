@@ -384,6 +384,43 @@ export default function Index() {
             <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
           ) : (
             <View style={{ paddingBottom: 24 }}>
+              {/* Phase 1 - Person of the Day */}
+              {personOfDay && (
+                <TouchableOpacity 
+                  style={styles.personOfDayCard}
+                  onPress={() => router.push({ pathname: '/person', params: { id: personOfDay.id, name: personOfDay.name } })}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={styles.badge}>⭐ Du jour</Text>
+                  </View>
+                  <Text style={styles.personOfDayName} numberOfLines={1}>{personOfDay.name}</Text>
+                  <Text style={styles.personOfDayMeta} numberOfLines={1}>
+                    Score {personOfDay.score} • {personOfDay.total_votes} votes
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Phase 1 - Trending Now */}
+              {trendingNow.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                    <Text style={styles.sectionTitle} style={{ margin: 0 }}>🔥 Trending Now</Text>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                    {trendingNow.map(p => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={styles.trendingCard}
+                        onPress={() => router.push({ pathname: '/person', params: { id: p.id, name: p.name } })}
+                      >
+                        <Text style={styles.trendingName} numberOfLines={1}>{p.name}</Text>
+                        <Text style={styles.trendingScore}>↗ {p.score}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderRectangle(suggestions, 'No trending searches', 8)}
             </View>
