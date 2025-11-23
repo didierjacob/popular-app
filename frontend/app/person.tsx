@@ -280,6 +280,16 @@ export default function Person() {
           <Trends />
         </ScrollView>
       )}
+      
+      {showConfetti && (
+        <ConfettiCannon
+          count={200}
+          origin={{x: -10, y: 0}}
+          autoStart={true}
+          ref={confettiRef}
+          fadeOut={true}
+        />
+      )}
     </SafeAreaView>
   );
 }
