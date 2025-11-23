@@ -127,6 +127,23 @@ export default function Index() {
     }
   }, []);
 
+  // Phase 1 - Load Trending Now
+  const fetchTrendingNow = useCallback(async () => {
+    try {
+      const res = await apiGet<Person[]>("/trending-now?limit=5");
+      setTrendingNow(res);
+    } catch {}
+  }, []);
+
+  // Phase 1 - Person of the Day (based on date)
+  const selectPersonOfDay = useCallback((people: Person[]) => {
+    if (people.length === 0) return;
+    const today = new Date().toDateString();
+    const seed = today.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const index = seed % people.length;
+    setPersonOfDay(people[index]);
+  }, []);
+
   const fetchSuggestions = useCallback(async () => {
     try {
       const data = await apiGet<{ terms: string[] }>("/search-suggestions?window=24h&limit=10");
