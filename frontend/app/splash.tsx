@@ -34,21 +34,21 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     // Full 360 degree rotation
     rotation.value = withTiming(360, { duration: 1600, easing: Easing.inOut(Easing.ease) });
 
-    // Bottom text fade in after 200ms, then fade out before end
+    // Bottom text fade in after 200ms, stays longer, then fade out before end
     setTimeout(() => {
-      textOpacity.value = withTiming(1, { duration: 400, easing: Easing.out(Easing.cubic) });
-    }, 200);
+      textOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
+    }, 300);
 
     setTimeout(() => {
-      textOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) });
-    }, 1400);
+      textOpacity.value = withTiming(0, { duration: 500, easing: Easing.in(Easing.cubic) });
+    }, 2200);
 
     // Fade out letter and finish
     const timer = setTimeout(() => {
-      letterOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) }, () => {
+      letterOpacity.value = withTiming(0, { duration: 500, easing: Easing.in(Easing.cubic) }, () => {
         onFinish();
       });
-    }, 1600);
+    }, 2700);
 
     return () => clearTimeout(timer);
   }, []);
