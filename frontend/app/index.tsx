@@ -382,7 +382,12 @@ export default function Index() {
           )}
 
           {loading ? (
-            <ActivityIndicator color={PALETTE.accent2} style={{ marginTop: 24 }} />
+            <View style={{ paddingVertical: 16 }}>
+              <SkeletonFeaturedCard />
+              <SkeletonPersonCard />
+              <SkeletonPersonCard />
+              <SkeletonPersonCard />
+            </View>
           ) : (
             <View style={{ paddingBottom: 24 }}>
               {/* Phase 1 - Person of the Day */}
