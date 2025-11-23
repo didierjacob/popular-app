@@ -635,6 +635,51 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   smallChipText: { color: PALETTE.text, fontSize: 12, fontWeight: '600' },
+  // Phase 1 - Person of the Day
+  personOfDayCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#FFD700',
+  },
+  badge: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  personOfDayName: {
+    color: PALETTE.text,
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  personOfDayMeta: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+  },
+  // Phase 1 - Trending Now
+  trendingCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 10,
+    padding: 12,
+    width: 120,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  trendingName: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  trendingScore: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
