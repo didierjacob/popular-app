@@ -97,9 +97,37 @@ export default function Person() {
   }, [fetchData]);
 
   const like = async (value: 1 | -1) => {
-    const device = await getDeviceId();
     try {
-      await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": device || "web" });
+      // Phase 1 - Trigger animations
+      const scaleAnim = value === 1 ? likeScaleAnim : dislikeScaleAnim;
+      
+      // Haptic feedback
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Button bounce animation
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.3,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Vote API call
+      const did = await getDeviceId();
+      await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": did });
+      
+      // Show confetti for positive votes
+      if (value === 1) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
+      
       await fetchData(true);
     } catch {}
   };
