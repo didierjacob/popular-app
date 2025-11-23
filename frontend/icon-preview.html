@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Popular App - Icon Preview</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: #EAEAEA;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #C9D8D2;
+            margin-bottom: 40px;
+            font-size: 16px;
+        }
+        
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .icon-card {
+            background: #0F2F22;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #2E6148;
+            transition: transform 0.2s;
+        }
+        
+        .icon-card:hover {
+            transform: translateY(-5px);
+            border-color: #009B4D;
+        }
+        
+        .icon-container {
+            background: #1C3A2C;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .icon-card img {
+            display: block;
+        }
+        
+        .icon-label {
+            color: #EAEAEA;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .icon-size {
+            color: #C9D8D2;
+            font-size: 12px;
+        }
+        
+        .main-icon {
+            grid-column: 1 / -1;
+        }
+        
+        .main-icon .icon-container {
+            padding: 40px;
+        }
+        
+        .color-palette {
+            margin-top: 40px;
+            background: #0F2F22;
+            border-radius: 16px;
+            padding: 30px;
+            border: 2px solid #2E6148;
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        .color-palette h2 {
+            color: #EAEAEA;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .colors {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .color-item {
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .color-box {
+            height: 80px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 2px solid #2E6148;
+        }
+        
+        .color-name {
+            color: #EAEAEA;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
+        
+        .color-code {
+            color: #C9D8D2;
+            font-size: 12px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 Popular App Icons</h1>
+    <p class="subtitle">Generated icons for iOS, Android, and Web</p>
+    
+    <div class="icon-grid">
+        <div class="icon-card main-icon">
+            <div class="icon-container">
+                <img src="./assets/images/icon.png" width="256" height="256" alt="Main App Icon">
+            </div>
+            <div class="icon-label">Main App Icon</div>
+            <div class="icon-size">1024 × 1024 px</div>
+        </div>
+        
+        <div class="icon-card">
+            <div class="icon-container">
+                <img src="./assets/images/adaptive-icon.png" width="128" height="128" alt="Android Adaptive Icon">
+            </div>
+            <div class="icon-label">Android Adaptive</div>
+            <div class="icon-size">1024 × 1024 px</div>
+        </div>
+        
+        <div class="icon-card">
+            <div class="icon-container">
+                <img src="./assets/images/favicon.png" width="48" height="48" alt="Favicon">
+            </div>
+            <div class="icon-label">Favicon</div>
+            <div class="icon-size">48 × 48 px</div>
+        </div>
+        
+        <div class="icon-card">
+            <div class="icon-container">
+                <img src="./assets/images/splash-icon.png" width="128" height="128" alt="Splash Icon">
+            </div>
+            <div class="icon-label">Splash Screen</div>
+            <div class="icon-size">400 × 400 px</div>
+        </div>
+    </div>
+    
+    <div class="color-palette">
+        <h2>Color Palette</h2>
+        <div class="colors">
+            <div class="color-item">
+                <div class="color-box" style="background-color: #0F2F22;"></div>
+                <div class="color-name">Dark Green</div>
+                <div class="color-code">#0F2F22</div>
+            </div>
+            <div class="color-item">
+                <div class="color-box" style="background-color: #EAEAEA; border-color: #666;"></div>
+                <div class="color-name">White</div>
+                <div class="color-code">#EAEAEA</div>
+            </div>
+            <div class="color-item">
+                <div class="color-box" style="background-color: #009B4D;"></div>
+                <div class="color-name">Green Accent</div>
+                <div class="color-code">#009B4D</div>
+            </div>
+            <div class="color-item">
+                <div class="color-box" style="background-color: #1C3A2C;"></div>
+                <div class="color-name">Card Background</div>
+                <div class="color-code">#1C3A2C</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
