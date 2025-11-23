@@ -55,6 +55,22 @@ def now_utc() -> datetime:
     return datetime.utcnow()
 
 
+def parse_window(window: str) -> timedelta:
+    """Parse window string like '60m' or '24h' into timedelta"""
+    m = re.match(r"^(\d+)([mhd])$", window)
+    if not m:
+        raise ValueError(f"Invalid window format: {window}")
+    value, unit = int(m.group(1)), m.group(2)
+    if unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    elif unit == 'd':
+        return timedelta(days=value)
+    else:
+        raise ValueError(f"Unsupported time unit: {unit}")
+
+
 # -------------------- Pydantic Models --------------------
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
