@@ -537,7 +537,7 @@ async def get_trending_now(limit: int = Query(default=5, le=10)):
             p = await db.persons.find_one({"_id": ObjectId(pid)})
             if p:
                 result.append(person_to_out(p))
-        except:
+        except Exception:
             continue
     
     return result
