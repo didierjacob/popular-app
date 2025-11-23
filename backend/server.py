@@ -473,40 +473,74 @@ async def get_chart(person_id: str, window: str = Query(default="24h")):
     return ChartOut(id=str(person["_id"]), name=person.get("name"), points=points)
 
 
-@api_router.get("/trends")
+@api_router.get("/trends", response_model=List[TrendItem])
 async def get_trends(window: str = Query(default="60m"), limit: int = Query(default=20, le=50)):
-    m = re.match(r"^(\d+)([mh])$", window)
-    if not m:
-        raise HTTPException(status_code=400, detail="Invalid window; use like '60m' or '24h'")
-    value, unit = int(m.group(1)), m.group(2)
-    if unit == 'm':
-        start = now_utc() - timedelta(minutes=value)
-    else:
-        start = now_utc() - timedelta(hours=value)
+    # window: e.g. "60m", "24h", "7d"
+    now = now_utc()
+    delta = parse_window(window)
+    cutoff = now - delta
+    cursor = db.person_ticks.find({"created_at": {"$gte": cutoff}}).sort("created_at", 1)
+    ticks = await cursor.to_list(length=100000)
+    # build map of person_id -> [scores over time]
+    person_map: Dict[str, List[float]] = {}
+    for t in ticks:
+        pid = str(t["person_id"])
+        person_map.setdefault(pid, []).append(float(t["score"]))
+    # compute deltas
+    out = []
+    for pid, scores in person_map.items():
+        if len(scores) < 2:
+            continue
+        delta_val = scores[-1] - scores[0]
+        p = await db.persons.find_one({"_id": ObjectId(pid)})
+        if p:
+            out.append(TrendItem(person_id=pid, name=p["name"], delta=delta_val))
+    out.sort(key=lambda x: abs(x.delta), reverse=True)
+    return out[:limit]
 
-    pipeline = [
-        {"$match": {"created_at": {"$gte": start}}},
-        {"$group": {"_id": "$person_id", "delta": {"$sum": "$delta"}}},
-        {"$sort": {"delta": -1}},
-        {"$limit": limit},
-        {"$lookup": {
-            "from": "persons",
-            "localField": "_id",
-            "foreignField": "_id",
-            "as": "person"
-        }},
-        {"$unwind": "$person"},
-        {"$project": {
-            "_id": 0,
-            "id": {"$toString": "$person._id"},
-            "name": "$person.name",
-            "category": "$person.category",
-            "delta": 1,
-            "score": "$person.score"
-        }}
-    ]
-    results = await db.vote_events.aggregate(pipeline).to_list(length=limit)
-    return results
+
+@api_router.get("/trending-now", response_model=List[PersonOut])
+async def get_trending_now(limit: int = Query(default=5, le=10)):
+    """Get top personalities with fastest rising scores in last 24h"""
+    now = now_utc()
+    cutoff = now - timedelta(hours=24)
+    
+    # Get all ticks in last 24h
+    cursor = db.person_ticks.find({"created_at": {"$gte": cutoff}}).sort("created_at", 1)
+    ticks = await cursor.to_list(length=100000)
+    
+    # Calculate score increase for each person
+    person_deltas: Dict[str, float] = {}
+    person_first: Dict[str, float] = {}
+    person_last: Dict[str, float] = {}
+    
+    for t in ticks:
+        pid = str(t["person_id"])
+        score = float(t["score"])
+        if pid not in person_first:
+            person_first[pid] = score
+        person_last[pid] = score
+    
+    # Calculate deltas (only positive growth)
+    for pid in person_first:
+        delta = person_last[pid] - person_first[pid]
+        if delta > 0:  # Only rising personalities
+            person_deltas[pid] = delta
+    
+    # Sort by delta and get top
+    sorted_ids = sorted(person_deltas.keys(), key=lambda x: person_deltas[x], reverse=True)[:limit]
+    
+    # Fetch person details
+    result = []
+    for pid in sorted_ids:
+        try:
+            p = await db.persons.find_one({"_id": ObjectId(pid)})
+            if p:
+                result.append(person_to_out(p))
+        except:
+            continue
+    
+    return result
 
 
 class SearchIn(BaseModel):
