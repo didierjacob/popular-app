@@ -58,6 +58,12 @@ export default function Person() {
   const [chartWeek, setChartWeek] = useState<ChartPoint[]>([]);
   const [person, setPerson] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Phase 1 - Vote animations
+  const [showConfetti, setShowConfetti] = useState(false);
+  const confettiRef = useRef<any>(null);
+  const likeScaleAnim = useRef(new Animated.Value(1)).current;
+  const dislikeScaleAnim = useRef(new Animated.Value(1)).current;
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
