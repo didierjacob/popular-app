@@ -170,7 +170,16 @@ export default function Index() {
     fetchSuggestions();
     fetchLast();
     fetchByCategory();
-  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory]);
+    loadSavedFilter();
+    fetchTrendingNow(); // Phase 1
+  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, loadSavedFilter, fetchTrendingNow]);
+
+  // Phase 1 - Select person of day when people load
+  useEffect(() => {
+    if (people.length > 0) {
+      selectPersonOfDay(people);
+    }
+  }, [people, selectPersonOfDay]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
