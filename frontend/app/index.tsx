@@ -99,6 +99,11 @@ export default function Index() {
   const [featured, setFeatured] = useState<Person | null>(null);
   const [featuredPoints, setFeaturedPoints] = useState<{ value: number }[]>([]);
   const rotateTimer = useRef<any>(null);
+  
+  // Phase 1 - New features
+  const [trendingNow, setTrendingNow] = useState<Person[]>([]);
+  const [personOfDay, setPersonOfDay] = useState<Person | null>(null);
+  const [showVoteAnimation, setShowVoteAnimation] = useState(false);
 
   const loadSavedFilter = useCallback(async () => {
     try {
