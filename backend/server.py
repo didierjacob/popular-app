@@ -105,6 +105,12 @@ class ChartOut(BaseModel):
     points: List[Dict[str, Any]]
 
 
+class TrendItem(BaseModel):
+    person_id: str
+    name: str
+    delta: float
+
+
 # -------------------- Startup Seed --------------------
 SEED_PEOPLE = [
     {"name": "Elon Musk", "category": "business"},
