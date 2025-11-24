@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: PALETTE.card, marginHorizontal: 16, marginTop: 16, borderRadius: 12, padding: 12, borderColor: PALETTE.border, borderWidth: 1 },
   section: { color: PALETTE.subtext, marginBottom: 8 },
   row: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginTop: 16 },
-  cta: { flex: 1, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  cta: { flex: 1, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
   ctaText: { color: 'white', fontWeight: '700', fontSize: 12 },
   trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
   trendName: { color: PALETTE.text },
