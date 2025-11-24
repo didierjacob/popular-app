@@ -19,6 +19,20 @@ export interface StreakData {
   lastVoteDate: string;
 }
 
+export interface CategoryStats {
+  category: string;
+  count: number;
+  percentage: number;
+}
+
+export interface VoteStats {
+  totalLikes: number;
+  totalDislikes: number;
+  categoriesBreakdown: CategoryStats[];
+  favoriteCategory: string;
+  mostVotedPerson: { name: string; count: number };
+}
+
 const BADGES: Badge[] = [
   { id: 'beginner', name: 'Débutant', description: 'Votez 10 fois', icon: 'star-outline', threshold: 10, unlocked: false },
   { id: 'active', name: 'Actif', description: 'Votez 50 fois', icon: 'star-half-outline', threshold: 50, unlocked: false },
