@@ -446,6 +446,28 @@ export default function Index() {
             </TouchableOpacity>
           </View>
 
+          {/* Phase 4 - Real-time suggestions */}
+          {showSuggestions && searchSuggestions.length > 0 && (
+            <View style={styles.suggestionsCard}>
+              <Text style={styles.suggestionsTitle}>Suggestions :</Text>
+              {searchSuggestions.map((person) => (
+                <TouchableOpacity
+                  key={person.id}
+                  style={styles.suggestionItem}
+                  onPress={() => selectSuggestion(person)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.suggestionName}>{person.name}</Text>
+                    <Text style={styles.suggestionMeta}>
+                      {person.category} • Score {person.score?.toFixed(0)}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={PALETTE.subtext} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           {/* Category Filter Bar (smaller chips) */}
           <FilterBarSmall onNavigate={(key) => {
             router.push({ pathname: '/category/[key]', params: { key } });
