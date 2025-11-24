@@ -313,6 +313,20 @@ export default function Person() {
             </View>
           </View>
 
+          <View style={styles.card}>
+            <Text style={styles.section}>Partager</Text>
+            <View style={[styles.row, { marginHorizontal: 0, marginTop: 8, gap: 8 }]}>
+              <TouchableOpacity style={styles.shareButton} onPress={shareToFacebook}>
+                <Ionicons name="logo-facebook" size={20} color="white" />
+                <Text style={styles.shareText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareButton} onPress={shareToTwitter}>
+                <Ionicons name="logo-twitter" size={20} color="white" />
+                <Text style={styles.shareText}>X (Twitter)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={[styles.row, { justifyContent: 'space-between' }]}>
             <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
               <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent }]} onPress={() => like(1)}>
