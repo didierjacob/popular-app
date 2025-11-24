@@ -201,6 +201,50 @@ export default function MyVotes() {
             </View>
           </View>
 
+          {/* Statistics Card */}
+          {voteStats.categoriesBreakdown.length > 0 && (
+            <View style={styles.statsCard}>
+              <Text style={styles.statsTitle}>📊 Statistiques</Text>
+              
+              {/* Likes vs Dislikes */}
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Répartition :</Text>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Text style={styles.statValue}>👍 {voteStats.totalLikes}</Text>
+                  <Text style={styles.statValue}>👎 {voteStats.totalDislikes}</Text>
+                </View>
+              </View>
+
+              {/* Favorite Category */}
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Catégorie préférée :</Text>
+                <Text style={[styles.statValue, { fontWeight: '700' }]}>{voteStats.favoriteCategory}</Text>
+              </View>
+
+              {/* Most Voted Person */}
+              {voteStats.mostVotedPerson.name && (
+                <View style={styles.statRow}>
+                  <Text style={styles.statLabel}>Plus voté :</Text>
+                  <Text style={[styles.statValue, { fontWeight: '700', flex: 1, textAlign: 'right' }]} numberOfLines={1}>
+                    {voteStats.mostVotedPerson.name} ({voteStats.mostVotedPerson.count})
+                  </Text>
+                </View>
+              )}
+
+              {/* Categories Breakdown */}
+              <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>Par catégorie :</Text>
+              {voteStats.categoriesBreakdown.map((cat) => (
+                <View key={cat.category} style={styles.categoryBar}>
+                  <Text style={styles.categoryName}>{cat.category}</Text>
+                  <View style={styles.categoryBarContainer}>
+                    <View style={[styles.categoryBarFill, { width: `${cat.percentage}%` }]} />
+                  </View>
+                  <Text style={styles.categoryPercent}>{cat.percentage}%</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Votes History */}
           <View style={styles.historyHeader}>
             <Text style={styles.historyTitle}>Historique</Text>
