@@ -122,6 +122,28 @@ export default function Person() {
       const did = await getDeviceId();
       await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": did });
       
+      // Phase 2 - Save vote to history
+      try {
+        const VOTES_KEY = "popular_my_votes";
+        const storedVotes = await AsyncStorage.getItem(VOTES_KEY);
+        const votes = storedVotes ? JSON.parse(storedVotes) : [];
+        
+        // Add new vote
+        votes.push({
+          personId: id,
+          personName: name,
+          category: person?.category || "other",
+          vote: value,
+          timestamp: new Date().toISOString(),
+        });
+        
+        // Keep only last 100 votes
+        const recentVotes = votes.slice(-100);
+        await AsyncStorage.setItem(VOTES_KEY, JSON.stringify(recentVotes));
+      } catch (error) {
+        console.error("Failed to save vote history:", error);
+      }
+      
       // Show confetti for positive votes
       if (value === 1) {
         setShowConfetti(true);
