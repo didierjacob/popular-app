@@ -210,6 +210,21 @@ export default function Index() {
     fetchControversial(); // Phase 3
   }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, loadSavedFilter, fetchTrendingNow, fetchControversial]);
 
+  // Phase 4 - Debounced search
+  useEffect(() => {
+    if (!query) {
+      fetchPeople();
+      return;
+    }
+
+    // Debounce: attendre 500ms après la dernière frappe
+    const timeoutId = setTimeout(() => {
+      fetchPeople(query);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [query, fetchPeople]);
+
   // Phase 1 - Select person of day when people load
   useEffect(() => {
     if (people.length > 0) {
