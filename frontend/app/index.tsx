@@ -439,6 +439,33 @@ export default function Index() {
                 </>
               )}
 
+              {/* Phase 3 - Controversial */}
+              {controversial.length > 0 && (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
+                    <Text style={styles.sectionTitle} style={{ margin: 0 }}>⚡ Controversées</Text>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+                    {controversial.map(p => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={styles.controversialCard}
+                        onPress={() => router.push({ pathname: '/person', params: { id: p.id, name: p.name } })}
+                      >
+                        <View style={styles.controversialBadge}>
+                          <Text style={styles.controversialBadgeText}>⚡</Text>
+                        </View>
+                        <Text style={styles.controversialName} numberOfLines={1}>{p.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <Text style={styles.controversialVotes}>👍 {p.likes}</Text>
+                          <Text style={styles.controversialVotes}>👎 {p.dislikes}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
               <Text style={styles.sectionTitle}>Trending searches</Text>
               {renderRectangle(suggestions, 'No trending searches', 8)}
             </View>
