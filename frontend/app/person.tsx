@@ -121,6 +121,42 @@ export default function Person() {
 
   const like = async (value: 1 | -1) => {
     try {
+      // Phase 4 - Premium vote check
+      if (isPremiumMode) {
+        if (balance < 1) {
+          alert('Crédits insuffisants!\n\nAchetez des crédits dans l\'onglet Premium pour utiliser les votes x100.');
+          return;
+        }
+
+        // Confirm premium vote
+        if (!confirm(`Utiliser 1 crédit pour un vote x100 ?\n\nCe vote aura 100x plus d\'impact!`)) {
+          return;
+        }
+
+        try {
+          // Use premium vote via API
+          const result = await useCredit(id, name, value);
+          
+          // Premium animations (gold confetti)
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
+          
+          // Refresh data and balance
+          await Promise.all([fetchData(true), refreshBalance()]);
+          
+          alert(`✨ Vote Premium appliqué !\n\n+${result.votes_applied} votes • Nouveau score: ${result.new_score}\nCrédits restants: ${result.new_balance}`);
+          
+          // Disable premium mode after use
+          setIsPremiumMode(false);
+          return;
+        } catch (error: any) {
+          alert('Erreur: ' + (error.message || 'Échec du vote premium'));
+          return;
+        }
+      }
+
+      // Normal vote (existing logic)
       // Phase 1 - Trigger animations
       const scaleAnim = value === 1 ? likeScaleAnim : dislikeScaleAnim;
       
