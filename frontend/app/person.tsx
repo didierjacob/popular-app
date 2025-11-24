@@ -403,4 +403,6 @@ const styles = StyleSheet.create({
   predRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   predLabel: { color: PALETTE.subtext, fontWeight: '700', width: 40, flexShrink: 0 },
   predValue: { color: PALETTE.text, flex: 1, textAlign: 'right', flexShrink: 1 },
+  shareButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: PALETTE.accent, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 },
+  shareText: { color: 'white', fontWeight: '600', fontSize: 14 },
 });
