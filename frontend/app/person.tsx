@@ -399,15 +399,56 @@ export default function Person() {
             </View>
           )}
 
+          {/* Phase 4 - Premium Vote Toggle */}
+          {balance > 0 && (
+            <View style={styles.card}>
+              <TouchableOpacity 
+                style={styles.premiumToggle}
+                onPress={() => setIsPremiumMode(!isPremiumMode)}
+              >
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="diamond" size={20} color="#FFD700" />
+                    <Text style={styles.premiumToggleTitle}>Vote Premium x100</Text>
+                  </View>
+                  <Text style={styles.premiumToggleSubtitle}>
+                    {isPremiumMode ? '✓ Activé • 1 crédit par vote' : `${balance} crédit${balance > 1 ? 's' : ''} disponible${balance > 1 ? 's' : ''}`}
+                  </Text>
+                </View>
+                <View style={[styles.toggleSwitch, isPremiumMode && styles.toggleSwitchActive]}>
+                  <View style={[styles.toggleThumb, isPremiumMode && styles.toggleThumbActive]} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={[styles.row, { justifyContent: 'space-between' }]}>
             <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
-              <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent }]} onPress={() => like(1)}>
-                <Text style={styles.ctaText}>Like</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.cta, 
+                  { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent }
+                ]} 
+                onPress={() => like(1)}
+              >
+                {isPremiumMode && <Ionicons name="diamond" size={14} color="#000" style={{ marginRight: 4 }} />}
+                <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
+                  Like {isPremiumMode && 'x100'}
+                </Text>
               </TouchableOpacity>
             </Animated.View>
             <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
-              <TouchableOpacity style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} onPress={() => like(-1)}>
-                <Text style={styles.ctaText}>Dislike</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.cta, 
+                  { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent2 }
+                ]} 
+                onPress={() => like(-1)}
+              >
+                {isPremiumMode && <Ionicons name="diamond" size={14} color="#000" style={{ marginRight: 4 }} />}
+                <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
+                  Dislike {isPremiumMode && 'x100'}
+                </Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
