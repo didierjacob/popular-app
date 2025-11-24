@@ -49,6 +49,15 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
+        name="myvotes"
+        options={{
+          title: "Mes votes",
+          tabBarIcon: ({ color, size}) => (
+            <Ionicons name="heart-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="person"
         options={{
           href: null,
