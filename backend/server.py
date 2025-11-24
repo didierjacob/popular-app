@@ -543,6 +543,43 @@ async def get_trending_now(limit: int = Query(default=5, le=10)):
     return result
 
 
+@api_router.get("/controversial", response_model=List[PersonOut])
+async def get_controversial(limit: int = Query(default=5, le=20)):
+    """Get most controversial personalities (lots of opposing votes)"""
+    # Find persons with both high likes AND high dislikes
+    cursor = db.persons.find({
+        "approved": True,
+        "total_votes": {"$gte": 10}  # Minimum 10 votes
+    })
+    persons = await cursor.to_list(length=1000)
+    
+    # Calculate controversy score: min(likes, dislikes) / total_votes
+    # Higher score = more balanced opposition
+    controversial = []
+    for p in persons:
+        likes = int(p.get("likes", 0))
+        dislikes = int(p.get("dislikes", 0))
+        total = int(p.get("total_votes", 0))
+        
+        if total >= 10:
+            # Controversy = how close to 50/50 split
+            controversy_score = min(likes, dislikes) / total
+            controversial.append({
+                "person": p,
+                "controversy": controversy_score
+            })
+    
+    # Sort by controversy score
+    controversial.sort(key=lambda x: x["controversy"], reverse=True)
+    
+    # Return top N
+    result = []
+    for item in controversial[:limit]:
+        result.append(person_to_out(item["person"]))
+    
+    return result
+
+
 class SearchIn(BaseModel):
     query: str
 
