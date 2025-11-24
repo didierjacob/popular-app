@@ -184,7 +184,8 @@ export default function Index() {
     fetchByCategory();
     loadSavedFilter();
     fetchTrendingNow(); // Phase 1
-  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, loadSavedFilter, fetchTrendingNow]);
+    fetchControversial(); // Phase 3
+  }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, loadSavedFilter, fetchTrendingNow, fetchControversial]);
 
   // Phase 1 - Select person of day when people load
   useEffect(() => {
