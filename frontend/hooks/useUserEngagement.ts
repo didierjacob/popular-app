@@ -49,6 +49,13 @@ export function useUserEngagement() {
     lastVoteDate: '',
   });
   const [totalVotes, setTotalVotes] = useState(0);
+  const [voteStats, setVoteStats] = useState<VoteStats>({
+    totalLikes: 0,
+    totalDislikes: 0,
+    categoriesBreakdown: [],
+    favoriteCategory: '',
+    mostVotedPerson: { name: '', count: 0 },
+  });
 
   const loadEngagementData = useCallback(async () => {
     try {
