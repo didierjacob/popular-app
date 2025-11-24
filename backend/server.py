@@ -684,6 +684,205 @@ async def last_searches(limit: int = Query(default=5, le=20)):
     return {"terms": [r["term"] for r in rows]}
 
 
+# -------------------- Premium / Credits System --------------------
+
+class CreditPurchase(BaseModel):
+    user_id: str
+    pack: Literal["starter", "basic", "pro", "elite"]
+    amount: int  # Number of credits
+    price: float  # Price in euros
+
+class CreditTransaction(BaseModel):
+    user_id: str
+    type: Literal["purchase", "use", "refund"]
+    amount: int
+    description: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+class PremiumVote(BaseModel):
+    person_id: str
+    person_name: str
+    vote: int  # 1 for like, -1 for dislike
+    multiplier: int = 100  # Premium vote = x100
+
+CREDIT_PACKS = {
+    "starter": {"credits": 1, "price": 5.0},
+    "basic": {"credits": 5, "price": 20.0},
+    "pro": {"credits": 10, "price": 35.0},
+    "elite": {"credits": 25, "price": 75.0}
+}
+
+@api_router.post("/credits/purchase")
+async def purchase_credits(purchase: CreditPurchase):
+    """Simulate credit purchase (MVP - no real payment)"""
+    try:
+        # Validate pack
+        if purchase.pack not in CREDIT_PACKS:
+            raise HTTPException(status_code=400, detail="Invalid pack")
+        
+        pack_info = CREDIT_PACKS[purchase.pack]
+        
+        # Validate amount and price
+        if purchase.amount != pack_info["credits"] or purchase.price != pack_info["price"]:
+            raise HTTPException(status_code=400, detail="Invalid pack configuration")
+        
+        # Create transaction record
+        transaction = {
+            "user_id": purchase.user_id,
+            "type": "purchase",
+            "amount": purchase.amount,
+            "price": purchase.price,
+            "pack": purchase.pack,
+            "description": f"Purchased {purchase.amount} premium vote(s)",
+            "timestamp": datetime.utcnow(),
+            "status": "completed"
+        }
+        
+        await db.credit_transactions.insert_one(transaction)
+        
+        # Update user balance
+        user_credits = await db.user_credits.find_one({"user_id": purchase.user_id})
+        
+        if user_credits:
+            new_balance = user_credits["balance"] + purchase.amount
+            await db.user_credits.update_one(
+                {"user_id": purchase.user_id},
+                {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}}
+            )
+        else:
+            await db.user_credits.insert_one({
+                "user_id": purchase.user_id,
+                "balance": purchase.amount,
+                "is_premium": True,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            })
+        
+        return {
+            "success": True,
+            "transaction_id": str(transaction.get("_id")),
+            "new_balance": user_credits["balance"] + purchase.amount if user_credits else purchase.amount,
+            "message": f"Successfully purchased {purchase.amount} credit(s)!"
+        }
+        
+    except Exception as e:
+        logger.error(f"Credit purchase error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/credits/balance/{user_id}")
+async def get_credit_balance(user_id: str):
+    """Get user's credit balance"""
+    user_credits = await db.user_credits.find_one({"user_id": user_id})
+    
+    if not user_credits:
+        return {
+            "balance": 0,
+            "is_premium": False
+        }
+    
+    return {
+        "balance": user_credits.get("balance", 0),
+        "is_premium": user_credits.get("is_premium", False)
+    }
+
+@api_router.post("/credits/use")
+async def use_credit(vote: PremiumVote, user_id: str = Header(...)):
+    """Use a premium credit for a x100 vote"""
+    try:
+        # Check user balance
+        user_credits = await db.user_credits.find_one({"user_id": user_id})
+        
+        if not user_credits or user_credits.get("balance", 0) < 1:
+            raise HTTPException(status_code=400, detail="Insufficient credits")
+        
+        # Get person
+        person_doc = await db.people.find_one({"_id": ObjectId(vote.person_id)})
+        if not person_doc:
+            raise HTTPException(status_code=404, detail="Person not found")
+        
+        # Apply x100 vote
+        multiplied_vote = vote.vote * vote.multiplier
+        
+        # Update person stats
+        current_likes = person_doc.get("likes", 0)
+        current_dislikes = person_doc.get("dislikes", 0)
+        
+        if vote.vote > 0:
+            current_likes += vote.multiplier
+        else:
+            current_dislikes += vote.multiplier
+        
+        total = current_likes + current_dislikes
+        raw_score = (current_likes / total * 100) if total > 0 else 50.0
+        rounded = round(raw_score / 25) * 25
+        
+        await db.people.update_one(
+            {"_id": ObjectId(vote.person_id)},
+            {
+                "$set": {
+                    "likes": current_likes,
+                    "dislikes": current_dislikes,
+                    "total_votes": total,
+                    "score": float(rounded),
+                    "last_updated": datetime.utcnow()
+                }
+            }
+        )
+        
+        # Record tick (x100 votes)
+        for _ in range(vote.multiplier):
+            await db.ticks.insert_one({
+                "person_id": vote.person_id,
+                "vote": vote.vote,
+                "score": float(rounded),
+                "created_at": datetime.utcnow()
+            })
+        
+        # Deduct credit
+        new_balance = user_credits["balance"] - 1
+        await db.user_credits.update_one(
+            {"user_id": user_id},
+            {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}}
+        )
+        
+        # Record transaction
+        await db.credit_transactions.insert_one({
+            "user_id": user_id,
+            "type": "use",
+            "amount": -1,
+            "description": f"Premium vote x{vote.multiplier} for {vote.person_name}",
+            "person_id": vote.person_id,
+            "timestamp": datetime.utcnow(),
+            "status": "completed"
+        })
+        
+        return {
+            "success": True,
+            "new_balance": new_balance,
+            "votes_applied": vote.multiplier,
+            "new_score": float(rounded)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Credit use error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/credits/history/{user_id}")
+async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)):
+    """Get user's credit transaction history"""
+    transactions = await db.credit_transactions.find(
+        {"user_id": user_id}
+    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
+    
+    # Convert ObjectId to string
+    for t in transactions:
+        t["_id"] = str(t["_id"])
+    
+    return {"transactions": transactions}
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
