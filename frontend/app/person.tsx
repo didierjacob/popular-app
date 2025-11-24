@@ -217,7 +217,13 @@ export default function Person() {
   const { dayLow, dayHigh, weekLow, weekHigh } = predictions;
 
   const shareToFacebook = async () => {
+    if (Platform.OS === 'web') {
+      alert('Le partage social n\'est disponible que sur mobile');
+      return;
+    }
+    
     try {
+      const Share = require('react-native-share').default;
       const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
@@ -230,7 +236,13 @@ export default function Person() {
   };
 
   const shareToTwitter = async () => {
+    if (Platform.OS === 'web') {
+      alert('Le partage social n\'est disponible que sur mobile');
+      return;
+    }
+    
     try {
+      const Share = require('react-native-share').default;
       const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
