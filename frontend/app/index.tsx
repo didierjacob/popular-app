@@ -233,6 +233,22 @@ export default function Index() {
     }
   }, [people, selectPersonOfDay]);
 
+  // Phase 4 - Prefetch top people data in background
+  useEffect(() => {
+    if (people.length > 0 && isConnected) {
+      // Attendre 2 secondes après le chargement initial, puis précharger
+      const timer = setTimeout(() => {
+        const topPeopleIds = people
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5)
+          .map(p => p.id);
+        PrefetchService.prefetchTopPeople(topPeopleIds);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [people, isConnected]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([fetchPeople(query || undefined), fetchSuggestions(), fetchLast(), fetchByCategory()]);
