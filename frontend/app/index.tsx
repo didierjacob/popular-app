@@ -321,6 +321,15 @@ export default function Index() {
     fetchPeople(name);
   }, [fetchPeople, router]);
 
+  // Select suggestion
+  const selectSuggestion = useCallback((person: Person) => {
+    setQuery('');
+    setShowSuggestions(false);
+    setSearchSuggestions([]);
+    dismissKeyboard();
+    router.push({ pathname: '/person', params: { id: person.id, name: person.name } });
+  }, [router]);
+
   // Featured rotation logic
   const pickRandomFeatured = useCallback(async () => {
     if (!people || people.length === 0) return;
