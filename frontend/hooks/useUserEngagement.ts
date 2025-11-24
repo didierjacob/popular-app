@@ -144,6 +144,53 @@ export function useUserEngagement() {
         setStreakData(newStreakData);
         await AsyncStorage.setItem(STREAK_KEY, JSON.stringify(newStreakData));
       }
+
+      // Calculate vote statistics
+      if (votes.length > 0) {
+        let totalLikes = 0;
+        let totalDislikes = 0;
+        const categoryCount: Record<string, number> = {};
+        const personVoteCount: Record<string, number> = {};
+
+        votes.forEach((vote: any) => {
+          // Count likes/dislikes
+          if (vote.vote === 1) totalLikes++;
+          else totalDislikes++;
+
+          // Count by category
+          const cat = vote.category || 'other';
+          categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+
+          // Count by person
+          personVoteCount[vote.personName] = (personVoteCount[vote.personName] || 0) + 1;
+        });
+
+        // Calculate category breakdown
+        const categoriesBreakdown: CategoryStats[] = Object.entries(categoryCount)
+          .map(([category, count]) => ({
+            category,
+            count,
+            percentage: Math.round((count / votes.length) * 100),
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        // Find favorite category
+        const favoriteCategory = categoriesBreakdown[0]?.category || '';
+
+        // Find most voted person
+        const mostVotedEntry = Object.entries(personVoteCount).sort((a, b) => b[1] - a[1])[0];
+        const mostVotedPerson = mostVotedEntry
+          ? { name: mostVotedEntry[0], count: mostVotedEntry[1] }
+          : { name: '', count: 0 };
+
+        setVoteStats({
+          totalLikes,
+          totalDislikes,
+          categoriesBreakdown,
+          favoriteCategory,
+          mostVotedPerson,
+        });
+      }
     } catch (error) {
       console.error('Failed to load engagement data:', error);
     }
