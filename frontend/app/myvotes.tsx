@@ -134,13 +134,87 @@ export default function MyVotes() {
           <Text style={styles.emptySubtext}>Votez pour des personnalités pour les voir ici</Text>
         </View>
       ) : (
-        <FlashList
-          data={votes}
-          keyExtractor={(item, index) => `${item.personId}-${index}`}
-          renderItem={renderItem}
-          estimatedItemSize={80}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        />
+        <ScrollView style={{ flex: 1 }}>
+          {/* Streak Card */}
+          <View style={styles.streakCard}>
+            <View style={styles.streakHeader}>
+              <Ionicons name="flame" size={32} color="#FF6B35" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.streakTitle}>Série de votes</Text>
+                <Text style={styles.streakSubtitle}>Votez chaque jour pour augmenter votre série</Text>
+              </View>
+            </View>
+            <View style={styles.streakStats}>
+              <View style={styles.streakStatItem}>
+                <Text style={styles.streakStatValue}>{streakData.currentStreak}</Text>
+                <Text style={styles.streakStatLabel}>Jours en cours</Text>
+              </View>
+              <View style={styles.streakDivider} />
+              <View style={styles.streakStatItem}>
+                <Text style={styles.streakStatValue}>{streakData.longestStreak}</Text>
+                <Text style={styles.streakStatLabel}>Record</Text>
+              </View>
+              <View style={styles.streakDivider} />
+              <View style={styles.streakStatItem}>
+                <Text style={styles.streakStatValue}>{totalVotes}</Text>
+                <Text style={styles.streakStatLabel}>Total votes</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Badges Card */}
+          <View style={styles.badgesCard}>
+            <Text style={styles.badgesTitle}>Badges</Text>
+            <View style={styles.badgesGrid}>
+              {badges.map((badge) => (
+                <View 
+                  key={badge.id} 
+                  style={[
+                    styles.badgeItem,
+                    !badge.unlocked && styles.badgeItemLocked
+                  ]}
+                >
+                  <Ionicons 
+                    name={badge.icon as any} 
+                    size={32} 
+                    color={badge.unlocked ? PALETTE.green : PALETTE.subtext} 
+                  />
+                  <Text style={[
+                    styles.badgeName,
+                    !badge.unlocked && styles.badgeTextLocked
+                  ]}>
+                    {badge.name}
+                  </Text>
+                  <Text style={[
+                    styles.badgeDesc,
+                    !badge.unlocked && styles.badgeTextLocked
+                  ]}>
+                    {badge.description}
+                  </Text>
+                  {badge.unlocked && (
+                    <View style={styles.unlockedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color={PALETTE.green} />
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Votes History */}
+          <View style={styles.historyHeader}>
+            <Text style={styles.historyTitle}>Historique</Text>
+          </View>
+          
+          <View style={{ height: votes.length * 80 + 24 }}>
+            <FlashList
+              data={votes}
+              keyExtractor={(item, index) => `${item.personId}-${index}`}
+              renderItem={renderItem}
+              estimatedItemSize={80}
+            />
+          </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
