@@ -204,6 +204,7 @@ export function useUserEngagement() {
     badges,
     streakData,
     totalVotes,
+    voteStats,
     refreshEngagementData: loadEngagementData,
   };
 }
