@@ -20,6 +20,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { LineChart } from "react-native-gifted-charts";
 import { SkeletonPersonCard, SkeletonFeaturedCard } from "../components/SkeletonLoader";
+import { fetchWithCache, CacheService } from "../services/cacheService";
+import { useNetworkStatus } from "../services/networkService";
 
 const PALETTE = {
   // Greener theme
