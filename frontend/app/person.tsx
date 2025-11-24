@@ -217,6 +217,32 @@ export default function Person() {
 
   const { dayLow, dayHigh, weekLow, weekHigh } = predictions;
 
+  const shareToFacebook = async () => {
+    try {
+      const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
+      
+      await Share.shareSingle({
+        social: Share.Social.FACEBOOK,
+        message: message,
+      });
+    } catch (error) {
+      console.error('Share to Facebook failed:', error);
+    }
+  };
+
+  const shareToTwitter = async () => {
+    try {
+      const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
+      
+      await Share.shareSingle({
+        social: Share.Social.TWITTER,
+        message: message,
+      });
+    } catch (error) {
+      console.error('Share to Twitter failed:', error);
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       {initialLoading ? (
