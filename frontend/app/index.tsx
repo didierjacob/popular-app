@@ -361,6 +361,13 @@ export default function Index() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+      {/* Phase 4 - Offline indicator */}
+      {!isConnected && !isChecking && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineText}>📵 Mode hors-ligne • Données en cache</Text>
+        </View>
+      )}
+      
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
