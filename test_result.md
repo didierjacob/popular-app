@@ -558,3 +558,100 @@ agent_communication:
     message: "Latest UI changes implemented: 1) Home screen vote buttons reduced to height:28, small up/down arrows added under names, 'Last searches' replaced with second 'Trending searches' rectangle. 2) Navigation simplified: 'Popular' tab removed entirely from tab bar. 3) List page renamed to 'List' with silent 5s refresh. Backend endpoints remain unchanged. Running backend tests first to ensure API stability before frontend testing."
   - agent: "main"
     message: "✅ ALL TESTS PASSED: Manual testing completed successfully. Backend API healthy (all endpoints working). Frontend features validated: (1) Home screen has compact vote buttons (height:28) with 9 up/down arrow pairs, (2) Two 'Trending searches' rectangles display correctly, (3) Navigation shows only 1 'Home' tab (Popular tab hidden), (4) List page titled 'List' with silent 5s refresh (no loading indicators), (5) Person page has silent refresh, chart rendering, and Like/Dislike buttons. All latest UI changes working as expected."
+
+
+# Phase 2 - Engagement & Partage
+
+backend:
+  - task: "Controversial personalities endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added /api/controversial endpoint to fetch personalities with high vote volume and mixed sentiment"
+
+frontend:
+  - task: "Vote history storage (AsyncStorage)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/person.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Votes are saved to AsyncStorage on each Like/Dislike action. Stores personId, personName, category, vote type, and timestamp. Keeps last 100 votes."
+
+  - task: "My Votes page - Vote history display"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/myvotes.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Reads votes from AsyncStorage, displays sorted by most recent first with person name, category, timestamp, and Like/Dislike badge. Includes clear history button."
+
+  - task: "Social sharing - Facebook & X"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/person.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added react-native-share library. Implemented shareToFacebook and shareToTwitter functions on person detail page with custom message including person name and score."
+
+  - task: "Badges system"
+    implemented: true
+    working: true
+    file: "/app/frontend/hooks/useUserEngagement.ts, /app/frontend/app/myvotes.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created useUserEngagement hook with 5 badge levels: Débutant (10 votes), Actif (50), Expert (100), Légende (250), Maître (500). Badges unlock based on total vote count and display on My Votes page."
+
+  - task: "Streaks system"
+    implemented: true
+    working: true
+    file: "/app/frontend/hooks/useUserEngagement.ts, /app/frontend/app/myvotes.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Implemented vote streaks system tracking consecutive voting days. Displays current streak, longest streak, and total votes on My Votes page. Streak maintained if user voted today or yesterday."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 8
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "My Votes page: badges and streaks display"
+    - "Person page: social sharing buttons"
+    - "Vote history: storage and retrieval"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Phase 2 features implemented: Vote history with AsyncStorage, My Votes page with badges & streaks system, social sharing for Facebook and X. Ready for backend testing to verify controversial endpoint, then frontend testing for new engagement features."
+
