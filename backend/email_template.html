@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Quotidien - Popular</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #0F2F22 0%, #1C3A2C 100%); padding: 30px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px;">📊 Popular</h1>
+                            <p style="margin: 10px 0 0 0; color: #C9D8D2; font-size: 14px;">Rapport Quotidien - {{ date }}</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Summary Stats -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="margin: 0 0 20px 0; color: #0F2F22; font-size: 20px;">Vue d'ensemble</h2>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="50%" style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; margin-right: 10px;">
+                                        <div style="text-align: center;">
+                                            <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase;">Total Personnalités</p>
+                                            <h3 style="margin: 5px 0 0 0; color: #0F2F22; font-size: 32px; font-weight: bold;">{{ total_people }}</h3>
+                                        </div>
+                                    </td>
+                                    <td width="50%" style="padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+                                        <div style="text-align: center;">
+                                            <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase;">Votes (24h)</p>
+                                            <h3 style="margin: 5px 0 0 0; color: #2ECC71; font-size: 32px; font-weight: bold;">{{ votes_24h }}</h3>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 10px;">
+                                <tr>
+                                    <td width="50%" style="padding: 15px; background-color: #f8f9fa; border-radius: 8px; margin-right: 10px;">
+                                        <div style="text-align: center;">
+                                            <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase;">Nouvelles Personnalités</p>
+                                            <h3 style="margin: 5px 0 0 0; color: #0F2F22; font-size: 32px; font-weight: bold;">{{ new_people_24h }}</h3>
+                                        </div>
+                                    </td>
+                                    <td width="50%" style="padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+                                        <div style="text-align: center;">
+                                            <p style="margin: 0; color: #6c757d; font-size: 12px; text-transform: uppercase;">Utilisateurs Actifs</p>
+                                            <h3 style="margin: 5px 0 0 0; color: #0F2F22; font-size: 32px; font-weight: bold;">{{ active_users_24h }}</h3>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Monetization Stats -->
+                    <tr>
+                        <td style="padding: 0 30px 30px 30px;">
+                            <h2 style="margin: 0 0 20px 0; color: #0F2F22; font-size: 20px;">💰 Monétisation</h2>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td width="33%" style="padding: 15px; background-color: #FFF3E0; border-radius: 8px; text-align: center;">
+                                        <p style="margin: 0; color: #E65100; font-size: 12px; text-transform: uppercase;">Crédits Vendus</p>
+                                        <h3 style="margin: 5px 0 0 0; color: #E65100; font-size: 28px; font-weight: bold;">{{ credits_sold_24h }}</h3>
+                                    </td>
+                                    <td width="33%" style="padding: 15px; background-color: #E8F5E9; border-radius: 8px; text-align: center;">
+                                        <p style="margin: 0; color: #2E7D32; font-size: 12px; text-transform: uppercase;">Revenus (€)</p>
+                                        <h3 style="margin: 5px 0 0 0; color: #2E7D32; font-size: 28px; font-weight: bold;">{{ revenue_24h }}</h3>
+                                    </td>
+                                    <td width="33%" style="padding: 15px; background-color: #FFF9C4; border-radius: 8px; text-align: center;">
+                                        <p style="margin: 0; color: #F57F17; font-size: 12px; text-transform: uppercase;">Votes Premium</p>
+                                        <h3 style="margin: 5px 0 0 0; color: #F57F17; font-size: 28px; font-weight: bold;">{{ premium_votes_24h }}</h3>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Top 5 -->
+                    <tr>
+                        <td style="padding: 0 30px 30px 30px;">
+                            <h2 style="margin: 0 0 20px 0; color: #0F2F22; font-size: 20px;">🏆 Top 5 Personnalités (24h)</h2>
+                            
+                            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+                                <thead>
+                                    <tr style="background-color: #f8f9fa;">
+                                        <th style="padding: 12px; text-align: left; color: #6c757d; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e0e0e0;">#</th>
+                                        <th style="padding: 12px; text-align: left; color: #6c757d; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e0e0e0;">Nom</th>
+                                        <th style="padding: 12px; text-align: center; color: #6c757d; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e0e0e0;">Votes</th>
+                                        <th style="padding: 12px; text-align: center; color: #6c757d; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e0e0e0;">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for person in top_people %}
+                                    <tr>
+                                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; color: #0F2F22; font-weight: bold;">{{ loop.index }}</td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; color: #0F2F22;">{{ person.name }}</td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: center; color: #2ECC71; font-weight: bold;">{{ person.votes_24h }}</td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; text-align: center; color: #0F2F22; font-weight: bold;">{{ person.score }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; background-color: #f8f9fa; text-align: center; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0; color: #6c757d; font-size: 12px;">
+                                Rapport généré automatiquement par <strong>Popular</strong><br>
+                                Application "Stock Market for People"
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
