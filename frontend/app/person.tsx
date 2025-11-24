@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchWithCache } from "../services/cacheService";
 import { useNetworkStatus } from "../services/networkService";
+import { useCredits } from "../services/creditsService";
 
 const PALETTE = {
   bg: "#0F2F22",
