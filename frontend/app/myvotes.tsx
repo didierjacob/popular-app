@@ -32,7 +32,7 @@ export default function MyVotes() {
   const router = useRouter();
   const [votes, setVotes] = useState<VoteHistory[]>([]);
   const [loading, setLoading] = useState(true);
-  const { badges, streakData, totalVotes, refreshEngagementData } = useUserEngagement();
+  const { badges, streakData, totalVotes, voteStats, refreshEngagementData } = useUserEngagement();
 
   const loadVotes = useCallback(async () => {
     try {
