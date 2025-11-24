@@ -115,6 +115,10 @@ export default function Index() {
   // Phase 4 - Network status
   const { isConnected, isChecking } = useNetworkStatus();
 
+  // Phase 4 - Real-time suggestions
+  const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   const loadSavedFilter = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem("popularity_home_filter");
