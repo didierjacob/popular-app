@@ -883,6 +883,196 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
     return {"transactions": transactions}
 
 
+# -------------------- Daily Report --------------------
+
+from email_service import email_service
+
+@api_router.post("/reports/daily")
+async def send_daily_report(to_email: str = Query(default="didier@coffeeandfilms.com")):
+    """Génère et envoie le rapport quotidien par email"""
+    try:
+        # Calculer la période (dernières 24h)
+        now = datetime.utcnow()
+        yesterday = now - timedelta(days=1)
+        
+        # 1. Stats générales
+        total_people = await db.people.count_documents({})
+        new_people_24h = await db.people.count_documents({
+            "created_at": {"$gte": yesterday}
+        })
+        
+        # 2. Votes des dernières 24h
+        votes_24h = await db.ticks.count_documents({
+            "created_at": {"$gte": yesterday}
+        })
+        
+        # 3. Utilisateurs actifs (basé sur les device_ids dans votes)
+        active_users_pipeline = [
+            {"$match": {"created_at": {"$gte": yesterday}}},
+            {"$group": {"_id": "$person_id"}},
+            {"$count": "count"}
+        ]
+        active_users_result = await db.votes.aggregate(active_users_pipeline).to_list(length=1)
+        active_users_24h = active_users_result[0]["count"] if active_users_result else 0
+        
+        # 4. Monétisation
+        credits_sold_pipeline = [
+            {"$match": {
+                "timestamp": {"$gte": yesterday},
+                "type": "purchase"
+            }},
+            {"$group": {
+                "_id": None,
+                "total_credits": {"$sum": "$amount"},
+                "total_revenue": {"$sum": "$price"}
+            }}
+        ]
+        monetization = await db.credit_transactions.aggregate(credits_sold_pipeline).to_list(length=1)
+        
+        credits_sold_24h = monetization[0]["total_credits"] if monetization else 0
+        revenue_24h = f"{monetization[0]['total_revenue']:.2f}" if monetization else "0.00"
+        
+        # Votes premium utilisés
+        premium_votes_24h = await db.credit_transactions.count_documents({
+            "timestamp": {"$gte": yesterday},
+            "type": "use"
+        })
+        
+        # 5. Top 5 personnalités (par votes dans les dernières 24h)
+        top_people_pipeline = [
+            {"$match": {"created_at": {"$gte": yesterday}}},
+            {"$group": {
+                "_id": "$person_id",
+                "votes_count": {"$sum": 1}
+            }},
+            {"$sort": {"votes_count": -1}},
+            {"$limit": 5}
+        ]
+        top_people_ids = await db.ticks.aggregate(top_people_pipeline).to_list(length=5)
+        
+        top_people = []
+        for item in top_people_ids:
+            person = await db.people.find_one({"_id": ObjectId(item["_id"])})
+            if person:
+                top_people.append({
+                    "name": person.get("name", "Unknown"),
+                    "votes_24h": item["votes_count"],
+                    "score": int(person.get("score", 0))
+                })
+        
+        # Préparer les données pour le template
+        stats = {
+            "date": now.strftime("%d/%m/%Y"),
+            "total_people": total_people,
+            "votes_24h": votes_24h,
+            "new_people_24h": new_people_24h,
+            "active_users_24h": active_users_24h,
+            "credits_sold_24h": credits_sold_24h,
+            "revenue_24h": revenue_24h,
+            "premium_votes_24h": premium_votes_24h,
+            "top_people": top_people
+        }
+        
+        # Envoyer l'email
+        await email_service.send_daily_report(to_email, stats)
+        
+        return {
+            "success": True,
+            "message": f"Rapport quotidien envoyé à {to_email}",
+            "stats": stats
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to send daily report: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send report: {str(e)}")
+
+@api_router.get("/reports/stats")
+async def get_daily_stats():
+    """Retourne les stats quotidiennes sans envoyer d'email (pour prévisualisation)"""
+    try:
+        now = datetime.utcnow()
+        yesterday = now - timedelta(days=1)
+        
+        # Stats générales
+        total_people = await db.people.count_documents({})
+        new_people_24h = await db.people.count_documents({
+            "created_at": {"$gte": yesterday}
+        })
+        votes_24h = await db.ticks.count_documents({
+            "created_at": {"$gte": yesterday}
+        })
+        
+        active_users_pipeline = [
+            {"$match": {"created_at": {"$gte": yesterday}}},
+            {"$group": {"_id": "$person_id"}},
+            {"$count": "count"}
+        ]
+        active_users_result = await db.votes.aggregate(active_users_pipeline).to_list(length=1)
+        active_users_24h = active_users_result[0]["count"] if active_users_result else 0
+        
+        # Monétisation
+        credits_sold_pipeline = [
+            {"$match": {
+                "timestamp": {"$gte": yesterday},
+                "type": "purchase"
+            }},
+            {"$group": {
+                "_id": None,
+                "total_credits": {"$sum": "$amount"},
+                "total_revenue": {"$sum": "$price"}
+            }}
+        ]
+        monetization = await db.credit_transactions.aggregate(credits_sold_pipeline).to_list(length=1)
+        
+        credits_sold_24h = monetization[0]["total_credits"] if monetization else 0
+        revenue_24h = monetization[0]["total_revenue"] if monetization else 0.0
+        
+        premium_votes_24h = await db.credit_transactions.count_documents({
+            "timestamp": {"$gte": yesterday},
+            "type": "use"
+        })
+        
+        # Top 5
+        top_people_pipeline = [
+            {"$match": {"created_at": {"$gte": yesterday}}},
+            {"$group": {
+                "_id": "$person_id",
+                "votes_count": {"$sum": 1}
+            }},
+            {"$sort": {"votes_count": -1}},
+            {"$limit": 5}
+        ]
+        top_people_ids = await db.ticks.aggregate(top_people_pipeline).to_list(length=5)
+        
+        top_people = []
+        for item in top_people_ids:
+            person = await db.people.find_one({"_id": ObjectId(item["_id"])})
+            if person:
+                top_people.append({
+                    "name": person.get("name", "Unknown"),
+                    "votes_24h": item["votes_count"],
+                    "score": int(person.get("score", 0))
+                })
+        
+        return {
+            "date": now.strftime("%d/%m/%Y"),
+            "total_people": total_people,
+            "votes_24h": votes_24h,
+            "new_people_24h": new_people_24h,
+            "active_users_24h": active_users_24h,
+            "credits_sold_24h": credits_sold_24h,
+            "revenue_24h": f"{revenue_24h:.2f}",
+            "premium_votes_24h": premium_votes_24h,
+            "top_people": top_people
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
