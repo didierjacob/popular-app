@@ -32,6 +32,7 @@ export default function MyVotes() {
   const router = useRouter();
   const [votes, setVotes] = useState<VoteHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const { badges, streakData, totalVotes, refreshEngagementData } = useUserEngagement();
 
   const loadVotes = useCallback(async () => {
     try {
@@ -44,12 +45,14 @@ export default function MyVotes() {
         );
         setVotes(parsed);
       }
+      // Refresh engagement data
+      await refreshEngagementData();
     } catch (error) {
       console.error("Failed to load votes:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshEngagementData]);
 
   useEffect(() => {
     loadVotes();
