@@ -70,10 +70,26 @@ export default function Person() {
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
     try {
+      // Phase 4 - Cache des graphiques avec TTL de 2 minutes
       const [p, c24, c168] = await Promise.all([
-        apiGet(`/people/${id}`),
-        apiGet(`/people/${id}/chart?window=24h`),
-        apiGet(`/people/${id}/chart?window=168h`),
+        fetchWithCache(
+          `/people/${id}`,
+          `person_${id}`,
+          () => apiGet(`/people/${id}`),
+          2 * 60 * 1000 // 2 minutes
+        ),
+        fetchWithCache(
+          `/people/${id}/chart?window=24h`,
+          `chart_24h_${id}`,
+          () => apiGet(`/people/${id}/chart?window=24h`),
+          2 * 60 * 1000 // 2 minutes
+        ),
+        fetchWithCache(
+          `/people/${id}/chart?window=168h`,
+          `chart_168h_${id}`,
+          () => apiGet(`/people/${id}/chart?window=168h`),
+          5 * 60 * 1000 // 5 minutes (moins critique)
+        ),
       ]);
       setPerson(p);
       const cRes = c24 as ChartRes;
