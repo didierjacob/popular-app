@@ -22,6 +22,7 @@ import { LineChart } from "react-native-gifted-charts";
 import { SkeletonPersonCard, SkeletonFeaturedCard } from "../components/SkeletonLoader";
 import { fetchWithCache, CacheService } from "../services/cacheService";
 import { useNetworkStatus } from "../services/networkService";
+import { PrefetchService } from "../services/prefetchService";
 
 const PALETTE = {
   // Greener theme
