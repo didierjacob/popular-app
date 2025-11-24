@@ -928,4 +928,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // Phase 4 - Suggestions
+  suggestionsCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  suggestionsTitle: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+  },
+  suggestionName: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  suggestionMeta: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 2,
+  },
 });
