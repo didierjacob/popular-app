@@ -215,20 +215,31 @@ export default function Index() {
     fetchControversial(); // Phase 3
   }, [fetchPeople, fetchSuggestions, fetchLast, fetchByCategory, loadSavedFilter, fetchTrendingNow, fetchControversial]);
 
-  // Phase 4 - Debounced search
+  // Phase 4 - Debounced search with real-time suggestions
   useEffect(() => {
-    if (!query) {
-      fetchPeople();
+    if (!query || query.length < 2) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      if (!query) {
+        fetchPeople();
+      }
       return;
     }
 
-    // Debounce: attendre 500ms après la dernière frappe
-    const timeoutId = setTimeout(() => {
-      fetchPeople(query);
-    }, 500);
+    // Debounce: attendre 300ms après la dernière frappe
+    const timeoutId = setTimeout(async () => {
+      try {
+        // Fetch suggestions
+        const results = await apiGet<Person[]>(`/people?query=${encodeURIComponent(query)}&limit=5`);
+        setSearchSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } catch (error) {
+        console.error('Failed to fetch suggestions:', error);
+      }
+    }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [query, fetchPeople]);
+  }, [query]);
 
   // Phase 1 - Select person of day when people load
   useEffect(() => {
