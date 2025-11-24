@@ -105,6 +105,9 @@ export default function Index() {
   const [trendingNow, setTrendingNow] = useState<Person[]>([]);
   const [personOfDay, setPersonOfDay] = useState<Person | null>(null);
   const [showVoteAnimation, setShowVoteAnimation] = useState(false);
+  
+  // Phase 3 - Controversial personalities
+  const [controversial, setControversial] = useState<Person[]>([]);
 
   const loadSavedFilter = useCallback(async () => {
     try {
