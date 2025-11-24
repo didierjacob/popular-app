@@ -129,8 +129,26 @@ export default function Index() {
   const fetchPeople = useCallback(async (q?: string) => {
     setLoading(true);
     try {
-      const data = await apiGet<Person[]>(`/people${q ? `?query=${encodeURIComponent(q)}` : ""}`);
+      const endpoint = `/people${q ? `?query=${encodeURIComponent(q)}` : ""}`;
+      const cacheKey = `people_${q || 'all'}`;
+      
+      // Utiliser le cache avec TTL de 5 minutes
+      const data = await fetchWithCache(
+        endpoint,
+        cacheKey,
+        () => apiGet<Person[]>(endpoint),
+        5 * 60 * 1000 // 5 minutes
+      );
+      
       setPeople(data);
+    } catch (error) {
+      console.error('Failed to fetch people:', error);
+      // En cas d'erreur, essayer de charger depuis le cache même expiré
+      const cacheKey = `people_${q || 'all'}`;
+      const cached = await CacheService.get<Person[]>(cacheKey);
+      if (cached) {
+        setPeople(cached);
+      }
     } finally {
       setLoading(false);
     }
