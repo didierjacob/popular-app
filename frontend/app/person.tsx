@@ -7,6 +7,8 @@ import { LineChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { fetchWithCache } from "../services/cacheService";
+import { useNetworkStatus } from "../services/networkService";
 
 const PALETTE = {
   bg: "#0F2F22",
