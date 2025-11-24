@@ -472,4 +472,63 @@ const styles = StyleSheet.create({
   dislikeBadge: {
     backgroundColor: PALETTE.accent,
   },
+  // Phase 3 - Statistics
+  statsCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  statsTitle: {
+    color: PALETTE.text,
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 16,
+  },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  statLabel: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+  },
+  statValue: {
+    color: PALETTE.text,
+    fontSize: 14,
+  },
+  categoryBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  categoryName: {
+    color: PALETTE.text,
+    fontSize: 12,
+    width: 70,
+  },
+  categoryBarContainer: {
+    flex: 1,
+    height: 12,
+    backgroundColor: PALETTE.bg,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
+  categoryBarFill: {
+    height: "100%",
+    backgroundColor: PALETTE.green,
+    borderRadius: 6,
+  },
+  categoryPercent: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    width: 35,
+    textAlign: "right",
+  },
 });
