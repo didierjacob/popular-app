@@ -725,6 +725,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  // Phase 3 - Controversial
+  controversialCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 10,
+    padding: 12,
+    width: 130,
+    borderWidth: 2,
+    borderColor: '#FFA500',
+    position: 'relative',
+  },
+  controversialBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FFA500',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controversialBadgeText: {
+    fontSize: 14,
+  },
+  controversialName: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  controversialVotes: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
