@@ -58,6 +58,15 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
+        name="premium"
+        options={{
+          title: "Premium",
+          tabBarIcon: ({ color, size}) => (
+            <Ionicons name="diamond-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="person"
         options={{
           href: null,
