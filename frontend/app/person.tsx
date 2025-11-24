@@ -518,4 +518,40 @@ const styles = StyleSheet.create({
   predValue: { color: PALETTE.text, flex: 1, textAlign: 'right', flexShrink: 1 },
   shareButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: PALETTE.accent, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8 },
   shareText: { color: 'white', fontWeight: '600', fontSize: 14 },
+  // Phase 4 - Premium toggle
+  premiumToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  premiumToggleTitle: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  premiumToggleSubtitle: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: PALETTE.border,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleSwitchActive: {
+    backgroundColor: '#FFD700',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
+  },
 });
