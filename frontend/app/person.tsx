@@ -68,6 +68,10 @@ export default function Person() {
   const likeScaleAnim = useRef(new Animated.Value(1)).current;
   const dislikeScaleAnim = useRef(new Animated.Value(1)).current;
 
+  // Phase 4 - Premium votes
+  const { balance, useCredit, refreshBalance } = useCredits();
+  const [isPremiumMode, setIsPremiumMode] = useState(false);
+
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
     try {
