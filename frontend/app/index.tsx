@@ -139,6 +139,14 @@ export default function Index() {
     } catch {}
   }, []);
 
+  // Phase 3 - Load Controversial
+  const fetchControversial = useCallback(async () => {
+    try {
+      const res = await apiGet<Person[]>("/controversial?limit=5");
+      setControversial(res);
+    } catch {}
+  }, []);
+
   // Phase 1 - Person of the Day (based on date)
   const selectPersonOfDay = useCallback((people: Person[]) => {
     if (people.length === 0) return;
