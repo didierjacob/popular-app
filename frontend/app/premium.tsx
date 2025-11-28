@@ -90,48 +90,41 @@ export default function Premium() {
       <ScrollView>
         {/* Header */}
         <View style={styles.header}>
-          <Ionicons name="diamond" size={32} color={PALETTE.gold} />
-          <Text style={styles.title}>Premium</Text>
+          <Ionicons name="rocket" size={32} color={PALETTE.gold} />
+          <Text style={styles.title}>Boosters</Text>
         </View>
 
         {/* Balance Card */}
         <View style={[styles.card, styles.balanceCard]}>
           <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>Vos crédits</Text>
+            <Text style={styles.balanceLabel}>Your Votes</Text>
             <TouchableOpacity onPress={refreshBalance}>
               <Ionicons name="refresh" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
           <Text style={styles.balanceAmount}>{balance}</Text>
           <Text style={styles.balanceSubtext}>
-            1 crédit = 100 votes
+            Available to boost personalities
           </Text>
           {isPremium && (
             <View style={styles.premiumBadge}>
               <Ionicons name="star" size={16} color={PALETTE.gold} />
-              <Text style={styles.premiumBadgeText}>Membre Premium</Text>
+              <Text style={styles.premiumBadgeText}>Premium Member</Text>
             </View>
           )}
         </View>
 
-        {/* Info Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>💎 Votes Premium</Text>
-          <Text style={styles.infoText}>
-            Les votes premium comptent 100x plus ! Utilisez-les pour influencer fortement le classement de vos personnalités préférées.
+        {/* Hero Message */}
+        <View style={styles.heroCard}>
+          <Ionicons name="trophy" size={48} color={PALETTE.gold} />
+          <Text style={styles.heroTitle}>Get to the Top!</Text>
+          <Text style={styles.heroText}>
+            Try to get into the top of the world's most popular personalities by buying boosters and super boosters
           </Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="flash" size={20} color={PALETTE.gold} />
-            <Text style={styles.infoText}>Impact x100 sur le score</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="checkmark-circle" size={20} color={PALETTE.green} />
-            <Text style={styles.infoText}>Accès aux fonctionnalités premium</Text>
-          </View>
         </View>
 
         {/* Packs Section */}
-        <Text style={styles.sectionTitle}>Acheter des crédits</Text>
+        <Text style={styles.sectionTitle}>Buy Boosters</Text>
         
         {CREDIT_PACKS.map((pack) => (
           <TouchableOpacity
