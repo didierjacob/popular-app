@@ -34,32 +34,17 @@ export interface CreditPack {
 
 export const CREDIT_PACKS: CreditPack[] = [
   {
-    id: 'starter',
-    name: 'Starter',
-    credits: 1,
-    price: 5.0,
+    id: 'booster',
+    name: 'Booster',
+    credits: 100,
+    price: 0.99,
   },
   {
-    id: 'basic',
-    name: 'Basic',
-    credits: 5,
-    price: 20.0,
-    savings: 5,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    credits: 10,
-    price: 35.0,
-    savings: 15,
+    id: 'super_booster',
+    name: 'Super Booster',
+    credits: 1000,
+    price: 4.99,
     popular: true,
-  },
-  {
-    id: 'elite',
-    name: 'Elite',
-    credits: 25,
-    price: 75.0,
-    savings: 50,
   },
 ];
 
