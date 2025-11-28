@@ -408,11 +408,11 @@ export default function Person() {
               >
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="diamond" size={20} color="#FFD700" />
-                    <Text style={styles.premiumToggleTitle}>Vote Premium x100</Text>
+                    <Ionicons name="rocket" size={20} color="#FFD700" />
+                    <Text style={styles.premiumToggleTitle}>Use my booster</Text>
                   </View>
                   <Text style={styles.premiumToggleSubtitle}>
-                    {isPremiumMode ? '✓ Activé • 1 crédit par vote' : `${balance} crédit${balance > 1 ? 's' : ''} disponible${balance > 1 ? 's' : ''}`}
+                    {isPremiumMode ? `✓ Active • ${balance} votes left` : `${balance} votes available`}
                   </Text>
                 </View>
                 <View style={[styles.toggleSwitch, isPremiumMode && styles.toggleSwitchActive]}>
