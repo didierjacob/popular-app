@@ -880,6 +880,93 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
     
     return {"transactions": transactions}
 
+class BoostMyselfRequest(BaseModel):
+    user_id: str
+    name: str
+    category: Optional[Category] = "other"
+
+@api_router.post("/boost-myself")
+async def boost_myself(request: BoostMyselfRequest):
+    """Create a new personality for yourself and apply 1 booster (100 votes) - costs 1 credit"""
+    try:
+        # Check user balance
+        user_credits = await db.user_credits.find_one({"user_id": request.user_id})
+        
+        if not user_credits or user_credits.get("balance", 0) < 1:
+            raise HTTPException(status_code=400, detail="Insufficient credits. You need at least 1 credit to boost yourself.")
+        
+        # Normalize and validate name
+        name = request.name.strip().title()
+        if not name or len(name) < 2:
+            raise HTTPException(status_code=400, detail="Please enter a valid name (at least 2 characters)")
+        
+        # Check if person already exists
+        slug = slugify(name)
+        existing = await db.persons.find_one({"slug": slug})
+        
+        if existing:
+            raise HTTPException(status_code=400, detail=f"{name} already exists in the database")
+        
+        # Create the new person with boosted stats (100 likes from the booster)
+        now = now_utc()
+        person_doc = {
+            "name": name,
+            "slug": slug,
+            "category": request.category or "other",
+            "approved": True,
+            "created_at": now,
+            "updated_at": now,
+            "score": 100.0,  # 100% likes = 100 score
+            "likes": 100,  # Booster applies 100 likes
+            "dislikes": 0,
+            "total_votes": 100,
+        }
+        
+        result = await db.persons.insert_one(person_doc)
+        person_id = result.inserted_id
+        
+        # Create initial tick with boosted score
+        await db.person_ticks.insert_one({
+            "person_id": person_id,
+            "score": 100.0,
+            "created_at": now
+        })
+        
+        # Deduct 1 credit from user balance
+        new_balance = user_credits["balance"] - 1
+        await db.user_credits.update_one(
+            {"user_id": request.user_id},
+            {"$set": {"balance": new_balance, "updated_at": now_utc()}}
+        )
+        
+        # Record transaction
+        await db.credit_transactions.insert_one({
+            "user_id": request.user_id,
+            "type": "use",
+            "amount": -1,
+            "description": f"Boosted myself as '{name}' with 100 votes",
+            "person_id": str(person_id),
+            "timestamp": now_utc(),
+            "status": "completed"
+        })
+        
+        return {
+            "success": True,
+            "person_id": str(person_id),
+            "person_name": name,
+            "new_balance": new_balance,
+            "message": f"🎉 Success! You've been added to Popular as '{name}' with 100 votes!",
+            "initial_score": 100.0,
+            "votes_applied": 100
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Boost myself error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 # -------------------- Daily Report --------------------
 
