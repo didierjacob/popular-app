@@ -174,6 +174,37 @@ export class CreditsService {
       return [];
     }
   }
+
+  /**
+   * Boost yourself - Create a new personality and apply 100 votes for 1 credit
+   */
+  static async boostMyself(name: string, category: string = 'other'): Promise<{ success: boolean; person_id: string; person_name: string; new_balance: number; message: string }> {
+    try {
+      const userId = await getUserId();
+      
+      const response = await fetch(API('/boost-myself'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          name: name.trim(),
+          category: category,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Échec de la création');
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error('Boost myself error:', error);
+      throw error;
+    }
+  }
 }
 
 /**
