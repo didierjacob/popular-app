@@ -706,10 +706,8 @@ class PremiumVote(BaseModel):
     multiplier: int = 100  # Premium vote = x100
 
 CREDIT_PACKS = {
-    "starter": {"credits": 1, "price": 5.0},
-    "basic": {"credits": 5, "price": 20.0},
-    "pro": {"credits": 10, "price": 35.0},
-    "elite": {"credits": 25, "price": 75.0}
+    "booster": {"credits": 100, "price": 0.99},
+    "super_booster": {"credits": 1000, "price": 4.99}
 }
 
 @api_router.post("/credits/purchase")
