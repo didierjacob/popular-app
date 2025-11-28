@@ -146,20 +146,17 @@ export default function Premium() {
               <View>
                 <Text style={styles.packName}>{pack.name}</Text>
                 <Text style={styles.packCredits}>
-                  {pack.credits} crédit{pack.credits > 1 ? 's' : ''}
+                  {pack.credits} votes
                 </Text>
               </View>
               <View style={styles.packPriceContainer}>
-                <Text style={styles.packPrice}>{pack.price}€</Text>
-                {pack.savings && (
-                  <Text style={styles.packSavings}>Économie {pack.savings}€</Text>
-                )}
+                <Text style={styles.packPrice}>${pack.price}</Text>
               </View>
             </View>
 
             <View style={styles.packFooter}>
               <Text style={styles.packDetail}>
-                = {pack.credits * 100} votes
+                Boost any personality instantly
               </Text>
               <Ionicons name="arrow-forward-circle" size={24} color={PALETTE.gold} />
             </View>
