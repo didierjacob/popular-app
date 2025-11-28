@@ -655,3 +655,48 @@ agent_communication:
   - agent: "main"
     message: "Phase 2 features implemented: Vote history with AsyncStorage, My Votes page with badges & streaks system, social sharing for Facebook and X. Ready for backend testing to verify controversial endpoint, then frontend testing for new engagement features."
 
+# Phase 2+ - Boost Myself Feature
+
+backend:
+  - task: "Boost Myself endpoint - Create personality and apply 100 votes for 1 credit"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added POST /api/boost-myself endpoint. Takes user_id and name, validates credit balance (min 1 credit), creates new person with 100 likes (booster), deducts 1 credit, and records transaction. Returns person details and new balance."
+
+frontend:
+  - task: "Boost Myself button and logic on Premium page"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/premium.tsx, /app/frontend/services/creditsService.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented full 'Boost Myself' flow: button shows when balance > 0, prompts user for name (iOS uses Alert.prompt, Android fallback), calls CreditsService.boostMyself(), displays success message with new balance, refreshes balance and transaction history. Added boostMyself() method to creditsService.ts."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.1"
+  test_sequence: 9
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Boost Myself: backend endpoint validation"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented 'Boost Myself' feature. Backend endpoint /api/boost-myself created to handle personality creation with 100 vote boost for 1 credit. Frontend integration complete with user name prompt and full credit transaction flow. Ready for backend testing to verify endpoint logic, credit deduction, and person creation."
+
