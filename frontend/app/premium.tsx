@@ -519,4 +519,25 @@ const styles = StyleSheet.create({
   transactionAmountPositive: {
     color: PALETTE.green,
   },
+  boostMyselfButton: {
+    backgroundColor: PALETTE.gold,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: PALETTE.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  boostMyselfText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });
