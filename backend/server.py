@@ -688,7 +688,7 @@ async def last_searches(limit: int = Query(default=5, le=20)):
 
 class CreditPurchase(BaseModel):
     user_id: str
-    pack: Literal["starter", "basic", "pro", "elite"]
+    pack: Literal["booster", "super_booster"]
     amount: int  # Number of credits
     price: float  # Price in euros
 
