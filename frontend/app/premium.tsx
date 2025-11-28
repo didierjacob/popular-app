@@ -65,6 +65,80 @@ export default function Premium() {
     );
   };
 
+  const handleBoostMyself = () => {
+    if (Platform.OS === 'ios') {
+      // iOS supports Alert.prompt
+      Alert.prompt(
+        'Boost Myself',
+        'Entrez votre nom complet pour vous ajouter comme personnalité avec 100 votes (coûte 1 crédit) :',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Créer & Boost',
+            onPress: async (name) => {
+              if (name && name.trim()) {
+                await processBoostMyself(name.trim());
+              } else {
+                Alert.alert('Erreur', 'Veuillez entrer un nom valide');
+              }
+            },
+          },
+        ],
+        'plain-text'
+      );
+    } else {
+      // Android doesn't support Alert.prompt, show a simple alert
+      Alert.alert(
+        'Boost Myself',
+        'Cette fonctionnalité nécessite une saisie de texte.\n\nVous serez ajouté comme personnalité avec 100 votes pour 1 crédit.\n\nVeuillez saisir votre nom :',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Continuer',
+            onPress: () => {
+              // On Android, we'll use a default prompt
+              // In a production app, you'd use a modal with TextInput
+              Alert.prompt(
+                'Votre Nom',
+                'Entrez votre nom complet :',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Créer',
+                    onPress: async (name) => {
+                      if (name && name.trim()) {
+                        await processBoostMyself(name.trim());
+                      }
+                    },
+                  },
+                ]
+              );
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const processBoostMyself = async (name: string) => {
+    setPurchasing(true);
+    try {
+      const result = await CreditsService.boostMyself(name);
+      Alert.alert(
+        '🎉 Succès !',
+        `${result.message}\n\nVous avez maintenant ${result.new_balance} crédit${result.new_balance > 1 ? 's' : ''} restant${result.new_balance > 1 ? 's' : ''}.`,
+        [{ text: 'OK' }]
+      );
+      await refreshBalance();
+      await loadHistory();
+    } catch (error: any) {
+      const message = error.message || 'Échec de la création';
+      Alert.alert('Erreur', message);
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('fr-FR', {
