@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
 # Backend URL from frontend env
-BACKEND_URL = "https://rate-people.preview.emergentagent.com/api"
+BACKEND_URL = "https://peoplerate-1.preview.emergentagent.com/api"
 
 class PopularityAPITester:
     def __init__(self):

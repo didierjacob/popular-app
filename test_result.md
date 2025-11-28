@@ -441,7 +441,7 @@ agent_communication:
     - B) Popular (/popular): List sorted by highest score desc (98,98,98,98,98,98,98,98), Culture filter persistence works
     - C) Person (/person): Navigation works from both Home Open buttons (18 found) and Popular rows (54 found), chart renders (6 SVG elements), Like/Dislike buttons functional, 5s polling is silent (no full-screen loader), voting updates applied
     - D) Backend: GET /api/ returns {'message': 'Popular API running'} (Status: 200)
-    - E) API base: Requests go to https://rate-people.preview.emergentagent.com/api/*
+    - E) API base: Requests go to https://peoplerate-1.preview.emergentagent.com/api/*
     
     REMAINING ISSUE:
     - B) Popular tab: Arrow indicators still missing - no up (#8B0000), down (#009B4D), or flat (en dash) arrows detected despite sorting working correctly
