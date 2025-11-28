@@ -125,41 +125,11 @@ export default function Premium() {
           {balance > 0 && (
             <TouchableOpacity 
               style={styles.boostMyselfButton}
-              onPress={() => {
-                Alert.alert(
-                  'Boost Myself',
-                  'Enter your name to create your personality and boost yourself!',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Enter Name',
-                      onPress: () => {
-                        // TODO: Navigate to name entry
-                        Alert.prompt(
-                          'Your Name',
-                          'Enter your full name:',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            {
-                              text: 'Create & Boost',
-                              onPress: async (name) => {
-                                if (name && name.trim()) {
-                                  // TODO: Implement boost myself logic
-                                  Alert.alert('Coming Soon', 'This feature will be available soon!');
-                                }
-                              }
-                            }
-                          ],
-                          'plain-text'
-                        );
-                      }
-                    }
-                  ]
-                );
-              }}
+              onPress={handleBoostMyself}
+              disabled={purchasing}
             >
               <Ionicons name="person-add" size={20} color="#000" />
-              <Text style={styles.boostMyselfText}>Boost Myself</Text>
+              <Text style={styles.boostMyselfText}>Boost Myself (1 crédit)</Text>
             </TouchableOpacity>
           )}
         </View>
