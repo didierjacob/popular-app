@@ -571,7 +571,7 @@ export default function Index() {
                         <View style={styles.controversialBadge}>
                           <Text style={styles.controversialBadgeText}>⚡</Text>
                         </View>
-                        <Text style={styles.controversialName} numberOfLines={1}>{p.name}</Text>
+                        <Text style={[styles.controversialName, { color: getNameColor(p.source) }]} numberOfLines={1}>{p.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                           <Text style={styles.controversialVotes}>👍 {p.likes}</Text>
                           <Text style={styles.controversialVotes}>👎 {p.dislikes}</Text>
