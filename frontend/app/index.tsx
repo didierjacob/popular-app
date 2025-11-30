@@ -355,10 +355,17 @@ export default function Index() {
     return () => { if (rotateTimer.current) clearInterval(rotateTimer.current); };
   }, [people, pickRandomFeatured]);
 
+  // Get name color based on source
+  const getNameColor = (source?: string) => {
+    if (source === 'self_boosted') return '#A8C9B8'; // Lighter green-tinted for self-boosted users
+    if (source === 'user_added') return '#C9D8D2'; // Slight variation for user-added
+    return PALETTE.text; // White for seed personalities
+  };
+
   const renderPerson = ({ item }: { item: Person }) => (
     <View style={styles.personRow}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.personName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+        <Text style={[styles.personName, { color: getNameColor(item.source) }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
         <Text style={styles.personMeta} numberOfLines={1} ellipsizeMode="tail">{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
         {/* Arrow mini controls */}
         <View style={styles.arrowRow}>
