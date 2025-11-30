@@ -309,6 +309,7 @@ async def add_person(body: PersonCreate):
         "likes": 0,
         "dislikes": 0,
         "total_votes": 0,
+        "source": "user_added",  # Mark as user-added personality
     }
     res = await db.persons.insert_one(doc)
     await db.person_ticks.insert_one({"person_id": res.inserted_id, "score": 50, "created_at": now})
