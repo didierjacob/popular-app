@@ -251,6 +251,7 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
         dislikes=int(doc.get("dislikes", 0)),
         total_votes=int(doc.get("total_votes", 0)),
         last_updated=doc.get("updated_at"),
+        source=doc.get("source", "seed"),
     )
 
 
