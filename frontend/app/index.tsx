@@ -547,7 +547,7 @@ export default function Index() {
                         style={styles.trendingCard}
                         onPress={() => router.push({ pathname: '/person', params: { id: p.id, name: p.name } })}
                       >
-                        <Text style={styles.trendingName} numberOfLines={1}>{p.name}</Text>
+                        <Text style={[styles.trendingName, { color: getNameColor(p.source) }]} numberOfLines={1}>{p.name}</Text>
                         <Text style={styles.trendingScore}>↗ {p.score}</Text>
                       </TouchableOpacity>
                     ))}
