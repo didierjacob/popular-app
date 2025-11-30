@@ -84,6 +84,7 @@ interface Person {
   likes: number;
   dislikes: number;
   total_votes: number;
+  source?: "seed" | "user_added" | "self_boosted";
 }
 
 export default function Index() {
