@@ -216,65 +216,6 @@ export default function Person() {
   // Build datasets
   const lineData = chart.map((p) => ({ value: p.score }));
 
-  // Calculate predictions based on vote volume, momentum, and volatility
-  const predictions = useMemo(() => {
-    if (!person || chart.length === 0) {
-      return { dayLow: 100, dayHigh: 100, weekLow: 100, weekHigh: 100 };
-    }
-
-    const currentScore = person.score || 100;
-    const totalVotes = person.total_votes || 0;
-    const likes = person.likes || 0;
-    const dislikes = person.dislikes || 0;
-
-    // Calculate vote-based scaling factor (matches backend logic)
-    let voteScale = 1;
-    if (totalVotes >= 1000) voteScale = 50;
-    else if (totalVotes >= 500) voteScale = 20;
-    else if (totalVotes >= 100) voteScale = 10;
-    else if (totalVotes >= 50) voteScale = 5;
-    else if (totalVotes >= 10) voteScale = 2;
-
-    // Calculate momentum from recent data (last 20% of points)
-    const recentPoints = chart.slice(-Math.max(5, Math.floor(chart.length * 0.2)));
-    const momentum = recentPoints.length > 1 
-      ? (recentPoints[recentPoints.length - 1].score - recentPoints[0].score) / recentPoints.length
-      : 0;
-
-    // Calculate volatility (standard deviation of recent changes)
-    const changes = recentPoints.slice(1).map((p, i) => p.score - recentPoints[i].score);
-    const avgChange = changes.reduce((a, b) => a + b, 0) / (changes.length || 1);
-    const variance = changes.reduce((sum, change) => sum + Math.pow(change - avgChange, 2), 0) / (changes.length || 1);
-    const volatility = Math.sqrt(variance);
-
-    // Estimate potential vote impact for predictions
-    // Assume 10% of current vote volume might change in 24h, 30% in 7d
-    const dayVoteEstimate = Math.max(5, Math.floor(totalVotes * 0.1));
-    const weekVoteEstimate = Math.max(20, Math.floor(totalVotes * 0.3));
-
-    // Calculate sentiment ratio
-    const sentimentRatio = totalVotes > 0 ? likes / totalVotes : 0.5;
-
-    // 24h predictions
-    const dayImpact = dayVoteEstimate * voteScale;
-    const dayLow = currentScore - dayImpact * (1 - sentimentRatio) - volatility * 2 + momentum * 5;
-    const dayHigh = currentScore + dayImpact * sentimentRatio + volatility * 2 + momentum * 5;
-
-    // 7d predictions (more volatile)
-    const weekImpact = weekVoteEstimate * voteScale;
-    const weekLow = currentScore - weekImpact * (1 - sentimentRatio) - volatility * 5 + momentum * 10;
-    const weekHigh = currentScore + weekImpact * sentimentRatio + volatility * 5 + momentum * 10;
-
-    return {
-      dayLow: Math.max(0, dayLow),
-      dayHigh: Math.max(currentScore, dayHigh),
-      weekLow: Math.max(0, weekLow),
-      weekHigh: Math.max(currentScore, weekHigh),
-    };
-  }, [chart, person]);
-
-  const { dayLow, dayHigh, weekLow, weekHigh } = predictions;
-
   const shareToFacebook = async () => {
     if (Platform.OS === 'web') {
       alert('Le partage social n\'est disponible que sur mobile');
