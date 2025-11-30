@@ -351,22 +351,38 @@ export default function Person() {
               showReferenceLine1
               referenceLine1Position={dayHigh}
               referenceLine1Config={{
-                color: '#009B4D',
-                thickness: 1,
-                dashWidth: 4,
-                dashGap: 4,
+                color: '#00D866',
+                thickness: 2,
+                dashWidth: 8,
+                dashGap: 6,
                 labelText: `24h High: ${Math.round(dayHigh)}`,
-                labelTextStyle: { color: '#009B4D', fontSize: 10 },
+                labelTextStyle: { 
+                  color: '#00D866', 
+                  fontSize: 11, 
+                  fontWeight: '600',
+                  backgroundColor: 'rgba(0, 216, 102, 0.15)',
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                },
               }}
               showReferenceLine2
               referenceLine2Position={dayLow}
               referenceLine2Config={{
-                color: '#8B0000',
-                thickness: 1,
-                dashWidth: 4,
-                dashGap: 4,
+                color: '#FF4757',
+                thickness: 2,
+                dashWidth: 8,
+                dashGap: 6,
                 labelText: `24h Low: ${Math.round(dayLow)}`,
-                labelTextStyle: { color: '#8B0000', fontSize: 10 },
+                labelTextStyle: { 
+                  color: '#FF4757', 
+                  fontSize: 11, 
+                  fontWeight: '600',
+                  backgroundColor: 'rgba(255, 71, 87, 0.15)',
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                },
               }}
             />
           </View>
