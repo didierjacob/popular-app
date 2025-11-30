@@ -923,6 +923,7 @@ async def boost_myself(request: BoostMyselfRequest):
             "likes": 100,  # Booster applies 100 likes
             "dislikes": 0,
             "total_votes": 100,
+            "source": "self_boosted",  # Mark as self-boosted user
         }
         
         result = await db.persons.insert_one(person_doc)
