@@ -100,6 +100,7 @@ class PersonOut(BaseModel):
     dislikes: int = 0
     total_votes: int = 0
     last_updated: Optional[datetime] = None
+    source: Optional[str] = "seed"  # "seed", "user_added", "self_boosted"
 
 
 class VoteIn(BaseModel):
