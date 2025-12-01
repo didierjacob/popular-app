@@ -120,6 +120,10 @@ export default function Index() {
   const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Admin secret gesture
+  const [tapCount, setTapCount] = useState(0);
+  const tapTimerRef = useRef<any>(null);
+
   const loadSavedFilter = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem("popularity_home_filter");
