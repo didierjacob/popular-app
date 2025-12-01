@@ -427,6 +427,29 @@ export default function Index() {
     </View>
   );
 
+  // Admin secret gesture: 7 taps in 3 seconds
+  const handleTitleTap = useCallback(() => {
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+
+    // Clear previous timer
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+    }
+
+    // Check if 7 taps reached
+    if (newCount >= 7) {
+      setTapCount(0);
+      router.push('/admin');
+      return;
+    }
+
+    // Reset counter after 3 seconds
+    tapTimerRef.current = setTimeout(() => {
+      setTapCount(0);
+    }, 3000);
+  }, [tapCount, router]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       {/* Phase 4 - Offline indicator */}
