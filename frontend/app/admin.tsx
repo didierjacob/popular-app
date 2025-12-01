@@ -96,52 +96,120 @@ export default function Admin() {
     }
   }, []);
 
-  const handleBoost = async () => {
+  const handleBoostDialog = (type: 'likes' | 'dislikes') => {
     if (!selectedPerson) {
-      Alert.alert('Erreur', 'Sélectionnez une personnalité');
+      Alert.alert('Erreur', 'Veuillez d\'abord sélectionner une personnalité');
       return;
     }
 
-    const amount = parseInt(boostAmount);
-    if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Erreur', 'Entrez un nombre valide');
-      return;
-    }
+    const typeLabel = type === 'likes' ? 'Likes' : 'Dislikes';
+    const emoji = type === 'likes' ? '👍' : '👎';
 
-    Alert.alert(
-      'Confirmer le boost',
-      `Ajouter ${amount} ${boostType === 'likes' ? 'likes' : 'dislikes'} à "${selectedPerson.name}" ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: async () => {
-            try {
-              const res = await fetch(API('/admin/boost-votes'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  person_id: selectedPerson.id,
-                  amount: amount,
-                  type: boostType,
-                }),
-              });
-
-              if (res.ok) {
-                Alert.alert('Succès', `${amount} votes ajoutés !`);
-                loadData();
-                setSelectedPerson(null);
-                setBoostAmount('100');
-              } else {
-                Alert.alert('Erreur', 'Échec du boost');
+    if (Platform.OS === 'ios') {
+      // iOS supports Alert.prompt
+      Alert.prompt(
+        `${emoji} Ajouter ${typeLabel}`,
+        `Personnalité : ${selectedPerson.name}\n\nCombien de ${typeLabel.toLowerCase()} voulez-vous ajouter ? (1-5000)`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Ajouter',
+            onPress: async (value) => {
+              const amount = parseInt(value || '0');
+              if (isNaN(amount) || amount < 1 || amount > 5000) {
+                Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
+                return;
               }
-            } catch (error) {
-              Alert.alert('Erreur', 'Erreur réseau');
-            }
+              await executeBoost(selectedPerson.id, amount, type);
+            },
           },
-        },
-      ]
-    );
+        ],
+        'plain-text',
+        '100',
+        'number-pad'
+      );
+    } else {
+      // Android fallback with default prompt
+      Alert.alert(
+        `${emoji} Ajouter ${typeLabel}`,
+        `Personnalité : ${selectedPerson.name}\n\nEntrez le nombre de ${typeLabel.toLowerCase()} (1-5000) :`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: '100',
+            onPress: () => executeBoost(selectedPerson.id, 100, type),
+          },
+          {
+            text: '500',
+            onPress: () => executeBoost(selectedPerson.id, 500, type),
+          },
+          {
+            text: '1000',
+            onPress: () => executeBoost(selectedPerson.id, 1000, type),
+          },
+          {
+            text: 'Personnalisé',
+            onPress: () => {
+              // Recursive call for custom amount
+              Alert.prompt(
+                'Montant personnalisé',
+                'Entrez le nombre de votes (1-5000) :',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Ajouter',
+                    onPress: async (value) => {
+                      const amount = parseInt(value || '0');
+                      if (isNaN(amount) || amount < 1 || amount > 5000) {
+                        Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
+                        return;
+                      }
+                      await executeBoost(selectedPerson.id, amount, type);
+                    },
+                  },
+                ],
+                'plain-text'
+              );
+            },
+          },
+        ]
+      );
+    }
+  };
+
+  const executeBoost = async (personId: string, amount: number, type: 'likes' | 'dislikes') => {
+    const typeLabel = type === 'likes' ? 'likes' : 'dislikes';
+    
+    try {
+      const res = await fetch(API('/admin/boost-votes'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          person_id: personId,
+          amount: amount,
+          type: type,
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        Alert.alert(
+          '✅ Succès !',
+          `${amount} ${typeLabel} ajoutés à "${result.person_name}"\n\n` +
+          `Nouveau score : ${result.new_score.toFixed(1)}\n` +
+          `Total votes : ${result.new_total_votes}`,
+          [{ text: 'OK' }]
+        );
+        loadData();
+        setSelectedPerson(null);
+      } else {
+        const error = await res.json();
+        Alert.alert('Erreur', error.detail || 'Échec du boost');
+      }
+    } catch (error) {
+      console.error('Boost error:', error);
+      Alert.alert('Erreur', 'Erreur réseau');
+    }
   };
 
   const onRefresh = useCallback(() => {
