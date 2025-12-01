@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  sourceB adge: {
+  sourceBadge: {
     width: 28,
     height: 28,
     borderRadius: 14,
