@@ -971,6 +971,152 @@ async def boost_myself(request: BoostMyselfRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# -------------------- Admin Endpoints --------------------
+
+@api_router.get("/admin/stats")
+async def get_admin_stats():
+    """Get global statistics for admin dashboard"""
+    try:
+        # Total people
+        total_people = await db.persons.count_documents({})
+        
+        # Total votes across all people
+        pipeline_votes = [
+            {
+                "$group": {
+                    "_id": None,
+                    "total_votes": {"$sum": "$total_votes"},
+                    "total_likes": {"$sum": "$likes"},
+                    "total_dislikes": {"$sum": "$dislikes"},
+                }
+            }
+        ]
+        vote_result = await db.persons.aggregate(pipeline_votes).to_list(1)
+        total_votes = vote_result[0]["total_votes"] if vote_result else 0
+        
+        # Active users 24h (count unique user_ids from credit_transactions in last 24h)
+        yesterday = now_utc() - timedelta(days=1)
+        active_users_pipeline = [
+            {"$match": {"timestamp": {"$gte": yesterday}}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "count"}
+        ]
+        active_users_result = await db.credit_transactions.aggregate(active_users_pipeline).to_list(1)
+        active_users_24h = active_users_result[0]["count"] if active_users_result else 0
+        
+        # Revenue 24h (sum of purchases in last 24h)
+        revenue_pipeline = [
+            {
+                "$match": {
+                    "type": "purchase",
+                    "timestamp": {"$gte": yesterday}
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "credit_packs",
+                    "let": {"pack_name": "$description"},
+                    "pipeline": [],
+                    "as": "pack_info"
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "total_revenue": {"$sum": 0.99}  # Simple estimate for now
+                }
+            }
+        ]
+        revenue_result = await db.credit_transactions.aggregate(revenue_pipeline).to_list(1)
+        # Count purchases and multiply by average price
+        purchases_24h = await db.credit_transactions.count_documents({
+            "type": "purchase",
+            "timestamp": {"$gte": yesterday}
+        })
+        revenue_24h = round(purchases_24h * 0.99, 2)  # Assuming average is 0.99€
+        
+        # New people added in 24h
+        new_people_24h = await db.persons.count_documents({
+            "created_at": {"$gte": yesterday}
+        })
+        
+        return {
+            "total_people": total_people,
+            "total_votes": total_votes,
+            "active_users_24h": active_users_24h,
+            "revenue_24h": f"{revenue_24h:.2f}",
+            "new_people_24h": new_people_24h,
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AdminBoostRequest(BaseModel):
+    person_id: str
+    amount: int
+    type: Literal["likes", "dislikes"] = "likes"
+
+
+@api_router.post("/admin/boost-votes")
+async def admin_boost_votes(request: AdminBoostRequest):
+    """Admin-only: Manually add votes to any personality"""
+    try:
+        person_id = ObjectId(request.person_id)
+        person = await db.persons.find_one({"_id": person_id})
+        
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+        
+        # Update votes
+        if request.type == "likes":
+            new_likes = person.get("likes", 0) + request.amount
+            new_dislikes = person.get("dislikes", 0)
+        else:
+            new_likes = person.get("likes", 0)
+            new_dislikes = person.get("dislikes", 0) + request.amount
+        
+        new_total = new_likes + new_dislikes
+        new_score = (new_likes / new_total * 100) if new_total > 0 else 100.0
+        
+        await db.persons.update_one(
+            {"_id": person_id},
+            {
+                "$set": {
+                    "likes": new_likes,
+                    "dislikes": new_dislikes,
+                    "total_votes": new_total,
+                    "score": new_score,
+                    "updated_at": now_utc(),
+                }
+            }
+        )
+        
+        # Add tick for chart
+        await db.person_ticks.insert_one({
+            "person_id": person_id,
+            "score": new_score,
+            "created_at": now_utc()
+        })
+        
+        return {
+            "success": True,
+            "person_name": person.get("name"),
+            "new_likes": new_likes,
+            "new_dislikes": new_dislikes,
+            "new_score": new_score,
+            "new_total_votes": new_total,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin boost error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 
 # -------------------- Daily Report --------------------
 
