@@ -439,7 +439,12 @@ export default function Index() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
           <View style={styles.header}>
-            <Text style={styles.title}>Popular</Text>
+            <TouchableOpacity 
+              activeOpacity={0.9}
+              onPress={handleTitleTap}
+            >
+              <Text style={styles.title}>Popular</Text>
+            </TouchableOpacity>
             <Text style={styles.subtitle}>Rate them. Watch their ratings move up and down live</Text>
           </View>
 
