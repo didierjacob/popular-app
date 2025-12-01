@@ -1116,6 +1116,280 @@ async def admin_boost_votes(request: AdminBoostRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# -------------------- Admin: Moderation --------------------
+
+@api_router.delete("/admin/person/{person_id}")
+async def admin_delete_person(person_id: str):
+    """Admin-only: Delete a personality completely"""
+    try:
+        obj_id = ObjectId(person_id)
+        person = await db.persons.find_one({"_id": obj_id})
+        
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+        
+        person_name = person.get("name")
+        
+        # Delete the person
+        await db.persons.delete_one({"_id": obj_id})
+        
+        # Delete all their ticks
+        await db.person_ticks.delete_many({"person_id": obj_id})
+        
+        return {
+            "success": True,
+            "message": f"'{person_name}' has been deleted permanently",
+            "person_name": person_name,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin delete person error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/person/{person_id}/reset")
+async def admin_reset_person(person_id: str):
+    """Admin-only: Reset a personality's score to 50 (neutral)"""
+    try:
+        obj_id = ObjectId(person_id)
+        person = await db.persons.find_one({"_id": obj_id})
+        
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+        
+        person_name = person.get("name")
+        
+        # Reset to neutral state
+        await db.persons.update_one(
+            {"_id": obj_id},
+            {
+                "$set": {
+                    "likes": 0,
+                    "dislikes": 0,
+                    "total_votes": 0,
+                    "score": 50.0,
+                    "updated_at": now_utc(),
+                }
+            }
+        )
+        
+        # Add reset tick
+        await db.person_ticks.insert_one({
+            "person_id": obj_id,
+            "score": 50.0,
+            "created_at": now_utc()
+        })
+        
+        return {
+            "success": True,
+            "message": f"'{person_name}' has been reset to neutral (50)",
+            "person_name": person_name,
+            "new_score": 50.0,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin reset person error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Admin: Activity Feed --------------------
+
+@api_router.get("/admin/activity/recent")
+async def admin_get_recent_activity():
+    """Admin-only: Get recent activity (votes, new people, purchases)"""
+    try:
+        # Last 50 person additions (last 7 days)
+        week_ago = now_utc() - timedelta(days=7)
+        recent_people = await db.persons.find(
+            {"created_at": {"$gte": week_ago}},
+            {"name": 1, "source": 1, "created_at": 1, "score": 1}
+        ).sort("created_at", -1).limit(50).to_list(50)
+        
+        # Last 50 credit transactions
+        recent_purchases = await db.credit_transactions.find(
+            {"type": "purchase"},
+            {"user_id": 1, "amount": 1, "description": 1, "timestamp": 1}
+        ).sort("timestamp", -1).limit(50).to_list(50)
+        
+        # Last 50 credit uses
+        recent_uses = await db.credit_transactions.find(
+            {"type": "use"},
+            {"user_id": 1, "description": 1, "timestamp": 1}
+        ).sort("timestamp", -1).limit(50).to_list(50)
+        
+        return {
+            "recent_people": [
+                {
+                    "id": str(p["_id"]),
+                    "name": p.get("name"),
+                    "source": p.get("source", "seed"),
+                    "score": p.get("score", 50),
+                    "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
+                }
+                for p in recent_people
+            ],
+            "recent_purchases": [
+                {
+                    "user_id": t.get("user_id"),
+                    "amount": t.get("amount"),
+                    "description": t.get("description"),
+                    "timestamp": t.get("timestamp").isoformat() if t.get("timestamp") else None,
+                }
+                for t in recent_purchases
+            ],
+            "recent_uses": [
+                {
+                    "user_id": t.get("user_id"),
+                    "description": t.get("description"),
+                    "timestamp": t.get("timestamp").isoformat() if t.get("timestamp") else None,
+                }
+                for t in recent_uses
+            ],
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin activity error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Admin: Advanced Search --------------------
+
+@api_router.get("/admin/search")
+async def admin_search_people(
+    q: Optional[str] = None,
+    category: Optional[Category] = None,
+    source: Optional[str] = None,
+    sort_by: str = "score",  # score, votes, name, date
+    limit: int = 50
+):
+    """Admin-only: Advanced search with filters"""
+    try:
+        # Build query
+        query = {}
+        
+        if q:
+            query["name"] = {"$regex": q, "$options": "i"}  # Case-insensitive search
+        
+        if category:
+            query["category"] = category
+        
+        if source and source in ["seed", "user_added", "self_boosted"]:
+            query["source"] = source
+        
+        # Sort mapping
+        sort_field = {
+            "score": ("score", -1),
+            "votes": ("total_votes", -1),
+            "name": ("name", 1),
+            "date": ("created_at", -1),
+        }.get(sort_by, ("score", -1))
+        
+        # Execute search
+        results = await db.persons.find(query).sort(*sort_field).limit(limit).to_list(limit)
+        
+        return [
+            {
+                "id": str(p["_id"]),
+                "name": p.get("name"),
+                "category": p.get("category", "other"),
+                "source": p.get("source", "seed"),
+                "score": p.get("score", 50),
+                "likes": p.get("likes", 0),
+                "dislikes": p.get("dislikes", 0),
+                "total_votes": p.get("total_votes", 0),
+                "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
+            }
+            for p in results
+        ]
+        
+    except Exception as e:
+        logger.error(f"Admin search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Admin: Settings --------------------
+
+class AppSettings(BaseModel):
+    allow_user_additions: bool = True
+    booster_price: float = 0.99
+    super_booster_price: float = 4.99
+    booster_votes: int = 100
+    super_booster_votes: int = 1000
+    maintenance_mode: bool = False
+
+
+@api_router.get("/admin/settings")
+async def admin_get_settings():
+    """Admin-only: Get app settings"""
+    try:
+        settings = await db.app_settings.find_one({"_id": "global"})
+        
+        if not settings:
+            # Create default settings
+            default_settings = {
+                "_id": "global",
+                "allow_user_additions": True,
+                "booster_price": 0.99,
+                "super_booster_price": 4.99,
+                "booster_votes": 100,
+                "super_booster_votes": 1000,
+                "maintenance_mode": False,
+                "updated_at": now_utc(),
+            }
+            await db.app_settings.insert_one(default_settings)
+            settings = default_settings
+        
+        return {
+            "allow_user_additions": settings.get("allow_user_additions", True),
+            "booster_price": settings.get("booster_price", 0.99),
+            "super_booster_price": settings.get("super_booster_price", 4.99),
+            "booster_votes": settings.get("booster_votes", 100),
+            "super_booster_votes": settings.get("super_booster_votes", 1000),
+            "maintenance_mode": settings.get("maintenance_mode", False),
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin get settings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/settings")
+async def admin_update_settings(settings: AppSettings):
+    """Admin-only: Update app settings"""
+    try:
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {
+                "$set": {
+                    "allow_user_additions": settings.allow_user_additions,
+                    "booster_price": settings.booster_price,
+                    "super_booster_price": settings.super_booster_price,
+                    "booster_votes": settings.booster_votes,
+                    "super_booster_votes": settings.super_booster_votes,
+                    "maintenance_mode": settings.maintenance_mode,
+                    "updated_at": now_utc(),
+                }
+            },
+            upsert=True
+        )
+        
+        return {
+            "success": True,
+            "message": "Settings updated successfully",
+            "settings": settings.dict(),
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin update settings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 
 
 # -------------------- Daily Report --------------------
