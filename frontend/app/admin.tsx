@@ -275,52 +275,27 @@ export default function Admin() {
                       </Text>
                     </View>
 
-                    <View style={styles.boostTypeRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.boostTypeBtn,
-                          boostType === 'likes' && styles.boostTypeBtnActive,
-                        ]}
-                        onPress={() => setBoostType('likes')}
+                    <Text style={styles.cardLabel}>Actions de boost</Text>
+                    
+                    <View style={styles.boostActionsRow}>
+                      <TouchableOpacity 
+                        style={styles.boostActionBtn}
+                        onPress={() => handleBoostDialog('likes')}
                       >
-                        <Ionicons name="thumbs-up" size={20} color={boostType === 'likes' ? '#000' : PALETTE.green} />
-                        <Text style={[
-                          styles.boostTypeText,
-                          boostType === 'likes' && styles.boostTypeTextActive,
-                        ]}>Likes</Text>
+                        <Ionicons name="thumbs-up" size={24} color={PALETTE.green} />
+                        <Text style={styles.boostActionTitle}>Ajouter Likes</Text>
+                        <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                       </TouchableOpacity>
 
-                      <TouchableOpacity
-                        style={[
-                          styles.boostTypeBtn,
-                          boostType === 'dislikes' && styles.boostTypeBtnActive,
-                        ]}
-                        onPress={() => setBoostType('dislikes')}
+                      <TouchableOpacity 
+                        style={styles.boostActionBtn}
+                        onPress={() => handleBoostDialog('dislikes')}
                       >
-                        <Ionicons name="thumbs-down" size={20} color={boostType === 'dislikes' ? '#000' : PALETTE.accent} />
-                        <Text style={[
-                          styles.boostTypeText,
-                          boostType === 'dislikes' && styles.boostTypeTextActive,
-                        ]}>Dislikes</Text>
+                        <Ionicons name="thumbs-down" size={24} color={PALETTE.accent} />
+                        <Text style={styles.boostActionTitle}>Ajouter Dislikes</Text>
+                        <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                       </TouchableOpacity>
                     </View>
-
-                    <Text style={styles.cardLabel}>Nombre de votes</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="100"
-                      placeholderTextColor={PALETTE.subtext}
-                      value={boostAmount}
-                      onChangeText={setBoostAmount}
-                      keyboardType="number-pad"
-                    />
-
-                    <TouchableOpacity style={styles.boostButton} onPress={handleBoost}>
-                      <Ionicons name="rocket" size={20} color="#000" />
-                      <Text style={styles.boostButtonText}>
-                        Ajouter {boostAmount} {boostType}
-                      </Text>
-                    </TouchableOpacity>
                   </>
                 )}
               </View>
