@@ -84,7 +84,8 @@ interface Person {
   likes: number;
   dislikes: number;
   total_votes: number;
-  source?: "seed" | "user_added" | "self_boosted";
+  source?: "seed" | "user_added" | "self_boosted" | "trending";
+  is_trending?: boolean;
 }
 
 export default function Index() {
