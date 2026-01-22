@@ -911,6 +911,9 @@ const styles = StyleSheet.create({
     color: PALETTE.subtext,
     fontSize: 12,
   },
+  trendingBadge: {
+    fontSize: 16,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
