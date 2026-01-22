@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politique de Confidentialité - Popular App</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; background: white; min-height: 100vh; }
+        h1 { color: #0F2F22; margin-bottom: 10px; font-size: 32px; }
+        .updated { color: #666; margin-bottom: 30px; font-size: 14px; }
+        h2 { color: #0F2F22; margin-top: 30px; margin-bottom: 15px; font-size: 24px; }
+        h3 { color: #0F2F22; margin-top: 20px; margin-bottom: 10px; font-size: 18px; }
+        p { margin-bottom: 15px; color: #555; }
+        ul { margin-left: 20px; margin-bottom: 15px; }
+        li { margin-bottom: 8px; color: #555; }
+        .highlight { background: #FFF9E6; padding: 15px; border-left: 4px solid #FFD700; margin: 20px 0; }
+        a { color: #0F2F22; text-decoration: none; border-bottom: 1px solid #0F2F22; }
+        a:hover { color: #FFD700; border-bottom-color: #FFD700; }
+        .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Politique de Confidentialité</h1>
+        <p class="updated">Dernière mise à jour : 22 janvier 2026</p>
+
+        <p>Bienvenue sur Popular (« nous », « notre » ou « nos »). Nous nous engageons à protéger votre vie privée. Cette Politique de Confidentialité explique comment nous collectons, utilisons et protégeons vos informations lorsque vous utilisez notre application mobile (« l'Application »).</p>
+
+        <div class="highlight">
+            <strong>Résumé :</strong> Popular respecte votre vie privée. Nous collectons un minimum de données (identifiant utilisateur anonyme et historique de votes) stockées localement et sur nos serveurs pour calculer les scores des personnalités. Nous ne vendons ni ne partageons vos données avec des tiers.
+        </div>
+
+        <h2>1. Informations que Nous Collectons</h2>
+        
+        <h3>1.1 Informations que Vous Fournissez</h3>
+        <ul>
+            <li><strong>Identifiant Utilisateur Anonyme :</strong> Un identifiant unique généré automatiquement pour suivre vos votes</li>
+            <li><strong>Données de Vote :</strong> Vos likes/dislikes sur les personnalités</li>
+            <li><strong>Achats Premium :</strong> Si vous achetez des crédits (ID de transaction pour validation)</li>
+        </ul>
+
+        <h3>1.2 Informations Collectées Automatiquement</h3>
+        <ul>
+            <li><strong>Informations sur l'Appareil :</strong> Type d'appareil, système d'exploitation, version de l'application</li>
+            <li><strong>Données d'Usage :</strong> Pages consultées, fonctionnalités utilisées, temps passé dans l'app</li>
+            <li><strong>Données Techniques :</strong> Adresse IP (uniquement pour la communication backend)</li>
+        </ul>
+
+        <h3>1.3 Informations que Nous NE Collectons PAS</h3>
+        <ul>
+            <li>❌ Aucune information personnelle (nom, email, numéro de téléphone)</li>
+            <li>❌ Aucun suivi de localisation</li>
+            <li>❌ Aucun accès à la caméra ou au microphone</li>
+            <li>❌ Aucun accès aux contacts ou aux photos</li>
+            <li>❌ Aucun compte de réseaux sociaux</li>
+        </ul>
+
+        <h2>2. Comment Nous Utilisons Vos Informations</h2>
+        <p>Nous utilisons les informations collectées aux fins suivantes :</p>
+        <ul>
+            <li><strong>Calculer les Scores :</strong> Agréger les votes pour calculer les scores de popularité des personnalités</li>
+            <li><strong>Afficher les Classements :</strong> Montrer les personnalités tendance et les top listes</li>
+            <li><strong>Personnalisation :</strong> Afficher votre historique de votes et vos badges</li>
+            <li><strong>Fonctionnalités Premium :</strong> Gérer les achats et l'utilisation de crédits</li>
+            <li><strong>Améliorer le Service :</strong> Analyser les modèles d'utilisation pour améliorer l'application</li>
+            <li><strong>Prévenir les Abus :</strong> Détecter et prévenir la manipulation de votes ou la fraude</li>
+        </ul>
+
+        <h2>3. Comment Nous Stockons Vos Informations</h2>
+        
+        <h3>3.1 Stockage Local</h3>
+        <p>La plupart de vos données sont stockées localement sur votre appareil avec AsyncStorage :</p>
+        <ul>
+            <li>Votre identifiant utilisateur anonyme</li>
+            <li>Votre historique de votes</li>
+            <li>Vos badges et séries</li>
+            <li>Données de personnalités en cache (pour le mode hors ligne)</li>
+        </ul>
+
+        <h3>3.2 Stockage Serveur</h3>
+        <p>Nous stockons sur nos serveurs MongoDB sécurisés :</p>
+        <ul>
+            <li>Nombre agrégé de votes par personnalité</li>
+            <li>Transactions de crédits (identifiant utilisateur anonyme + montant)</li>
+            <li>Historique des scores pour les graphiques</li>
+        </ul>
+
+        <h3>3.3 Sécurité des Données</h3>
+        <ul>
+            <li>🔒 Chiffrement HTTPS pour toutes les communications</li>
+            <li>🔒 Hébergement MongoDB Atlas sécurisé</li>
+            <li>🔒 Aucun stockage de données sensibles en clair</li>
+            <li>🔒 Audits de sécurité réguliers</li>
+        </ul>
+
+        <h2>4. Partage et Divulgation des Données</h2>
+        
+        <h3>4.1 Nous NE Vendons PAS vos données</h3>
+        <p>Nous ne vendrons, ne louerons ni n'échangerons jamais vos informations personnelles à des tiers à des fins marketing.</p>
+
+        <h3>4.2 Partage Limité</h3>
+        <p>Nous pouvons partager des données anonymisées et agrégées uniquement dans ces cas :</p>
+        <ul>
+            <li><strong>Affichage Public :</strong> Les scores et classements des personnalités sont publics par conception</li>
+            <li><strong>Fournisseurs de Services :</strong> Services d'hébergement (MongoDB Atlas, Render.com) avec accords de confidentialité stricts</li>
+            <li><strong>Obligations Légales :</strong> Si requis par la loi ou pour protéger nos droits</li>
+        </ul>
+
+        <h2>5. Vos Droits et Choix</h2>
+        
+        <h3>5.1 Accéder à Vos Données</h3>
+        <p>Vous pouvez consulter votre historique de votes et vos statistiques dans la section « Mes Votes » de l'application.</p>
+
+        <h3>5.2 Supprimer Vos Données</h3>
+        <p>Vous pouvez effacer votre historique de votes local à tout moment :</p>
+        <ul>
+            <li>Accédez à « Mes Votes »</li>
+            <li>Appuyez sur « Effacer l'historique » ou « Exporter en CSV » puis supprimez localement</li>
+        </ul>
+        <p>Pour demander la suppression des données côté serveur, contactez-nous : <strong>contact@popular-app.com</strong></p>
+
+        <h3>5.3 Se Désinscrire</h3>
+        <p>Vous pouvez cesser d'utiliser l'application à tout moment et la désinstaller de votre appareil.</p>
+
+        <h2>6. Confidentialité des Enfants</h2>
+        <p>Notre application est classée 12+ et n'est pas destinée aux enfants de moins de 12 ans. Nous ne collectons pas sciemment d'informations personnelles auprès d'enfants de moins de 12 ans. Si vous pensez que nous avons collecté de telles informations, veuillez nous contacter immédiatement.</p>
+
+        <h2>7. Transferts Internationaux de Données</h2>
+        <p>Vos données peuvent être traitées et stockées sur des serveurs situés dans différents pays. En utilisant l'application, vous consentez au transfert de vos données vers ces emplacements, qui peuvent avoir des lois de protection des données différentes de celles de votre pays.</p>
+
+        <h2>8. Modifications de Cette Politique de Confidentialité</h2>
+        <p>Nous pouvons mettre à jour cette Politique de Confidentialité de temps en temps. Nous vous informerons de tout changement en :</p>
+        <ul>
+            <li>Publiant la nouvelle Politique de Confidentialité sur cette page</li>
+            <li>Mettant à jour la date de « Dernière mise à jour »</li>
+            <li>Notification dans l'application pour les changements importants</li>
+        </ul>
+        <p>Votre utilisation continue de l'application après les modifications constitue l'acceptation de la politique mise à jour.</p>
+
+        <h2>9. Services Tiers</h2>
+        
+        <h3>9.1 Google Trends</h3>
+        <p>Nous utilisons l'API Google Trends pour identifier les personnalités tendance. Aucune donnée personnelle n'est partagée avec Google à cette fin.</p>
+
+        <h3>9.2 Processeurs de Paiement</h3>
+        <p>Si vous achetez des crédits, les paiements sont traités via :</p>
+        <ul>
+            <li><strong>Achat In-App Apple</strong> (iOS) - Soumis à la <a href="https://www.apple.com/legal/privacy/" target="_blank">Politique de Confidentialité d'Apple</a></li>
+            <li><strong>Facturation Google Play</strong> (Android) - Soumis à la <a href="https://policies.google.com/privacy" target="_blank">Politique de Confidentialité de Google</a></li>
+        </ul>
+        <p>Nous ne stockons pas vos informations de paiement.</p>
+
+        <h2>10. Cookies et Suivi</h2>
+        <p>Notre application mobile n'utilise pas de cookies. Nous utilisons des analyses minimales pour améliorer l'expérience de l'application, mais vous pouvez vous désinscrire dans les paramètres de votre appareil (iOS : Limiter le suivi publicitaire, Android : Désactiver la personnalisation des annonces).</p>
+
+        <h2>11. Conformité RGPD (Utilisateurs UE)</h2>
+        <p>Si vous êtes dans l'Union européenne, vous disposez de droits supplémentaires en vertu du RGPD :</p>
+        <ul>
+            <li><strong>Droit d'Accès :</strong> Demander une copie de vos données</li>
+            <li><strong>Droit de Rectification :</strong> Corriger les données inexactes</li>
+            <li><strong>Droit à l'Effacement :</strong> Demander la suppression de vos données</li>
+            <li><strong>Droit à la Limitation du Traitement :</strong> Limiter la façon dont nous utilisons vos données</li>
+            <li><strong>Droit à la Portabilité des Données :</strong> Exporter vos données dans un format portable</li>
+            <li><strong>Droit d'Opposition :</strong> S'opposer à certains traitements de données</li>
+        </ul>
+        <p>Pour exercer ces droits, contactez-nous : <strong>contact@popular-app.com</strong></p>
+
+        <h2>12. Droits en Matière de Confidentialité en Californie (CCPA)</h2>
+        <p>Les résidents de Californie ont le droit de :</p>
+        <ul>
+            <li>Savoir quelles informations personnelles sont collectées</li>
+            <li>Savoir si les informations personnelles sont vendues ou divulguées</li>
+            <li>Refuser la vente d'informations personnelles</li>
+            <li>Accéder aux informations personnelles</li>
+            <li>Demander la suppression des informations personnelles</li>
+            <li>Ne pas être discriminé pour avoir exercé ces droits</li>
+        </ul>
+        <p><strong>Note :</strong> Nous ne vendons pas d'informations personnelles.</p>
+
+        <h2>13. Nous Contacter</h2>
+        <p>Si vous avez des questions ou des préoccupations concernant cette Politique de Confidentialité, veuillez nous contacter :</p>
+        <ul>
+            <li><strong>Email :</strong> contact@popular-app.com</li>
+            <li><strong>Application :</strong> Popular - Le Marché Boursier des Personnalités</li>
+            <li><strong>Délai de Réponse :</strong> Nous visons à répondre dans les 48 heures</li>
+        </ul>
+
+        <h2>14. Consentement</h2>
+        <p>En utilisant notre application, vous consentez à cette Politique de Confidentialité et acceptez ses termes.</p>
+
+        <div class="footer">
+            <p>&copy; 2026 Popular App. Tous droits réservés.</p>
+            <p><a href="index.html">Accueil</a> | <a href="terms-fr.html">Conditions d'Utilisation</a> | <a href="privacy.html">Privacy Policy (EN)</a></p>
+        </div>
+    </div>
+</body>
+</html>
