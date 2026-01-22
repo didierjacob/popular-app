@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import re
 from trends_service import trends_service
+from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
 
 
 ROOT_DIR = Path(__file__).parent
