@@ -22,6 +22,7 @@ isort==7.0.0
 Jinja2==3.1.6
 jmespath==1.0.1
 jq==1.10.0
+lxml==6.0.2
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 mccabe==0.7.0
@@ -53,6 +54,7 @@ python-dotenv==1.2.1
 python-jose==3.5.0
 python-multipart==0.0.20
 pytokens==0.3.0
+pytrends==4.9.2
 pytz==2025.2
 requests==2.32.5
 requests-oauthlib==2.0.0
