@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Popular App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: white;
+            min-height: 100vh;
+        }
+        h1 {
+            color: #0F2F22;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .updated {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        h2 {
+            color: #0F2F22;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+        ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        li {
+            margin-bottom: 8px;
+            color: #555;
+        }
+        .highlight {
+            background: #FFF9E6;
+            padding: 15px;
+            border-left: 4px solid #FFD700;
+            margin: 20px 0;
+        }
+        a {
+            color: #0F2F22;
+            text-decoration: none;
+            border-bottom: 1px solid #0F2F22;
+        }
+        a:hover {
+            color: #FFD700;
+            border-bottom-color: #FFD700;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last Updated: January 22, 2026</p>
+
+        <p>Welcome to Popular ("we," "our," or "us"). We are committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application ("App").</p>
+
+        <div class="highlight">
+            <strong>Summary:</strong> Popular respects your privacy. We collect minimal data (anonymous user ID and voting history) stored locally and on our servers to calculate personality scores. We do not sell or share your data with third parties.
+        </div>
+
+        <h2>1. Information We Collect</h2>
+        
+        <h3>1.1 Information You Provide</h3>
+        <ul>
+            <li><strong>Anonymous User ID:</strong> A unique identifier generated automatically to track your votes</li>
+            <li><strong>Voting Data:</strong> Your likes/dislikes on personalities</li>
+            <li><strong>Premium Purchases:</strong> If you purchase credits (transaction IDs for validation)</li>
+        </ul>
+
+        <h3>1.2 Information Collected Automatically</h3>
+        <ul>
+            <li><strong>Device Information:</strong> Device type, operating system, app version</li>
+            <li><strong>Usage Data:</strong> Pages viewed, features used, time spent in app</li>
+            <li><strong>Technical Data:</strong> IP address (for backend communication only)</li>
+        </ul>
+
+        <h3>1.3 Information We DO NOT Collect</h3>
+        <ul>
+            <li>❌ No personal information (name, email, phone number)</li>
+            <li>❌ No location tracking</li>
+            <li>❌ No camera or microphone access</li>
+            <li>❌ No contacts or photos access</li>
+            <li>❌ No social media accounts</li>
+        </ul>
+
+        <h2>2. How We Use Your Information</h2>
+        <p>We use the collected information for the following purposes:</p>
+        <ul>
+            <li><strong>Calculate Scores:</strong> Aggregate votes to calculate personality popularity scores</li>
+            <li><strong>Display Rankings:</strong> Show trending personalities and top lists</li>
+            <li><strong>Personalization:</strong> Show your voting history and badges</li>
+            <li><strong>Premium Features:</strong> Manage credit purchases and usage</li>
+            <li><strong>Improve Service:</strong> Analyze usage patterns to enhance the app</li>
+            <li><strong>Prevent Abuse:</strong> Detect and prevent vote manipulation or fraud</li>
+        </ul>
+
+        <h2>3. How We Store Your Information</h2>
+        
+        <h3>3.1 Local Storage</h3>
+        <p>Most of your data is stored locally on your device using AsyncStorage:</p>
+        <ul>
+            <li>Your anonymous user ID</li>
+            <li>Your voting history</li>
+            <li>Your badges and streaks</li>
+            <li>Cached personality data (for offline mode)</li>
+        </ul>
+
+        <h3>3.2 Server Storage</h3>
+        <p>We store on our secure MongoDB servers:</p>
+        <ul>
+            <li>Aggregated vote counts per personality</li>
+            <li>Credit transactions (anonymous user ID + amount)</li>
+            <li>Score history for charts</li>
+        </ul>
+
+        <h3>3.3 Data Security</h3>
+        <ul>
+            <li>🔒 HTTPS encryption for all communications</li>
+            <li>🔒 Secure MongoDB Atlas hosting</li>
+            <li>🔒 No plaintext sensitive data storage</li>
+            <li>🔒 Regular security audits</li>
+        </ul>
+
+        <h2>4. Data Sharing and Disclosure</h2>
+        
+        <h3>4.1 We DO NOT sell your data</h3>
+        <p>We will never sell, rent, or trade your personal information to third parties for marketing purposes.</p>
+
+        <h3>4.2 Limited Sharing</h3>
+        <p>We may share anonymized, aggregated data only in these cases:</p>
+        <ul>
+            <li><strong>Public Display:</strong> Personality scores and rankings are public by design</li>
+            <li><strong>Service Providers:</strong> Hosting services (MongoDB Atlas, Render.com) with strict confidentiality agreements</li>
+            <li><strong>Legal Obligations:</strong> If required by law or to protect our rights</li>
+        </ul>
+
+        <h2>5. Your Rights and Choices</h2>
+        
+        <h3>5.1 Access Your Data</h3>
+        <p>You can view your voting history and statistics in the "My Votes" section of the app.</p>
+
+        <h3>5.2 Delete Your Data</h3>
+        <p>You can clear your local voting history anytime:</p>
+        <ul>
+            <li>Go to "My Votes"</li>
+            <li>Tap "Clear History" or "Export to CSV" then delete locally</li>
+        </ul>
+        <p>To request server-side data deletion, contact us at: <strong>contact@popular-app.com</strong></p>
+
+        <h3>5.3 Opt-Out</h3>
+        <p>You can stop using the app at any time and uninstall it from your device.</p>
+
+        <h2>6. Children's Privacy</h2>
+        <p>Our app is rated 12+ and is not intended for children under 12. We do not knowingly collect personal information from children under 12. If you believe we have collected such information, please contact us immediately.</p>
+
+        <h2>7. International Data Transfers</h2>
+        <p>Your data may be processed and stored on servers located in different countries. By using the app, you consent to the transfer of your data to these locations, which may have different data protection laws than your country.</p>
+
+        <h2>8. Changes to This Privacy Policy</h2>
+        <p>We may update this Privacy Policy from time to time. We will notify you of any changes by:</p>
+        <ul>
+            <li>Posting the new Privacy Policy on this page</li>
+            <li>Updating the "Last Updated" date</li>
+            <li>In-app notification for significant changes</li>
+        </ul>
+        <p>Your continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+        <h2>9. Third-Party Services</h2>
+        
+        <h3>9.1 Google Trends</h3>
+        <p>We use Google Trends API to identify trending personalities. No personal data is shared with Google for this purpose.</p>
+
+        <h3>9.2 Payment Processors</h3>
+        <p>If you purchase credits, payments are processed through:</p>
+        <ul>
+            <li><strong>Apple In-App Purchase</strong> (iOS) - Subject to <a href="https://www.apple.com/legal/privacy/" target="_blank">Apple's Privacy Policy</a></li>
+            <li><strong>Google Play Billing</strong> (Android) - Subject to <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a></li>
+        </ul>
+        <p>We do not store your payment information.</p>
+
+        <h2>10. Cookies and Tracking</h2>
+        <p>Our mobile app does not use cookies. We use minimal analytics to improve the app experience, but you can opt-out in your device settings (iOS: Limit Ad Tracking, Android: Opt out of Ads Personalization).</p>
+
+        <h2>11. GDPR Compliance (EU Users)</h2>
+        <p>If you are in the European Union, you have additional rights under GDPR:</p>
+        <ul>
+            <li><strong>Right to Access:</strong> Request a copy of your data</li>
+            <li><strong>Right to Rectification:</strong> Correct inaccurate data</li>
+            <li><strong>Right to Erasure:</strong> Request deletion of your data</li>
+            <li><strong>Right to Restrict Processing:</strong> Limit how we use your data</li>
+            <li><strong>Right to Data Portability:</strong> Export your data in a portable format</li>
+            <li><strong>Right to Object:</strong> Object to certain data processing</li>
+        </ul>
+        <p>To exercise these rights, contact us at: <strong>contact@popular-app.com</strong></p>
+
+        <h2>12. California Privacy Rights (CCPA)</h2>
+        <p>California residents have the right to:</p>
+        <ul>
+            <li>Know what personal information is collected</li>
+            <li>Know if personal information is sold or disclosed</li>
+            <li>Say no to the sale of personal information</li>
+            <li>Access personal information</li>
+            <li>Request deletion of personal information</li>
+            <li>Not be discriminated against for exercising these rights</li>
+        </ul>
+        <p><strong>Note:</strong> We do not sell personal information.</p>
+
+        <h2>13. Contact Us</h2>
+        <p>If you have questions or concerns about this Privacy Policy, please contact us:</p>
+        <ul>
+            <li><strong>Email:</strong> contact@popular-app.com</li>
+            <li><strong>App:</strong> Popular - The Stock Market for People</li>
+            <li><strong>Response Time:</strong> We aim to respond within 48 hours</li>
+        </ul>
+
+        <h2>14. Consent</h2>
+        <p>By using our app, you consent to this Privacy Policy and agree to its terms.</p>
+
+        <div class="footer">
+            <p>&copy; 2026 Popular App. All rights reserved.</p>
+            <p><a href="index.html">Home</a> | <a href="terms.html">Terms of Service</a> | <a href="privacy-fr.html">Politique de Confidentialité (FR)</a></p>
+        </div>
+    </div>
+</body>
+</html>
