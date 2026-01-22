@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   ctaText: { color: 'white', fontWeight: '700', fontSize: 12 },
   trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
   trendName: { color: PALETTE.text },
-  trendDelta: { color: PALETTE.accent2, fontWeight: '700' },
+  trendDelta: { fontWeight: '700' },
   predRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   predLabel: { color: PALETTE.subtext, fontWeight: '700', width: 40, flexShrink: 0 },
   predValue: { color: PALETTE.text, flex: 1, textAlign: 'right', flexShrink: 1 },
