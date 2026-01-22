@@ -401,7 +401,8 @@ function Trends() {
         const delta = Math.round(it.delta * 10) / 10; // Round to 1 decimal
         const isPositive = delta > 0;
         const isNegative = delta < 0;
-        const deltaColor = isPositive ? '#4CAF50' : isNegative ? '#F44336' : PALETTE.subtext;
+        // Use brighter green for dark theme visibility
+        const deltaColor = isPositive ? '#00E676' : isNegative ? '#FF5252' : PALETTE.subtext;
         const arrow = isPositive ? '↗' : isNegative ? '↘' : '→';
         return (
           <View key={it.id} style={styles.trendRow}>
