@@ -463,6 +463,7 @@ export default function Admin() {
                 selectedPerson={selectedPerson}
                 onSelectPerson={setSelectedPerson}
                 onBoost={handleBoostDialog}
+                onRefreshTrends={handleRefreshTrends}
               />
             )}
 
