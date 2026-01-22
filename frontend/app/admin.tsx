@@ -496,7 +496,7 @@ export default function Admin() {
 }
 
 // Dashboard Tab Component
-function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoost }: any) {
+function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoost, onRefreshTrends }: any) {
   return (
     <View>
       {stats && (
