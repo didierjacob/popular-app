@@ -1385,6 +1385,137 @@ async def admin_update_settings(settings: AppSettings):
         }
         
     except Exception as e:
+
+
+# -------------------- Google Trends Integration --------------------
+
+@api_router.post("/admin/refresh-trends")
+async def admin_refresh_trends():
+    """
+    Admin-only: Manually trigger Google Trends refresh
+    Fetches trending personalities and updates the database
+    """
+    try:
+        logger.info("Starting manual trends refresh...")
+        
+        # Fetch trending personalities from Google Trends
+        trending_names = trends_service.get_trending_personalities(limit=20)
+        
+        if not trending_names:
+            return {
+                "success": True,
+                "message": "No trending personalities found",
+                "added": 0,
+                "updated": 0,
+            }
+        
+        added_count = 0
+        updated_count = 0
+        now = now_utc()
+        
+        # First, unmark all existing trending personalities
+        await db.persons.update_many(
+            {"is_trending": True},
+            {"$set": {"is_trending": False}}
+        )
+        
+        for name in trending_names:
+            slug = slugify(name)
+            
+            # Check if person already exists
+            existing = await db.persons.find_one({"slug": slug})
+            
+            if existing:
+                # Mark as trending
+                await db.persons.update_one(
+                    {"_id": existing["_id"]},
+                    {
+                        "$set": {
+                            "is_trending": True,
+                            "trending_since": now,
+                            "updated_at": now,
+                        }
+                    }
+                )
+                updated_count += 1
+                logger.info(f"Marked as trending: {name}")
+            else:
+                # Auto-add new trending personality
+                person_doc = {
+                    "name": name,
+                    "slug": slug,
+                    "category": "other",  # Default category
+                    "approved": True,
+                    "created_at": now,
+                    "updated_at": now,
+                    "score": 50.0,
+                    "likes": 0,
+                    "dislikes": 0,
+                    "total_votes": 0,
+                    "source": "trending",  # Mark as auto-added from trends
+                    "is_trending": True,
+                    "trending_since": now,
+                }
+                
+                result = await db.persons.insert_one(person_doc)
+                
+                # Add initial tick
+                await db.person_ticks.insert_one({
+                    "person_id": result.inserted_id,
+                    "score": 50.0,
+                    "created_at": now
+                })
+                
+                added_count += 1
+                logger.info(f"Auto-added trending personality: {name}")
+        
+        # Update last refresh timestamp
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$set": {"last_trends_refresh": now}},
+            upsert=True
+        )
+        
+        return {
+            "success": True,
+            "message": f"Trends refreshed: {added_count} added, {updated_count} updated",
+            "trending_names": trending_names,
+            "added": added_count,
+            "updated": updated_count,
+            "timestamp": now.isoformat(),
+        }
+        
+    except Exception as e:
+        logger.error(f"Trends refresh error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/trending-personalities")
+async def get_trending_personalities():
+    """Public endpoint: Get list of currently trending personalities"""
+    try:
+        trending = await db.persons.find(
+            {"is_trending": True},
+            {"name": 1, "slug": 1, "score": 1, "total_votes": 1, "trending_since": 1}
+        ).sort("score", -1).limit(20).to_list(20)
+        
+        return [
+            {
+                "id": str(p["_id"]),
+                "name": p.get("name"),
+                "slug": p.get("slug"),
+                "score": p.get("score", 50),
+                "total_votes": p.get("total_votes", 0),
+                "trending_since": p.get("trending_since").isoformat() if p.get("trending_since") else None,
+            }
+            for p in trending
+        ]
+        
+    except Exception as e:
+        logger.error(f"Get trending personalities error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
         logger.error(f"Admin update settings error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
