@@ -370,7 +370,10 @@ export default function Index() {
   const renderPerson = ({ item }: { item: Person }) => (
     <View style={styles.personRow}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.personName, { color: getNameColor(item.source) }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[styles.personName, { color: getNameColor(item.source) }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+          {item.is_trending && <Text style={styles.trendingBadge}>🔥</Text>}
+        </View>
         <Text style={styles.personMeta} numberOfLines={1} ellipsizeMode="tail">{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
         {/* Arrow mini controls */}
         <View style={styles.arrowRow}>
