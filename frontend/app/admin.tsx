@@ -1018,4 +1018,15 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   saveButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
+  refreshTrendsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: PALETTE.gold,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  refreshTrendsButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
 });
