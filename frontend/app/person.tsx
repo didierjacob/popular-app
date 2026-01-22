@@ -397,12 +397,20 @@ function Trends() {
   return (
     <View style={styles.card}>
       <Text style={styles.section}>Personality trends (live)</Text>
-      {items.map((it) => (
-        <View key={it.id} style={styles.trendRow}>
-          <Text style={styles.trendName}>{it.name}</Text>
-          <Text style={styles.trendDelta}>Δ {it.delta > 0 ? `+${it.delta}` : it.delta}</Text>
-        </View>
-      ))}
+      {items.map((it) => {
+        const isPositive = it.delta > 0;
+        const isNegative = it.delta < 0;
+        const deltaColor = isPositive ? '#4CAF50' : isNegative ? '#F44336' : PALETTE.subtext;
+        const arrow = isPositive ? '↗' : isNegative ? '↘' : '→';
+        return (
+          <View key={it.id} style={styles.trendRow}>
+            <Text style={styles.trendName}>{it.name}</Text>
+            <Text style={[styles.trendDelta, { color: deltaColor }]}>
+              {arrow} {isPositive ? `+${it.delta}` : it.delta}
+            </Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
