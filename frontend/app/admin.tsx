@@ -531,7 +531,7 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
         <Text style={styles.sectionTitle}>🔥 Google Trends</Text>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Rafraîchir les personnalités trending</Text>
-          <TouchableOpacity style={styles.refreshTrendsButton} onPress={handleRefreshTrends}>
+          <TouchableOpacity style={styles.refreshTrendsButton} onPress={onRefreshTrends}>
             <Ionicons name="trending-up" size={24} color="#000" />
             <Text style={styles.refreshTrendsButtonText}>Rafraîchir Google Trends</Text>
           </TouchableOpacity>
