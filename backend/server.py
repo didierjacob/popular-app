@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 from bson import ObjectId
 import re
+from trends_service import trends_service
 
 
 ROOT_DIR = Path(__file__).parent
