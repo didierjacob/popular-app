@@ -30,6 +30,29 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
+# -------------------- Startup & Shutdown Events --------------------
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize scheduler on application startup"""
+    logger.info("🚀 Starting Popular API...")
+    
+    # Initialize and start the scheduler
+    init_scheduler(db, trends_service)
+    start_scheduler()
+    
+    logger.info("✅ Scheduler initialized and started")
+    logger.info("📅 Daily Google Trends refresh scheduled at 3:00 AM UTC")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Shutdown scheduler gracefully"""
+    logger.info("🛑 Shutting down Popular API...")
+    shutdown_scheduler()
+    logger.info("✅ Scheduler shut down successfully")
+
+
 # -------------------- Utilities --------------------
 class PyObjectId(ObjectId):
     @classmethod
