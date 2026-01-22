@@ -1386,6 +1386,8 @@ async def admin_update_settings(settings: AppSettings):
         }
         
     except Exception as e:
+        logger.error(f"Admin update settings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # -------------------- Google Trends Integration --------------------
