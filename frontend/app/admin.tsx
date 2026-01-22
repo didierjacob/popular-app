@@ -333,6 +333,37 @@ export default function Admin() {
     loadData();
   }, [loadData]);
 
+  const handleRefreshTrends = async () => {
+    Alert.alert(
+      '🔥 Rafraîchir Google Trends',
+      'Cela va récupérer les personnalités trending de Google Trends et les ajouter/mettre à jour dans l\'app. Continuer ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Rafraîchir',
+          onPress: async () => {
+            try {
+              const res = await fetch(API('/admin/refresh-trends'), { method: 'POST' });
+              if (res.ok) {
+                const result = await res.json();
+                Alert.alert(
+                  '✅ Trends Rafraîchis !',
+                  `${result.added} nouvelles personnalités ajoutées\n${result.updated} mises à jour comme trending`,
+                  [{ text: 'OK' }]
+                );
+                loadData();
+              } else {
+                Alert.alert('Erreur', 'Échec du rafraîchissement');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Erreur réseau');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (!authenticated) {
     return (
       <SafeAreaView style={styles.container}>
