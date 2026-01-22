@@ -1543,6 +1543,45 @@ async def get_trending_personalities():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.get("/admin/scheduler-status")
+async def admin_get_scheduler_status():
+    """Admin-only: Get scheduler status and next run time"""
+    try:
+        from scheduler import scheduler
+        
+        if not scheduler or not scheduler.running:
+            return {
+                "running": False,
+                "message": "Scheduler is not running"
+            }
+        
+        jobs = scheduler.get_jobs()
+        job_info = []
+        
+        for job in jobs:
+            next_run = job.next_run_time
+            job_info.append({
+                "id": job.id,
+                "name": job.name,
+                "next_run": next_run.isoformat() if next_run else None,
+                "trigger": str(job.trigger),
+            })
+        
+        # Get last refresh time
+        settings = await db.app_settings.find_one({"_id": "global"})
+        last_refresh = settings.get("last_trends_refresh") if settings else None
+        
+        return {
+            "running": True,
+            "jobs": job_info,
+            "last_trends_refresh": last_refresh.isoformat() if last_refresh else None,
+        }
+        
+    except Exception as e:
+        logger.error(f"Scheduler status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
         logger.error(f"Admin update settings error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
