@@ -45,7 +45,7 @@ export default function Premium() {
       'Confirmer l\'achat',
       `Buy ${pack.credits} credit${pack.credits > 1 ? 's' : ''} for ${pack.price}€ ?\n\n(Simulation - No real payment)`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Buy',
           onPress: async () => {
@@ -72,7 +72,7 @@ export default function Premium() {
         'Boost Myself',
         'Enter your full name to add yourself as a personality with 100 votes (costs 1 credit) :',
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Create & Boost',
             onPress: async (name) => {
@@ -92,7 +92,7 @@ export default function Premium() {
         'Boost Myself',
         'This feature requires text input.\n\nYou will be added as a personality with 100 votes for 1 credit.\n\nPlease enter your name :',
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Continuer',
             onPress: () => {
@@ -102,7 +102,7 @@ export default function Premium() {
                 'Votre Nom',
                 'Entrez votre nom complet :',
                 [
-                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Create',
                     onPress: async (name) => {

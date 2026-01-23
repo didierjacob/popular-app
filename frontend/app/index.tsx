@@ -670,7 +670,7 @@ export default function Index() {
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowCategoryModal(false); setPendingPersonName(''); }}>
-              <Text style={styles.cancelBtnText}>Annuler</Text>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>

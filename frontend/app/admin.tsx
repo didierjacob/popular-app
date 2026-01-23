@@ -179,7 +179,7 @@ export default function Admin() {
         `${emoji} Add ${typeLabel}`,
         `Personality : ${selectedPerson.name}\n\nHow many ${typeLabel.toLowerCase()} ? (1-5000)`,
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Add',
             onPress: async (value) => {
@@ -201,7 +201,7 @@ export default function Admin() {
         `${emoji} Add ${typeLabel}`,
         `Personality : ${selectedPerson.name}\n\nNumber of ${typeLabel.toLowerCase()} (1-5000) :`,
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: 'Cancel', style: 'cancel' },
           { text: '100', onPress: () => executeBoost(selectedPerson.id, 100, type) },
           { text: '500', onPress: () => executeBoost(selectedPerson.id, 500, type) },
           { text: '1000', onPress: () => executeBoost(selectedPerson.id, 1000, type) },
@@ -212,7 +212,7 @@ export default function Admin() {
                 'Custom amount',
                 'Entrez le nombre (1-5000) :',
                 [
-                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Add',
                     onPress: async (value) => {
@@ -260,7 +260,7 @@ export default function Admin() {
       '⚠️ Delete',
       `Are you sure you want to delete "${person.name}" ?\n\nThis action cannot be undone.`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -287,7 +287,7 @@ export default function Admin() {
       '🔄 Reset',
       `Reset "${person.name}" to a neutral score of 50 ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reset',
           onPress: async () => {
