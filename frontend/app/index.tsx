@@ -370,6 +370,10 @@ export default function Index() {
 
   const renderPerson = ({ item }: { item: Person }) => (
     <View style={styles.personRow}>
+      {/* Gauge Icon */}
+      <View style={styles.gaugeContainer}>
+        <GaugeIcon score={item.score} size={44} />
+      </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={[styles.personName, { color: getNameColor(item.source) }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
