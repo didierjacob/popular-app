@@ -762,7 +762,7 @@ function SettingsTab({ settings, onSettingsChange, onSave }: any) {
         <View style={styles.settingRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingLabel}>Mode maintenance</Text>
-            <Text style={styles.settingDesc}>Désactive l'accès à l'app</Text>
+            <Text style={styles.settingDesc}>Disables access to the app</Text>
           </View>
           <Switch
             value={settings.maintenance_mode}

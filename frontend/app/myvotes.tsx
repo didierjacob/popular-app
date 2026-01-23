@@ -131,7 +131,7 @@ export default function MyVotes() {
         <View style={styles.emptyContainer}>
           <Ionicons name="heart-outline" size={64} color={PALETTE.subtext} />
           <Text style={styles.emptyText}>Aucun vote encore</Text>
-          <Text style={styles.emptySubtext}>Votez pour des personnalités pour les voir ici</Text>
+          <Text style={styles.emptySubtext}>Vote for personalities to see them here</Text>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }}>
@@ -140,8 +140,8 @@ export default function MyVotes() {
             <View style={styles.streakHeader}>
               <Ionicons name="flame" size={32} color="#FF6B35" />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.streakTitle}>Série de votes</Text>
-                <Text style={styles.streakSubtitle}>Votez chaque jour pour augmenter votre série</Text>
+                <Text style={styles.streakTitle}>Voting streak</Text>
+                <Text style={styles.streakSubtitle}>Vote every day to increase your streak</Text>
               </View>
             </View>
             <View style={styles.streakStats}>
@@ -208,7 +208,7 @@ export default function MyVotes() {
               
               {/* Likes vs Dislikes */}
               <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Répartition :</Text>
+                <Text style={styles.statLabel}>Distribution :</Text>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <Text style={styles.statValue}>👍 {voteStats.totalLikes}</Text>
                   <Text style={styles.statValue}>👎 {voteStats.totalDislikes}</Text>
@@ -217,14 +217,14 @@ export default function MyVotes() {
 
               {/* Favorite Category */}
               <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Catégorie préférée :</Text>
+                <Text style={styles.statLabel}>Favorite category :</Text>
                 <Text style={[styles.statValue, { fontWeight: '700' }]}>{voteStats.favoriteCategory}</Text>
               </View>
 
               {/* Most Voted Person */}
               {voteStats.mostVotedPerson.name && (
                 <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Plus voté :</Text>
+                  <Text style={styles.statLabel}>Most voted :</Text>
                   <Text style={[styles.statValue, { fontWeight: '700', flex: 1, textAlign: 'right' }]} numberOfLines={1}>
                     {voteStats.mostVotedPerson.name} ({voteStats.mostVotedPerson.count})
                   </Text>
@@ -232,7 +232,7 @@ export default function MyVotes() {
               )}
 
               {/* Categories Breakdown */}
-              <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>Par catégorie :</Text>
+              <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>By category :</Text>
               {voteStats.categoriesBreakdown.map((cat) => (
                 <View key={cat.category} style={styles.categoryBar}>
                   <Text style={styles.categoryName}>{cat.category}</Text>
