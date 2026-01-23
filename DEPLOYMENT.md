@@ -1,92 +1,89 @@
-# 🚀 Guide de Déploiement - Popular App
+# 🚀 Deployment Guide - Popular App
 
-## Prérequis Complétés
-- [x] MongoDB Atlas configuré
-- [x] Brevo SMTP configuré
-- [x] Fichiers de déploiement créés
+## Prerequisites
+- [x] MongoDB Atlas configured
+- [x] Brevo SMTP configured
+- [x] Deployment files created
 
 ---
 
-## Étape 1 : Déployer le Backend sur Render
+## Step 1: Deploy Backend on Render
 
-### Option A : Déploiement automatique (recommandé)
+### Option A: Automatic deployment (recommended)
 
-1. Allez sur **https://render.com** et connectez-vous (GitHub recommandé)
+1. Go to **https://render.com** and sign in (GitHub recommended)
 
-2. Cliquez sur **"New" → "Web Service"**
+2. Click **"New" → "Web Service"**
 
-3. Connectez votre repo GitHub ou utilisez **"Public Git repository"**
+3. Connect your GitHub repo or use **"Public Git repository"**
 
-4. Configuration :
-   - **Name** : `popular-api`
-   - **Region** : Frankfurt (EU)
-   - **Branch** : `main`
-   - **Root Directory** : `backend`
-   - **Runtime** : Python 3
-   - **Build Command** : `pip install -r requirements.txt`
-   - **Start Command** : `uvicorn server:app --host 0.0.0.0 --port $PORT`
+4. Configuration:
+   - **Name**: `popular-api`
+   - **Region**: Frankfurt (EU)
+   - **Branch**: `main`
+   - **Root Directory**: `backend`
+   - **Runtime**: Python 3
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn server:app --host 0.0.0.0 --port $PORT`
 
-5. Cliquez **"Advanced"** et ajoutez les **Environment Variables** :
+5. Click **"Advanced"** and add the **Environment Variables**:
 
 ```
-MONGO_URL = mongodb+srv://popular_admin:qJqQVK0hqGPlsaKw@cluster0.gvhxqbc.mongodb.net/popular_production?retryWrites=true&w=majority
+MONGO_URL = <YOUR_MONGODB_CONNECTION_STRING>
 DB_NAME = popular_production
 SMTP_HOST = smtp-relay.brevo.com
 SMTP_PORT = 587
-SMTP_USER = a0b2e7001@smtp-brevo.com
-SMTP_PASSWORD = ZfyDKRU8FJLrNpgM
-SMTP_FROM_EMAIL = noreply@popular-app.com
+SMTP_USER = <YOUR_BREVO_LOGIN>
+SMTP_PASSWORD = <YOUR_BREVO_API_KEY>
+SMTP_FROM_EMAIL = <YOUR_FROM_EMAIL>
 SMTP_FROM_NAME = Popular App
-REPORT_EMAIL = didier@coffeeandfilms.com
+REPORT_EMAIL = <YOUR_EMAIL>
 ```
 
-6. Cliquez **"Create Web Service"**
+⚠️ **IMPORTANT**: Never commit real credentials to Git. Use environment variables on your hosting platform.
 
-7. Attendez le déploiement (~5 minutes)
+6. Click **"Create Web Service"**
 
-8. Votre API sera disponible sur : `https://popular-api.onrender.com`
+7. Wait for deployment (~5 minutes)
+
+8. Your API will be available at: `https://popular-api.onrender.com`
 
 ---
 
-## Étape 2 : Configurer l'App Mobile
+## Step 2: Configure Mobile App
 
-Une fois le backend déployé, mettez à jour le frontend :
+Once backend is deployed, update the frontend:
 
-### Fichier : `/app/frontend/.env`
+### File: `/app/frontend/.env`
 ```
 EXPO_PUBLIC_API_URL=https://popular-api.onrender.com
 ```
 
 ---
 
-## Étape 3 : Tester le Déploiement
+## Step 3: Test Deployment
 
-1. **Test API** :
+1. **Test API**:
 ```bash
 curl https://popular-api.onrender.com/api/
 ```
 
-2. **Test Stats** :
+2. **Test Stats**:
 ```bash
 curl https://popular-api.onrender.com/api/admin/stats
 ```
 
-3. **Test Email** (optionnel) :
-```bash
-curl -X POST "https://popular-api.onrender.com/api/send-daily-report?to_email=didier@coffeeandfilms.com"
-```
-
 ---
 
-## Étape 4 : Build de l'App Mobile
+## Step 4: Build Mobile App
 
-### Pour Android (APK) :
+### For Android (APK):
 ```bash
 cd frontend
 eas build --platform android --profile preview
 ```
 
-### Pour iOS (IPA) :
+### For iOS (IPA):
 ```bash
 cd frontend  
 eas build --platform ios --profile preview
@@ -94,44 +91,28 @@ eas build --platform ios --profile preview
 
 ---
 
-## Variables d'Environnement (Référence)
+## Environment Variables Reference
 
-| Variable | Valeur | Description |
-|----------|--------|-------------|
-| MONGO_URL | mongodb+srv://... | Connection MongoDB Atlas |
-| DB_NAME | popular_production | Nom de la base |
-| SMTP_HOST | smtp-relay.brevo.com | Serveur Brevo |
-| SMTP_PORT | 587 | Port SMTP |
-| SMTP_USER | a0b2e7001@smtp-brevo.com | Login Brevo |
-| SMTP_PASSWORD | *** | Clé API Brevo |
-| SMTP_FROM_EMAIL | noreply@popular-app.com | Email expéditeur |
-| REPORT_EMAIL | didier@coffeeandfilms.com | Destinataire rapports |
-
----
-
-## Troubleshooting
-
-### Le backend ne démarre pas
-- Vérifiez les logs dans Render Dashboard
-- Assurez-vous que MONGO_URL est correct
-
-### Les emails ne s'envoient pas
-- Vérifiez les credentials Brevo dans les variables d'environnement
-- Testez avec l'endpoint `/api/send-daily-report`
-
-### L'app mobile ne se connecte pas
-- Vérifiez que EXPO_PUBLIC_API_URL pointe vers le bon URL Render
-- Le backend doit être "Live" (vert) dans Render
+| Variable | Description |
+|----------|-------------|
+| MONGO_URL | MongoDB Atlas connection string |
+| DB_NAME | Database name (popular_production) |
+| SMTP_HOST | Brevo SMTP server |
+| SMTP_PORT | SMTP port (587) |
+| SMTP_USER | Brevo login email |
+| SMTP_PASSWORD | Brevo API key |
+| SMTP_FROM_EMAIL | Sender email address |
+| REPORT_EMAIL | Email for daily reports |
 
 ---
 
-## Coûts Estimés
+## Estimated Costs
 
-| Service | Plan | Coût |
+| Service | Plan | Cost |
 |---------|------|------|
-| Render | Free | 0€ |
-| MongoDB Atlas | M0 Free | 0€ |
-| Brevo | Free (300 emails/jour) | 0€ |
-| **Total** | | **0€/mois** |
+| Render | Free | $0 |
+| MongoDB Atlas | M0 Free | $0 |
+| Brevo | Free (300 emails/day) | $0 |
+| **Total** | | **$0/month** |
 
-⚠️ Note : Le plan gratuit Render met le service en veille après 15 min d'inactivité. Premier appel peut prendre ~30s.
+⚠️ Note: Render free plan sleeps after 15 min of inactivity. First request may take ~30s.
