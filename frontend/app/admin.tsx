@@ -541,7 +541,7 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🚀 Booster</Text>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Sélectionner une personnalité</Text>
+          <Text style={styles.cardLabel}>Select a personality</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.personSelector}>
             {topPeople.slice(0, 10).map((person: Person) => (
               <TouchableOpacity
@@ -606,7 +606,7 @@ function ModerationTab({
 }: any) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>🔍 Recherche Avancée</Text>
+      <Text style={styles.sectionTitle}>🔍 Advanced Search</Text>
       
       <View style={styles.card}>
         <TextInput
@@ -619,7 +619,7 @@ function ModerationTab({
 
         <View style={styles.filterRow}>
           <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.filterLabel}>Catégorie</Text>
+            <Text style={styles.filterLabel}>Category</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {['', 'politics', 'culture', 'business', 'sport', 'other'].map((cat) => (
                 <TouchableOpacity
@@ -653,7 +653,7 @@ function ModerationTab({
           </View>
         </View>
 
-        <Text style={styles.resultsCount}>{searchResults.length} résultat(s)</Text>
+        <Text style={styles.resultsCount}>{searchResults.length} result(s)</Text>
 
         {searchResults.map((person: Person) => (
           <View key={person.id} style={styles.moderationRow}>
@@ -703,13 +703,13 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>💰 Achats Récents</Text>
+        <Text style={styles.sectionTitle}>💰 Recent Purchases</Text>
         <View style={styles.card}>
           {activityData.recent_purchases.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
               <Ionicons name="cart" size={20} color={PALETTE.green} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.activityName}>{item.amount} crédits</Text>
+                <Text style={styles.activityName}>{item.amount} credits</Text>
                 <Text style={styles.activityTime}>
                   {new Date(item.timestamp).toLocaleString('fr-FR')}
                 </Text>
@@ -720,7 +720,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>⚡ Utilisations Récentes</Text>
+        <Text style={styles.sectionTitle}>⚡ Recent Usage</Text>
         <View style={styles.card}>
           {activityData.recent_uses.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
@@ -749,7 +749,7 @@ function SettingsTab({ settings, onSettingsChange, onSave }: any) {
         <View style={styles.settingRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingLabel}>Autoriser ajouts utilisateurs</Text>
-            <Text style={styles.settingDesc}>Les users peuvent ajouter des personnalités</Text>
+            <Text style={styles.settingDesc}>Users can add personalities</Text>
           </View>
           <Switch
             value={settings.allow_user_additions}
