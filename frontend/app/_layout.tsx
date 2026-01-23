@@ -51,7 +51,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="myvotes"
         options={{
-          title: "Mes votes",
+          title: "My Votes",
           tabBarIcon: ({ color, size}) => (
             <Ionicons name="heart-outline" size={size} color={color} />
           ),
