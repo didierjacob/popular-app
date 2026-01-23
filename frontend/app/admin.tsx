@@ -248,7 +248,7 @@ export default function Admin() {
         loadData();
         setSelectedPerson(null);
       } else {
-        Alert.alert('Error', 'Échec du boost');
+        Alert.alert('Error', 'Boost failed');
       }
     } catch (error) {
       Alert.alert('Error', 'Network error');
@@ -271,7 +271,7 @@ export default function Admin() {
                 Alert.alert('✅ Deleted', `"${person.name}" has been deleted`);
                 loadData();
               } else {
-                Alert.alert('Error', 'Échec de la suppression');
+                Alert.alert('Error', 'Deletion failed');
               }
             } catch (error) {
               Alert.alert('Error', 'Network error');
@@ -321,7 +321,7 @@ export default function Admin() {
       if (res.ok) {
         Alert.alert('✅ Saved', 'Settings updated successfully');
       } else {
-        Alert.alert('Error', 'Échec de la sauvegarde');
+        Alert.alert('Error', 'Save failed');
       }
     } catch (error) {
       Alert.alert('Error', 'Network error');
