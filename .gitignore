@@ -30,8 +30,17 @@ Thumbs.db
 npm-debug.log*
 
 # Test artifacts
-screenshots/
 test_result.md
+backend_test.py
+
+# Large files
+model.patch
+*.patch
+
+# Metro cache
+.metro-cache/
 
 # Misc
 .cache/
+.emergent/
+.gitconfig
