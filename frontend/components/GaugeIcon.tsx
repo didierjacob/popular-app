@@ -1,90 +1,53 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
-import Svg, { Path, Circle, G } from 'react-native-svg';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import Svg, { Path, Circle, G, Line } from 'react-native-svg';
 
 interface GaugeIconProps {
   score: number; // 0-100
   size?: number;
 }
 
-const AnimatedG = Animated.createAnimatedComponent(G);
-
 export function GaugeIcon({ score, size = 40 }: GaugeIconProps) {
-  const oscillation = useRef(new Animated.Value(0)).current;
-  const needleAngle = useRef(new Animated.Value(0)).current;
+  const [oscillationOffset, setOscillationOffset] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  // Convert score (0-100) to angle (-135 to 135 degrees, where 0 is center/top)
-  // Score 0 = -135° (left/red), Score 50 = 0° (center/gray), Score 100 = 135° (right/green)
+  // Ensure size is valid
+  const safeSize = Math.max(size, 20);
+  
+  // Convert score (0-100) to angle (-135 to 135 degrees)
+  // Score 0 = -135° (left/red), Score 50 = 0° (center/top), Score 100 = 135° (right/green)
   const scoreToAngle = (s: number) => {
-    // Clamp score between 0 and 100
     const clampedScore = Math.max(0, Math.min(100, s));
-    // Map 0-100 to -135 to +135 degrees
     return (clampedScore - 50) * 2.7;
   };
 
+  const baseAngle = scoreToAngle(score);
+  const currentAngle = baseAngle + oscillationOffset;
+
+  // Oscillation effect for "live" feeling
   useEffect(() => {
-    // Animate needle to target position
-    Animated.timing(needleAngle, {
-      toValue: scoreToAngle(score),
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    let direction = 1;
+    let offset = 0;
+    
+    intervalRef.current = setInterval(() => {
+      offset += direction * 0.3;
+      if (offset > 2) direction = -1;
+      if (offset < -2) direction = 1;
+      setOscillationOffset(offset);
+    }, 100);
 
-    // Start oscillation animation for "live" feel
-    const oscillate = Animated.loop(
-      Animated.sequence([
-        Animated.timing(oscillation, {
-          toValue: 1,
-          duration: 1500 + Math.random() * 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(oscillation, {
-          toValue: -1,
-          duration: 1500 + Math.random() * 500,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    oscillate.start();
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
-    return () => oscillate.stop();
-  }, [score]);
+  const center = safeSize / 2;
+  const radius = safeSize * 0.38;
+  const strokeWidth = Math.max(safeSize * 0.1, 3);
 
-  // Combine target angle with small oscillation
-  const rotation = Animated.add(
-    needleAngle,
-    oscillation.interpolate({
-      inputRange: [-1, 1],
-      outputRange: [-2, 2], // Small 2-degree oscillation
-    })
-  );
-
-  const rotateStyle = {
-    transform: [
-      {
-        rotate: rotation.interpolate({
-          inputRange: [-180, 180],
-          outputRange: ['-180deg', '180deg'],
-        }),
-      },
-    ],
-  };
-
-  const center = size / 2;
-  const radius = size * 0.42;
-  const strokeWidth = size * 0.12;
-
-  // Create arc paths for each segment
-  const createArc = (startAngle: number, endAngle: number) => {
-    const start = polarToCartesian(center, center, radius, startAngle);
-    const end = polarToCartesian(center, center, radius, endAngle);
-    const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
-    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
-  };
-
+  // Helper function to convert polar to cartesian coordinates
   const polarToCartesian = (cx: number, cy: number, r: number, angle: number) => {
     const rad = ((angle - 90) * Math.PI) / 180;
     return {
@@ -93,9 +56,21 @@ export function GaugeIcon({ score, size = 40 }: GaugeIconProps) {
     };
   };
 
+  // Create arc path
+  const createArc = (startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(center, center, radius, startAngle);
+    const end = polarToCartesian(center, center, radius, endAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
+    return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 ${largeArcFlag} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+  };
+
+  // Calculate needle endpoint
+  const needleLength = radius - strokeWidth / 2;
+  const needleEnd = polarToCartesian(center, center, needleLength, currentAngle - 90);
+
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
-      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <View style={[styles.container, { width: safeSize, height: safeSize }]}>
+      <Svg width={safeSize} height={safeSize} viewBox={`0 0 ${safeSize} ${safeSize}`}>
         {/* Red segment (left) - from -135 to -45 degrees */}
         <Path
           d={createArc(-135, -45)}
@@ -107,7 +82,7 @@ export function GaugeIcon({ score, size = 40 }: GaugeIconProps) {
         {/* Gray segment (center) - from -45 to 45 degrees */}
         <Path
           d={createArc(-45, 45)}
-          stroke="#78909C"
+          stroke="#607D8B"
           strokeWidth={strokeWidth}
           strokeLinecap="butt"
           fill="none"
@@ -120,35 +95,24 @@ export function GaugeIcon({ score, size = 40 }: GaugeIconProps) {
           strokeLinecap="round"
           fill="none"
         />
+        {/* Needle */}
+        <Line
+          x1={center}
+          y1={center}
+          x2={needleEnd.x}
+          y2={needleEnd.y}
+          stroke="#FFFFFF"
+          strokeWidth={Math.max(2, safeSize * 0.05)}
+          strokeLinecap="round"
+        />
         {/* Center circle */}
         <Circle
           cx={center}
           cy={center}
-          r={size * 0.08}
+          r={Math.max(safeSize * 0.08, 2)}
           fill="#FFFFFF"
         />
       </Svg>
-      
-      {/* Animated needle overlay */}
-      <Animated.View 
-        style={[
-          styles.needleContainer, 
-          { width: size, height: size },
-          rotateStyle
-        ]}
-      >
-        <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <G>
-            {/* Needle pointing up (will be rotated) */}
-            <Path
-              d={`M ${center - size * 0.025} ${center} 
-                  L ${center} ${center - radius + strokeWidth / 2} 
-                  L ${center + size * 0.025} ${center} Z`}
-              fill="#FFFFFF"
-            />
-          </G>
-        </Svg>
-      </Animated.View>
     </View>
   );
 }
@@ -156,11 +120,6 @@ export function GaugeIcon({ score, size = 40 }: GaugeIconProps) {
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-  },
-  needleContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
   },
 });
 
