@@ -145,7 +145,7 @@ export default function Person() {
           // Refresh data and balance
           await Promise.all([fetchData(true), refreshBalance()]);
           
-          alert(`✨ Vote Premium appliqué !\n\n+${result.votes_applied} votes • Nouveau score: ${result.new_score}\nCrédits restants: ${result.new_balance}`);
+          alert(`✨ Premium Vote Applied!\n\n+${result.votes_applied} votes • New score: ${result.new_score}\nCredits remaining: ${result.new_balance}`);
           
           // Disable premium mode after use
           setIsPremiumMode(false);
