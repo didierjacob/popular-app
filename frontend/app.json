@@ -21,8 +21,8 @@
       "bundleIdentifier": "com.popular.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Cette app n'utilise pas la caméra",
-        "NSPhotoLibraryUsageDescription": "Cette app n'utilise pas la galerie photo"
+        "NSCameraUsageDescription": "This app does not use the camera",
+        "NSPhotoLibraryUsageDescription": "This app does not use the photo library"
       }
     },
     "android": {
