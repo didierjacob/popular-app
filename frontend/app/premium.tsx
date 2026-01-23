@@ -70,11 +70,11 @@ export default function Premium() {
       // iOS supports Alert.prompt
       Alert.prompt(
         'Boost Myself',
-        'Entrez votre nom complet for vous ajouter comme personnalité avec 100 votes (coûte 1 credit) :',
+        'Enter your full name to add yourself as a personality with 100 votes (costs 1 credit) :',
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Créer & Boost',
+            text: 'Create & Boost',
             onPress: async (name) => {
               if (name && name.trim()) {
                 await processBoostMyself(name.trim());
@@ -90,7 +90,7 @@ export default function Premium() {
       // Android doesn't support Alert.prompt, show a simple alert
       Alert.alert(
         'Boost Myself',
-        'Cette fonctionnalité nécessite une saisie de texte.\n\nVous serez ajouté comme personnalité avec 100 votes for 1 credit.\n\nVeuillez saisir votre nom :',
+        'This feature requires text input.\n\nYou will be added as a personality with 100 votes for 1 credit.\n\nPlease enter your name :',
         [
           { text: 'Annuler', style: 'cancel' },
           {
@@ -104,7 +104,7 @@ export default function Premium() {
                 [
                   { text: 'Annuler', style: 'cancel' },
                   {
-                    text: 'Créer',
+                    text: 'Create',
                     onPress: async (name) => {
                       if (name && name.trim()) {
                         await processBoostMyself(name.trim());
@@ -132,7 +132,7 @@ export default function Premium() {
       await refreshBalance();
       await loadHistory();
     } catch (error: any) {
-      const message = error.message || 'Échec de la création';
+      const message = error.message || 'Creation failed';
       Alert.alert('Erreur', message);
     } finally {
       setPurchasing(false);
