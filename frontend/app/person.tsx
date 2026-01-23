@@ -129,7 +129,7 @@ export default function Person() {
         }
 
         // Confirm premium vote
-        if (!confirm(`Utiliser 1 crédit pour un vote x100 ?\n\nCe vote aura 100x plus d\'impact!`)) {
+        if (!confirm(`Use 1 credit for a x100 vote?\n\nCe vote aura 100x plus d\'impact!`)) {
           return;
         }
 
@@ -224,7 +224,7 @@ export default function Person() {
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} sur Popular ! Current score : ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.FACEBOOK,
@@ -243,7 +243,7 @@ export default function Person() {
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Découvrez la popularité de ${name} sur Popular ! Score actuel : ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} sur Popular ! Current score : ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.TWITTER,

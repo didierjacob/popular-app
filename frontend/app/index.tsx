@@ -464,7 +464,7 @@ export default function Index() {
       {/* Phase 4 - Offline indicator */}
       {!isConnected && !isChecking && (
         <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>📵 Mode hors-ligne • Données en cache</Text>
+          <Text style={styles.offlineText}>📵 Offline mode • Cached data</Text>
         </View>
       )}
       
@@ -650,7 +650,7 @@ export default function Index() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Sélectionnez une catégorie</Text>
+            <Text style={styles.modalTitle}>Select a category</Text>
             <Text style={styles.modalSubtitle}>{pendingPersonName}</Text>
             
             <TouchableOpacity style={[styles.categoryBtn, { backgroundColor: '#2E6148' }]} onPress={() => onAddPerson('politics')}>

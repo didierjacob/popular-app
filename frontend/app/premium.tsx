@@ -43,16 +43,16 @@ export default function Premium() {
 
     Alert.alert(
       'Confirmer l\'achat',
-      `Acheter ${pack.credits} crédit${pack.credits > 1 ? 's' : ''} pour ${pack.price}€ ?\n\n(Simulation - Aucun paiement réel)`,
+      `Buy ${pack.credits} credit${pack.credits > 1 ? 's' : ''} for ${pack.price}€ ?\n\n(Simulation - No real payment)`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Acheter',
+          text: 'Buy',
           onPress: async () => {
             setPurchasing(true);
             try {
               const result = await purchaseCredits(packId);
-              Alert.alert('Succès !', result.message);
+              Alert.alert('Success !', result.message);
               await loadHistory();
             } catch (error: any) {
               Alert.alert('Erreur', error.message || 'Échec de l\'achat');
@@ -70,7 +70,7 @@ export default function Premium() {
       // iOS supports Alert.prompt
       Alert.prompt(
         'Boost Myself',
-        'Entrez votre nom complet pour vous ajouter comme personnalité avec 100 votes (coûte 1 crédit) :',
+        'Entrez votre nom complet for vous ajouter comme personnalité avec 100 votes (coûte 1 credit) :',
         [
           { text: 'Annuler', style: 'cancel' },
           {
@@ -90,7 +90,7 @@ export default function Premium() {
       // Android doesn't support Alert.prompt, show a simple alert
       Alert.alert(
         'Boost Myself',
-        'Cette fonctionnalité nécessite une saisie de texte.\n\nVous serez ajouté comme personnalité avec 100 votes pour 1 crédit.\n\nVeuillez saisir votre nom :',
+        'Cette fonctionnalité nécessite une saisie de texte.\n\nVous serez ajouté comme personnalité avec 100 votes for 1 credit.\n\nVeuillez saisir votre nom :',
         [
           { text: 'Annuler', style: 'cancel' },
           {
@@ -125,8 +125,8 @@ export default function Premium() {
     try {
       const result = await CreditsService.boostMyself(name);
       Alert.alert(
-        '🎉 Succès !',
-        `${result.message}\n\nVous avez maintenant ${result.new_balance} crédit${result.new_balance > 1 ? 's' : ''} restant${result.new_balance > 1 ? 's' : ''}.`,
+        '🎉 Success !',
+        `${result.message}\n\nVous avez maintenant ${result.new_balance} credit${result.new_balance > 1 ? 's' : ''} restant${result.new_balance > 1 ? 's' : ''}.`,
         [{ text: 'OK' }]
       );
       await refreshBalance();
@@ -203,7 +203,7 @@ export default function Premium() {
               disabled={purchasing}
             >
               <Ionicons name="person-add" size={20} color="#000" />
-              <Text style={styles.boostMyselfText}>Boost Myself (1 crédit)</Text>
+              <Text style={styles.boostMyselfText}>Boost Myself (1 credit)</Text>
             </TouchableOpacity>
           )}
         </View>
