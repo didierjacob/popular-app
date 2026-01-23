@@ -251,7 +251,7 @@ export default function Admin() {
         Alert.alert('Error', 'Échec du boost');
       }
     } catch (error) {
-      Alert.alert('Error', 'Error réseau');
+      Alert.alert('Error', 'Network error');
     }
   };
 
@@ -274,7 +274,7 @@ export default function Admin() {
                 Alert.alert('Error', 'Échec de la suppression');
               }
             } catch (error) {
-              Alert.alert('Error', 'Error réseau');
+              Alert.alert('Error', 'Network error');
             }
           },
         },
@@ -300,7 +300,7 @@ export default function Admin() {
                 Alert.alert('Error', 'Reset failed');
               }
             } catch (error) {
-              Alert.alert('Error', 'Error réseau');
+              Alert.alert('Error', 'Network error');
             }
           },
         },
@@ -324,7 +324,7 @@ export default function Admin() {
         Alert.alert('Error', 'Échec de la sauvegarde');
       }
     } catch (error) {
-      Alert.alert('Error', 'Error réseau');
+      Alert.alert('Error', 'Network error');
     }
   };
 
@@ -353,10 +353,10 @@ export default function Admin() {
                 );
                 loadData();
               } else {
-                Alert.alert('Error', 'Échec du rafraîchissement');
+                Alert.alert('Error', 'Refresh failed');
               }
             } catch (error) {
-              Alert.alert('Error', 'Error réseau');
+              Alert.alert('Error', 'Network error');
             }
           },
         },
@@ -370,7 +370,7 @@ export default function Admin() {
         <View style={styles.loginContainer}>
           <Ionicons name="lock-closed" size={64} color={PALETTE.gold} />
           <Text style={styles.loginTitle}>Admin Access</Text>
-          <Text style={styles.loginSubtitle}>Geste secret détecté</Text>
+          <Text style={styles.loginSubtitle}>Secret gesture detected</Text>
           
           <TextInput
             style={styles.passwordInput}
@@ -530,7 +530,7 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🔥 Google Trends</Text>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Refresh les personnalités trending</Text>
+          <Text style={styles.cardLabel}>Refresh trending personalities</Text>
           <TouchableOpacity style={styles.refreshTrendsButton} onPress={onRefreshTrends}>
             <Ionicons name="trending-up" size={24} color="#000" />
             <Text style={styles.refreshTrendsButtonText}>Refresh Google Trends</Text>
