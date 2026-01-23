@@ -204,7 +204,7 @@ export default function MyVotes() {
           {/* Statistics Card */}
           {voteStats.categoriesBreakdown.length > 0 && (
             <View style={styles.statsCard}>
-              <Text style={styles.statsTitle}>📊 Statistiques</Text>
+              <Text style={styles.statsTitle}>📊 Statistics</Text>
               
               {/* Likes vs Dislikes */}
               <View style={styles.statRow}>
