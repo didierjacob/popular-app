@@ -167,7 +167,7 @@ export default function Admin() {
 
   const handleBoostDialog = (type: 'likes' | 'dislikes') => {
     if (!selectedPerson) {
-      Alert.alert('Error', 'Veuillez d\'abord sélectionner une personnalité');
+      Alert.alert('Error', 'Please select a personality first');
       return;
     }
 
