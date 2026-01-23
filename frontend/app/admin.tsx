@@ -99,7 +99,7 @@ export default function Admin() {
       setAuthenticated(true);
       loadData();
     } else {
-      Alert.alert('Erreur', 'Mot de passe incorrect');
+      Alert.alert('Error', 'Mot de passe incorrect');
     }
   };
 
@@ -167,7 +167,7 @@ export default function Admin() {
 
   const handleBoostDialog = (type: 'likes' | 'dislikes') => {
     if (!selectedPerson) {
-      Alert.alert('Erreur', 'Veuillez d\'abord sélectionner une personnalité');
+      Alert.alert('Error', 'Veuillez d\'abord sélectionner une personnalité');
       return;
     }
 
@@ -185,7 +185,7 @@ export default function Admin() {
             onPress: async (value) => {
               const amount = parseInt(value || '0');
               if (isNaN(amount) || amount < 1 || amount > 5000) {
-                Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
+                Alert.alert('Error', 'Entrez un nombre entre 1 et 5000');
                 return;
               }
               await executeBoost(selectedPerson.id, amount, type);
@@ -206,10 +206,10 @@ export default function Admin() {
           { text: '500', onPress: () => executeBoost(selectedPerson.id, 500, type) },
           { text: '1000', onPress: () => executeBoost(selectedPerson.id, 1000, type) },
           {
-            text: 'Personnalisé',
+            text: 'Custom',
             onPress: () => {
               Alert.prompt(
-                'Montant personnalisé',
+                'Custom amount',
                 'Entrez le nombre (1-5000) :',
                 [
                   { text: 'Annuler', style: 'cancel' },
@@ -218,7 +218,7 @@ export default function Admin() {
                     onPress: async (value) => {
                       const amount = parseInt(value || '0');
                       if (isNaN(amount) || amount < 1 || amount > 5000) {
-                        Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
+                        Alert.alert('Error', 'Entrez un nombre entre 1 et 5000');
                         return;
                       }
                       await executeBoost(selectedPerson.id, amount, type);
@@ -244,21 +244,21 @@ export default function Admin() {
 
       if (res.ok) {
         const result = await res.json();
-        Alert.alert('✅ Succès !', `${amount} ${type} ajoutés !`, [{ text: 'OK' }]);
+        Alert.alert('✅ Success !', `${amount} ${type} added !`, [{ text: 'OK' }]);
         loadData();
         setSelectedPerson(null);
       } else {
-        Alert.alert('Erreur', 'Échec du boost');
+        Alert.alert('Error', 'Échec du boost');
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Erreur réseau');
+      Alert.alert('Error', 'Error réseau');
     }
   };
 
   const handleDeletePerson = (person: Person) => {
     Alert.alert(
       '⚠️ Delete',
-      `Voulez-vous vraiment supprimer "${person.name}" ?\n\nCette action est irréversible.`,
+      `Are you sure you want to delete "${person.name}" ?\n\nThis action cannot be undone.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -268,13 +268,13 @@ export default function Admin() {
             try {
               const res = await fetch(API(`/admin/person/${person.id}`), { method: 'DELETE' });
               if (res.ok) {
-                Alert.alert('✅ Supprimé', `"${person.name}" a été supprimé`);
+                Alert.alert('✅ Deleted', `"${person.name}" has been deleted`);
                 loadData();
               } else {
-                Alert.alert('Erreur', 'Échec de la suppression');
+                Alert.alert('Error', 'Échec de la suppression');
               }
             } catch (error) {
-              Alert.alert('Erreur', 'Erreur réseau');
+              Alert.alert('Error', 'Error réseau');
             }
           },
         },
@@ -284,23 +284,23 @@ export default function Admin() {
 
   const handleResetPerson = (person: Person) => {
     Alert.alert(
-      '🔄 Réinitialiser',
-      `Réinitialiser "${person.name}" à un score neutre de 50 ?`,
+      '🔄 Reset',
+      `Reset "${person.name}" to a neutral score of 50 ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Réinitialiser',
+          text: 'Reset',
           onPress: async () => {
             try {
               const res = await fetch(API(`/admin/person/${person.id}/reset`), { method: 'POST' });
               if (res.ok) {
-                Alert.alert('✅ Réinitialisé', `"${person.name}" a été réinitialisé`);
+                Alert.alert('✅ Reset', `"${person.name}" has been reset`);
                 loadData();
               } else {
-                Alert.alert('Erreur', 'Échec de la réinitialisation');
+                Alert.alert('Error', 'Reset failed');
               }
             } catch (error) {
-              Alert.alert('Erreur', 'Erreur réseau');
+              Alert.alert('Error', 'Error réseau');
             }
           },
         },
@@ -321,10 +321,10 @@ export default function Admin() {
       if (res.ok) {
         Alert.alert('✅ Saved', 'Settings updated successfully');
       } else {
-        Alert.alert('Erreur', 'Échec de la sauvegarde');
+        Alert.alert('Error', 'Échec de la sauvegarde');
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Erreur réseau');
+      Alert.alert('Error', 'Error réseau');
     }
   };
 
@@ -335,28 +335,28 @@ export default function Admin() {
 
   const handleRefreshTrends = async () => {
     Alert.alert(
-      '🔥 Rafraîchir Google Trends',
+      '🔥 Refresh Google Trends',
       'Cela va récupérer les personnalités trending de Google Trends et les ajouter/mettre à jour dans l\'app. Continuer ?',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Rafraîchir',
+          text: 'Refresh',
           onPress: async () => {
             try {
               const res = await fetch(API('/admin/refresh-trends'), { method: 'POST' });
               if (res.ok) {
                 const result = await res.json();
                 Alert.alert(
-                  '✅ Trends Rafraîchis !',
-                  `${result.added} nouvelles personnalités ajoutées\n${result.updated} mises à jour comme trending`,
+                  '✅ Trends Refreshed !',
+                  `${result.added} new personalities added\n${result.updated} updated as trending`,
                   [{ text: 'OK' }]
                 );
                 loadData();
               } else {
-                Alert.alert('Erreur', 'Échec du rafraîchissement');
+                Alert.alert('Error', 'Échec du rafraîchissement');
               }
             } catch (error) {
-              Alert.alert('Erreur', 'Erreur réseau');
+              Alert.alert('Error', 'Error réseau');
             }
           },
         },
@@ -530,10 +530,10 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>🔥 Google Trends</Text>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Rafraîchir les personnalités trending</Text>
+          <Text style={styles.cardLabel}>Refresh les personnalités trending</Text>
           <TouchableOpacity style={styles.refreshTrendsButton} onPress={onRefreshTrends}>
             <Ionicons name="trending-up" size={24} color="#000" />
-            <Text style={styles.refreshTrendsButtonText}>Rafraîchir Google Trends</Text>
+            <Text style={styles.refreshTrendsButtonText}>Refresh Google Trends</Text>
           </TouchableOpacity>
         </View>
       </View>
