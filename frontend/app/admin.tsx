@@ -336,9 +336,9 @@ export default function Admin() {
   const handleRefreshTrends = async () => {
     Alert.alert(
       '🔥 Refresh Google Trends',
-      'Cela va récupérer les personnalités trending de Google Trends et les ajouter/mettre à jour dans l\'app. Continuer ?',
+      'This will fetch trending personalities from Google Trends. Continue?',
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Refresh',
           onPress: async () => {
