@@ -477,7 +477,7 @@ export default function Index() {
             >
               <Text style={styles.title}>Popular</Text>
             </TouchableOpacity>
-            <Text style={styles.subtitle}>Rate them. Watch their ratings move up and down live</Text>
+            <Text style={styles.subtitle}>Buy credits to become popular</Text>
           </View>
 
           <View style={styles.searchCard}>
