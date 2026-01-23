@@ -124,7 +124,7 @@ export default function Person() {
       // Phase 4 - Premium vote check
       if (isPremiumMode) {
         if (balance < 1) {
-          alert('Crédits insuffisants!\n\nAchetez des crédits dans l\'onglet Premium pour utiliser les votes x100.');
+          alert('Insufficient credits!\n\nBuy credits in the Premium tab to use x100 votes.');
           return;
         }
 
