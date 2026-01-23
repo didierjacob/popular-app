@@ -1,0 +1,33 @@
+# Render Blueprint for Popular API
+# Deploy: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: popular-api
+    runtime: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: popular_production
+      - key: SMTP_HOST
+        value: smtp-relay.brevo.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Popular App
+      - key: REPORT_EMAIL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.0
