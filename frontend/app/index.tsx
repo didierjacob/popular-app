@@ -620,6 +620,9 @@ export default function Index() {
                         <View style={styles.controversialBadge}>
                           <Text style={styles.controversialBadgeText}>⚡</Text>
                         </View>
+                        <View style={{ alignItems: 'center', marginBottom: 6 }}>
+                          <GaugeIcon score={p.score} size={36} />
+                        </View>
                         <Text style={[styles.controversialName, { color: getNameColor(p.source) }]} numberOfLines={1}>{p.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                           <Text style={styles.controversialVotes}>👍 {p.likes}</Text>
