@@ -568,10 +568,15 @@ export default function Index() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <Text style={styles.badge}>⭐ Du jour</Text>
                   </View>
-                  <Text style={styles.personOfDayName} numberOfLines={1}>{personOfDay.name}</Text>
-                  <Text style={styles.personOfDayMeta} numberOfLines={1}>
-                    Score {personOfDay.score} • {personOfDay.total_votes} votes
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <GaugeIcon score={personOfDay.score} size={50} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.personOfDayName} numberOfLines={1}>{personOfDay.name}</Text>
+                      <Text style={styles.personOfDayMeta} numberOfLines={1}>
+                        Score {personOfDay.score.toFixed(0)} • {personOfDay.total_votes} votes
+                      </Text>
+                    </View>
+                  </View>
                 </TouchableOpacity>
               )}
 
@@ -588,8 +593,11 @@ export default function Index() {
                         style={styles.trendingCard}
                         onPress={() => router.push({ pathname: '/person', params: { id: p.id, name: p.name } })}
                       >
+                        <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                          <GaugeIcon score={p.score} size={36} />
+                        </View>
                         <Text style={[styles.trendingName, { color: getNameColor(p.source) }]} numberOfLines={1}>{p.name}</Text>
-                        <Text style={styles.trendingScore}>↗ {p.score}</Text>
+                        <Text style={styles.trendingScore}>↗ {p.score.toFixed(0)}</Text>
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
