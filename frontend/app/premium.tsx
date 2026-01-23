@@ -39,10 +39,10 @@ export default function Premium() {
 
   const handlePurchase = async (packId: string) => {
     const pack = CREDIT_PACKS.find(p => p.id === packId);
-    if (!pack) return;
+      if (!pack) return;
 
     Alert.alert(
-      'Confirmer l\'achat',
+      'Confirm purchase',
       `Buy ${pack.credits} credit${pack.credits > 1 ? 's' : ''} for ${pack.price}€ ?\n\n(Simulation - No real payment)`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -52,10 +52,10 @@ export default function Premium() {
             setPurchasing(true);
             try {
               const result = await purchaseCredits(packId);
-              Alert.alert('Success !', result.message);
+              Alert.alert('Success!', result.message);
               await loadHistory();
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Échec de l\'achat');
+              Alert.alert('Error', error.message || 'Purchase failed');
             } finally {
               setPurchasing(false);
             }
