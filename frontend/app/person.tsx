@@ -151,7 +151,7 @@ export default function Person() {
           setIsPremiumMode(false);
           return;
         } catch (error: any) {
-          alert('Erreur: ' + (error.message || 'Échec du vote premium'));
+          alert('Error: ' + (error.message || 'Premium vote failed'));
           return;
         }
       }

@@ -55,7 +55,7 @@ export default function Premium() {
               Alert.alert('Success !', result.message);
               await loadHistory();
             } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Échec de l\'achat');
+              Alert.alert('Error', error.message || 'Échec de l\'achat');
             } finally {
               setPurchasing(false);
             }
@@ -79,7 +79,7 @@ export default function Premium() {
               if (name && name.trim()) {
                 await processBoostMyself(name.trim());
               } else {
-                Alert.alert('Erreur', 'Veuillez entrer un nom valide');
+                Alert.alert('Error', 'Please enter a valid name');
               }
             },
           },
@@ -133,7 +133,7 @@ export default function Premium() {
       await loadHistory();
     } catch (error: any) {
       const message = error.message || 'Creation failed';
-      Alert.alert('Erreur', message);
+      Alert.alert('Error', message);
     } finally {
       setPurchasing(false);
     }
