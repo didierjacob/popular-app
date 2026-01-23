@@ -608,7 +608,7 @@ export default function Index() {
               {controversial.length > 0 && (
                 <>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
-                    <Text style={styles.sectionTitle} style={{ margin: 0 }}>⚡ Controversées</Text>
+                    <Text style={styles.sectionTitle} style={{ margin: 0 }}>⚡ Controversial</Text>
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
                     {controversial.map(p => (
