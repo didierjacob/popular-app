@@ -118,7 +118,7 @@ export default function MyVotes() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mes votes</Text>
+        <Text style={styles.title}>My Votes</Text>
         {votes.length > 0 && (
           <TouchableOpacity onPress={clearHistory} style={styles.clearButton}>
             <Ionicons name="trash-outline" size={20} color={PALETTE.accent} />
