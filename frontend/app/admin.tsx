@@ -176,12 +176,12 @@ export default function Admin() {
 
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        `${emoji} Ajouter ${typeLabel}`,
-        `Personnalité : ${selectedPerson.name}\n\nCombien de ${typeLabel.toLowerCase()} ? (1-5000)`,
+        `${emoji} Add ${typeLabel}`,
+        `Personality : ${selectedPerson.name}\n\nHow many ${typeLabel.toLowerCase()} ? (1-5000)`,
         [
           { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Ajouter',
+            text: 'Add',
             onPress: async (value) => {
               const amount = parseInt(value || '0');
               if (isNaN(amount) || amount < 1 || amount > 5000) {
@@ -198,8 +198,8 @@ export default function Admin() {
       );
     } else {
       Alert.alert(
-        `${emoji} Ajouter ${typeLabel}`,
-        `Personnalité : ${selectedPerson.name}\n\nNombre de ${typeLabel.toLowerCase()} (1-5000) :`,
+        `${emoji} Add ${typeLabel}`,
+        `Personality : ${selectedPerson.name}\n\nNumber of ${typeLabel.toLowerCase()} (1-5000) :`,
         [
           { text: 'Annuler', style: 'cancel' },
           { text: '100', onPress: () => executeBoost(selectedPerson.id, 100, type) },
@@ -214,7 +214,7 @@ export default function Admin() {
                 [
                   { text: 'Annuler', style: 'cancel' },
                   {
-                    text: 'Ajouter',
+                    text: 'Add',
                     onPress: async (value) => {
                       const amount = parseInt(value || '0');
                       if (isNaN(amount) || amount < 1 || amount > 5000) {
@@ -257,12 +257,12 @@ export default function Admin() {
 
   const handleDeletePerson = (person: Person) => {
     Alert.alert(
-      '⚠️ Supprimer',
+      '⚠️ Delete',
       `Voulez-vous vraiment supprimer "${person.name}" ?\n\nCette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -319,7 +319,7 @@ export default function Admin() {
       });
 
       if (res.ok) {
-        Alert.alert('✅ Sauvegardé', 'Paramètres mis à jour avec succès');
+        Alert.alert('✅ Saved', 'Settings updated successfully');
       } else {
         Alert.alert('Erreur', 'Échec de la sauvegarde');
       }
@@ -425,7 +425,7 @@ export default function Admin() {
           onPress={() => setCurrentTab('moderation')}
         >
           <Ionicons name="shield-checkmark" size={20} color={currentTab === 'moderation' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'moderation' && styles.tabTextActive]}>Modération</Text>
+          <Text style={[styles.tabText, currentTab === 'moderation' && styles.tabTextActive]}>Moderation</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -433,7 +433,7 @@ export default function Admin() {
           onPress={() => setCurrentTab('activity')}
         >
           <Ionicons name="pulse" size={20} color={currentTab === 'activity' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'activity' && styles.tabTextActive]}>Activité</Text>
+          <Text style={[styles.tabText, currentTab === 'activity' && styles.tabTextActive]}>Activity</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -441,7 +441,7 @@ export default function Admin() {
           onPress={() => setCurrentTab('settings')}
         >
           <Ionicons name="settings" size={20} color={currentTab === 'settings' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'settings' && styles.tabTextActive]}>Paramètres</Text>
+          <Text style={[styles.tabText, currentTab === 'settings' && styles.tabTextActive]}>Settings</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -504,7 +504,7 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
           <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
             <Ionicons name="people" size={32} color={PALETTE.gold} />
             <Text style={styles.statNumber}>{stats.total_people}</Text>
-            <Text style={styles.statLabel}>Personnalités</Text>
+            <Text style={styles.statLabel}>Personalitys</Text>
           </View>
 
           <View style={[styles.statCard, { borderColor: PALETTE.green }]}>
@@ -574,13 +574,13 @@ function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoos
               <View style={styles.boostActionsRow}>
                 <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('likes')}>
                   <Ionicons name="thumbs-up" size={24} color={PALETTE.green} />
-                  <Text style={styles.boostActionTitle}>Ajouter Likes</Text>
+                  <Text style={styles.boostActionTitle}>Add Likes</Text>
                   <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('dislikes')}>
                   <Ionicons name="thumbs-down" size={24} color={PALETTE.accent} />
-                  <Text style={styles.boostActionTitle}>Ajouter Dislikes</Text>
+                  <Text style={styles.boostActionTitle}>Add Dislikes</Text>
                   <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                 </TouchableOpacity>
               </View>
@@ -611,7 +611,7 @@ function ModerationTab({
       <View style={styles.card}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Rechercher par nom..."
+          placeholder="Search by name..."
           placeholderTextColor={PALETTE.subtext}
           value={searchQuery}
           onChangeText={onSearchChange}
@@ -683,7 +683,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
   return (
     <View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👤 Nouvelles Personnalités</Text>
+        <Text style={styles.sectionTitle}>👤 Nouvelles Personalitys</Text>
         <View style={styles.card}>
           {activityData.recent_people.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
@@ -743,7 +743,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
 function SettingsTab({ settings, onSettingsChange, onSave }: any) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>⚙️ Paramètres de l'App</Text>
+      <Text style={styles.sectionTitle}>⚙️ Settings de l'App</Text>
       
       <View style={styles.card}>
         <View style={styles.settingRow}>
@@ -818,7 +818,7 @@ function SettingsTab({ settings, onSettingsChange, onSave }: any) {
 
         <TouchableOpacity style={styles.saveButton} onPress={onSave}>
           <Ionicons name="save" size={20} color="#000" />
-          <Text style={styles.saveButtonText}>Enregistrer les Paramètres</Text>
+          <Text style={styles.saveButtonText}>Enregistrer les Settings</Text>
         </TouchableOpacity>
       </View>
     </View>
