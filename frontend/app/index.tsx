@@ -798,6 +798,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 10,
   },
+  gaugeContainer: {
+    marginRight: 4,
+    marginTop: 2,
+  },
   personName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
   personMeta: { color: PALETTE.subtext, marginTop: 2 },
   arrowRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
