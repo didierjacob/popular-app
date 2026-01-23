@@ -566,7 +566,7 @@ export default function Index() {
                   onPress={() => router.push({ pathname: '/person', params: { id: personOfDay.id, name: personOfDay.name } })}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={styles.badge}>⭐ Du jour</Text>
+                    <Text style={styles.badge}>⭐ Person of the Day</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <GaugeIcon score={personOfDay.score} size={50} />
