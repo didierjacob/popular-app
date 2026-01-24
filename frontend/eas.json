@@ -19,22 +19,6 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
-      },
-      "ios": {
-        "distribution": "store"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "android": {
-        "serviceAccountKeyPath": "./google-services.json",
-        "track": "production"
-      },
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
       }
     }
   }
