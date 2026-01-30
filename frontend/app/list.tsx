@@ -14,7 +14,7 @@ const PALETTE = {
   border: "#2E6148",
 };
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
 async function apiGet<T>(path: string): Promise<T> {
