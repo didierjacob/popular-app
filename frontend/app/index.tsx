@@ -36,7 +36,7 @@ const PALETTE = {
   border: "#2E6148",
 };
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || ""; // ingress will route /api -> backend
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com"; // ingress will route /api -> backend
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
 // Simple API helper
