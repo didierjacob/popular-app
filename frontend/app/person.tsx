@@ -361,7 +361,8 @@ export default function Person() {
         </ScrollView>
       )}
       
-      {showConfetti && (
+      {/* TEMPORARILY DISABLED - debugging Expo Go crash */}
+      {/* {showConfetti && (
         <ConfettiCannon
           count={200}
           origin={{x: -10, y: 0}}
@@ -369,7 +370,7 @@ export default function Person() {
           ref={confettiRef}
           fadeOut={true}
         />
-      )}
+      )} */}
     </SafeAreaView>
   );
 }
