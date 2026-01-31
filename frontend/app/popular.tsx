@@ -220,7 +220,7 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
     <TouchableOpacity style={styles.row} onPress={onOpen}>
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.meta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+        <Text style={styles.meta}>{capitalize(item.category || 'other')} • Score {formatNumber(item.score)} • {formatNumber(item.total_votes)} votes</Text>
       </View>
       <View style={styles.indicator}>
         <Animated.View accessible accessibilityLabel={`direction-${dir}`} style={styleAnim}>
