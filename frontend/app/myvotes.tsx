@@ -130,7 +130,7 @@ export default function MyVotes() {
       {votes.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="heart-outline" size={64} color={PALETTE.subtext} />
-          <Text style={styles.emptyText}>Aucun vote encore</Text>
+          <Text style={styles.emptyText}>No votes yet</Text>
           <Text style={styles.emptySubtext}>Vote for personalities to see them here</Text>
         </View>
       ) : (
