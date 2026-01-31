@@ -132,7 +132,7 @@ export default function Person() {
         }
 
         // Confirm premium vote
-        if (!confirm(`Use 1 credit for a x100 vote?\n\nCe vote aura 100x plus d\'impact!`)) {
+        if (!confirm(`Use 1 credit for a x100 vote?\n\nThis vote will have 100x more impact!`)) {
           return;
         }
 
