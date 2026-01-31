@@ -83,6 +83,12 @@ export default function RootLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="admin_old"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
