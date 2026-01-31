@@ -223,7 +223,7 @@ export default function Premium() {
           >
             {pack.popular && (
               <View style={styles.popularBadge}>
-                <Text style={styles.popularText}>POPULAIRE</Text>
+                <Text style={styles.popularText}>POPULAR</Text>
               </View>
             )}
             
