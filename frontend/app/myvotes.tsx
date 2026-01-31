@@ -147,7 +147,7 @@ export default function MyVotes() {
             <View style={styles.streakStats}>
               <View style={styles.streakStatItem}>
                 <Text style={styles.streakStatValue}>{streakData.currentStreak}</Text>
-                <Text style={styles.streakStatLabel}>Jours en cours</Text>
+                <Text style={styles.streakStatLabel}>Current days</Text>
               </View>
               <View style={styles.streakDivider} />
               <View style={styles.streakStatItem}>
