@@ -7,7 +7,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // import { LineChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
-import ConfettiCannon from 'react-native-confetti-cannon';
+// TEMPORARILY DISABLED - debugging Expo Go crash
+// import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchWithCache } from "../services/cacheService";
 import { useNetworkStatus } from "../services/networkService";
 import { useCredits } from "../services/creditsService";
