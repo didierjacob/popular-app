@@ -249,7 +249,7 @@ export default function Premium() {
         ))}
 
         {/* History Section */}
-        <Text style={styles.sectionTitle}>Historique</Text>
+        <Text style={styles.sectionTitle}>History</Text>
         
         {loadingHistory ? (
           <View style={styles.card}>
@@ -257,7 +257,7 @@ export default function Premium() {
           </View>
         ) : transactions.length === 0 ? (
           <View style={styles.card}>
-            <Text style={styles.emptyText}>Aucune transaction</Text>
+            <Text style={styles.emptyText}>No transactions</Text>
           </View>
         ) : (
           <View style={styles.card}>
