@@ -28,6 +28,12 @@ const PALETTE = {
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
+// Helper to capitalize first letter
+const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+
+// Helper to format numbers without decimals
+const formatNumber = (num: number) => Math.round(num).toLocaleString();
+
 interface Person {
   id: string;
   name: string;
