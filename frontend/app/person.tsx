@@ -24,6 +24,9 @@ const PALETTE = {
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
+// Helper to format numbers without decimals
+const formatNumber = (num: number) => Math.round(num).toLocaleString();
+
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(API(path));
   if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
