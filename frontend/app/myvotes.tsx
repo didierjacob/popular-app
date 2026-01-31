@@ -122,7 +122,7 @@ export default function MyVotes() {
         {votes.length > 0 && (
           <TouchableOpacity onPress={clearHistory} style={styles.clearButton}>
             <Ionicons name="trash-outline" size={20} color={PALETTE.accent} />
-            <Text style={styles.clearText}>Effacer</Text>
+            <Text style={styles.clearText}>Clear</Text>
           </TouchableOpacity>
         )}
       </View>
