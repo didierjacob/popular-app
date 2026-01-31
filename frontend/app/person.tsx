@@ -3,12 +3,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, Animated, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// TEMPORARILY DISABLED - debugging Expo Go crash
-// import { LineChart } from "react-native-gifted-charts";
+import { LineChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
-// TEMPORARILY DISABLED - debugging Expo Go crash
-// import ConfettiCannon from 'react-native-confetti-cannon';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchWithCache } from "../services/cacheService";
 import { useNetworkStatus } from "../services/networkService";
 import { useCredits } from "../services/creditsService";
@@ -220,13 +218,13 @@ export default function Person() {
 
   const shareToFacebook = async () => {
     if (Platform.OS === 'web') {
-      alert('Le partage social n\'est disponible que sur mobile');
+      alert('Social sharing is only available on mobile');
       return;
     }
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Check out the popularity of ${name} sur Popular ! Current score : ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} on Popular! Current score: ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.FACEBOOK,
@@ -239,13 +237,13 @@ export default function Person() {
 
   const shareToTwitter = async () => {
     if (Platform.OS === 'web') {
-      alert('Le partage social n\'est disponible que sur mobile');
+      alert('Social sharing is only available on mobile');
       return;
     }
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Check out the popularity of ${name} sur Popular ! Current score : ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} on Popular! Current score: ${person?.score?.toFixed(0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.TWITTER,
@@ -273,23 +271,30 @@ export default function Person() {
             <Text style={styles.meta}>Score {person?.score?.toFixed(0)} • Likes {person?.likes} • Dislikes {person?.dislikes}</Text>
           </View>
 
-          {/* TEMPORARILY DISABLED - debugging Expo Go crash */}
-          {/* LineChart from react-native-gifted-charts removed */}
           <View style={styles.card}>
             <Text style={styles.section}>Live ratings</Text>
-            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-              <Text style={{ color: PALETTE.subtext, fontSize: 14 }}>
-                📊 Score: {person?.score?.toFixed(0) || 'N/A'}
-              </Text>
-              <Text style={{ color: PALETTE.subtext, fontSize: 12, marginTop: 8 }}>
-                Chart temporarily disabled for debugging
-              </Text>
-            </View>
+            <LineChart
+              areaChart
+              data={lineData}
+              curved
+              color={PALETTE.accent2}
+              thickness={2}
+              startFillColor={PALETTE.accent2}
+              startOpacity={0.25}
+              endOpacity={0.05}
+              hideDataPoints
+              yAxisColor={PALETTE.border}
+              xAxisColor={PALETTE.border}
+              backgroundColor={PALETTE.card}
+              rulesColor={PALETTE.border}
+              noOfSections={4}
+              initialSpacing={0}
+            />
           </View>
 
           {Platform.OS !== 'web' && (
             <View style={styles.card}>
-              <Text style={styles.section}>Partager</Text>
+              <Text style={styles.section}>Share</Text>
               <View style={[styles.row, { marginHorizontal: 0, marginTop: 8, gap: 8 }]}>
                 <TouchableOpacity style={styles.shareButton} onPress={shareToFacebook}>
                   <Ionicons name="logo-facebook" size={20} color="white" />
@@ -361,8 +366,7 @@ export default function Person() {
         </ScrollView>
       )}
       
-      {/* TEMPORARILY DISABLED - debugging Expo Go crash */}
-      {/* {showConfetti && (
+      {showConfetti && (
         <ConfettiCannon
           count={200}
           origin={{x: -10, y: 0}}
@@ -370,7 +374,7 @@ export default function Person() {
           ref={confettiRef}
           fadeOut={true}
         />
-      )} */}
+      )}
     </SafeAreaView>
   );
 }
@@ -394,10 +398,9 @@ function Trends() {
     <View style={styles.card}>
       <Text style={styles.section}>Personality trends (live)</Text>
       {items.map((it) => {
-        const delta = Math.round(it.delta * 10) / 10; // Round to 1 decimal
+        const delta = Math.round(it.delta * 10) / 10;
         const isPositive = delta > 0;
         const isNegative = delta < 0;
-        // Use brighter green for dark theme visibility
         const deltaColor = isPositive ? '#00E676' : isNegative ? '#FF5252' : PALETTE.subtext;
         const arrow = isPositive ? '↗' : isNegative ? '↘' : '→';
         return (
