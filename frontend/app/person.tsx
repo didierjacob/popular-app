@@ -272,25 +272,18 @@ export default function Person() {
             <Text style={styles.meta}>Score {person?.score?.toFixed(0)} • Likes {person?.likes} • Dislikes {person?.dislikes}</Text>
           </View>
 
+          {/* TEMPORARILY DISABLED - debugging Expo Go crash */}
+          {/* LineChart from react-native-gifted-charts removed */}
           <View style={styles.card}>
             <Text style={styles.section}>Live ratings</Text>
-            <LineChart
-              areaChart
-              data={lineData}
-              curved
-              color={PALETTE.accent2}
-              thickness={2}
-              startFillColor={PALETTE.accent2}
-              startOpacity={0.25}
-              endOpacity={0.05}
-              hideDataPoints
-              yAxisColor={PALETTE.border}
-              xAxisColor={PALETTE.border}
-              backgroundColor={PALETTE.card}
-              rulesColor={PALETTE.border}
-              noOfSections={4}
-              initialSpacing={0}
-            />
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <Text style={{ color: PALETTE.subtext, fontSize: 14 }}>
+                📊 Score: {person?.score?.toFixed(0) || 'N/A'}
+              </Text>
+              <Text style={{ color: PALETTE.subtext, fontSize: 12, marginTop: 8 }}>
+                Chart temporarily disabled for debugging
+              </Text>
+            </View>
           </View>
 
           {Platform.OS !== 'web' && (
