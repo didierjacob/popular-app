@@ -23,7 +23,9 @@ import { SkeletonPersonCard, SkeletonFeaturedCard } from "../components/Skeleton
 import { fetchWithCache, CacheService } from "../services/cacheService";
 import { useNetworkStatus } from "../services/networkService";
 import { PrefetchService } from "../services/prefetchService";
-import { GaugeIcon } from "../components/GaugeIcon";
+// GaugeIcon temporarily disabled for debugging
+// import { GaugeIcon } from "../components/GaugeIcon";
+const GaugeIcon = ({ score, size }: { score: number; size?: number }) => null;
 
 const PALETTE = {
   // Greener theme
