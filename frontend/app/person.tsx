@@ -3,7 +3,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, Animated, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LineChart } from "react-native-gifted-charts";
+// TEMPORARILY DISABLED - debugging Expo Go crash
+// import { LineChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
