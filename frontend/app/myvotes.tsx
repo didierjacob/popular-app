@@ -247,7 +247,7 @@ export default function MyVotes() {
 
           {/* Votes History */}
           <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>Historique</Text>
+            <Text style={styles.historyTitle}>History</Text>
           </View>
           
           <View style={{ height: votes.length * 80 + 24 }}>
