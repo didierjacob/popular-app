@@ -271,7 +271,7 @@ export default function Person() {
               <Text style={styles.homeText}>Home</Text>
             </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
-            <Text style={styles.meta}>Score {person?.score?.toFixed(0)} • Likes {person?.likes} • Dislikes {person?.dislikes}</Text>
+            <Text style={styles.meta}>Score {formatNumber(person?.score || 0)} • Likes {formatNumber(person?.likes || 0)} • Dislikes {formatNumber(person?.dislikes || 0)}</Text>
           </View>
 
           <View style={styles.card}>
