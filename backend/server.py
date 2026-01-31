@@ -1780,6 +1780,63 @@ async def get_daily_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.post("/admin/init-votes")
+async def init_votes():
+    """Initialize all personalities with random votes (minimum 10,000) to make the app look active"""
+    import random
+    try:
+        # Get all persons
+        persons = await db.persons.find({}).to_list(length=1000)
+        
+        updated_count = 0
+        now = now_utc()
+        
+        for person in persons:
+            # Generate random votes between 10,000 and 50,000
+            base_votes = random.randint(10000, 50000)
+            
+            # Random like ratio between 40% and 80%
+            like_ratio = random.uniform(0.4, 0.8)
+            likes = int(base_votes * like_ratio)
+            dislikes = base_votes - likes
+            
+            # Calculate score
+            score = (likes / base_votes) * 100 if base_votes > 0 else 50.0
+            
+            # Update the person
+            await db.persons.update_one(
+                {"_id": person["_id"]},
+                {
+                    "$set": {
+                        "likes": likes,
+                        "dislikes": dislikes,
+                        "total_votes": base_votes,
+                        "score": score,
+                        "updated_at": now
+                    }
+                }
+            )
+            
+            # Add a tick for the chart
+            await db.person_ticks.insert_one({
+                "person_id": person["_id"],
+                "score": score,
+                "created_at": now
+            })
+            
+            updated_count += 1
+        
+        return {
+            "success": True,
+            "message": f"Initialized {updated_count} personalities with random votes",
+            "updated_count": updated_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to init votes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
