@@ -44,3 +44,7 @@ model.patch
 .cache/
 .emergent/
 .gitconfig
+-e 
+# Environment files
+*.env
+*.env.*
