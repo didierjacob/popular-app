@@ -227,7 +227,7 @@ export default function Person() {
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Check out the popularity of ${name} on Popular! Current score: ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} on Popular! Current score: ${formatNumber(person?.score || 0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.FACEBOOK,
@@ -246,7 +246,7 @@ export default function Person() {
     
     try {
       const Share = require('react-native-share').default;
-      const message = `Check out the popularity of ${name} on Popular! Current score: ${person?.score?.toFixed(0)} 📊`;
+      const message = `Check out the popularity of ${name} on Popular! Current score: ${formatNumber(person?.score || 0)} 📊`;
       
       await Share.shareSingle({
         social: Share.Social.TWITTER,
