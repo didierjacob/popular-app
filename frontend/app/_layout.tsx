@@ -1,15 +1,9 @@
-import React, { useState } from "react";
+import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import SplashScreen from "./splash";
 
 export default function RootLayout() {
-  const [showSplash, setShowSplash] = useState(true);
-
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
-
+  // Splash désactivé pour debug
   return (
     <Tabs
       screenOptions={{
