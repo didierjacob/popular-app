@@ -78,11 +78,11 @@ export default function MyVotes() {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return "À l'instant";
-    if (minutes < 60) return `Il y a ${minutes}min`;
-    if (hours < 24) return `Il y a ${hours}h`;
-    if (days === 1) return "Hier";
-    return `Il y a ${days}j`;
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `${minutes}min ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days === 1) return "Yesterday";
+    return `${days}d ago`;
   };
 
   const renderItem = ({ item }: { item: VoteHistory }) => (
