@@ -80,7 +80,7 @@ export default function List() {
         </Text>
       </View>
       <View style={styles.scoreBox}>
-        <Text style={styles.scoreText} numberOfLines={1}>{item.score}</Text>
+        <Text style={styles.scoreText} numberOfLines={1}>{formatNumber(item.score)}</Text>
       </View>
     </TouchableOpacity>
   );
