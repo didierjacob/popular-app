@@ -306,7 +306,7 @@ export default function HomeScreen() {
               <View style={styles.personInfo}>
                 <Text style={styles.personName}>{person.name}</Text>
                 <Text style={styles.personMeta}>
-                  {capitalize(person.category)} • {formatNumber(person.total_votes)} votes
+                  {capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? 'vote' : 'votes'}
                 </Text>
               </View>
               <View style={styles.gaugeContainer}>
