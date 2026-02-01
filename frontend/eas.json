@@ -6,7 +6,10 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -18,11 +21,24 @@
       },
       "node": "22.12.0"
     },
+    "device": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "node": "22.12.0"
+    },
     "production": {
       "android": {
         "buildType": "app-bundle"
       },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
       "node": "22.12.0"
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
