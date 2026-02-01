@@ -265,3 +265,4 @@ const styles = StyleSheet.create({
   },
   chipText: { color: PALETTE.text, fontWeight: '600' },
 });
+// sync
