@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList } from "react-native";
 import { useRouter } from "expo-router";
-import { FlashList } from "@shopify/flash-list";
 
 const PALETTE = {
   bg: "#0F2F22",
