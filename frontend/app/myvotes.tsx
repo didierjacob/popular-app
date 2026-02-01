@@ -250,11 +250,11 @@ export default function MyVotes() {
           </View>
           
           <View style={{ height: votes.length * 80 + 24 }}>
-            <FlashList
+            <FlatList
               data={votes}
               keyExtractor={(item, index) => `${item.personId}-${index}`}
               renderItem={renderItem}
-              estimatedItemSize={80}
+              scrollEnabled={false}
             />
           </View>
         </ScrollView>
