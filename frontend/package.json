@@ -19,7 +19,7 @@
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
     "@shopify/flash-list": "^2.2.1",
-    "expo": "^54.0.32",
+    "expo": "^54.0.33",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-file-system": "~19.0.19",
