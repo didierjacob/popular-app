@@ -152,11 +152,10 @@ export default function Popular() {
             <Text style={styles.headerTitle}>Instant polling</Text>
           </View>
           <FilterBar filter={filter} setFilter={setFilter} />
-          <FlashList
+          <FlatList
             data={displayed}
             keyExtractor={(it) => it.id}
             renderItem={renderItem}
-            estimatedItemSize={76}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
             contentContainerStyle={{ paddingBottom: 24 }}
           />
