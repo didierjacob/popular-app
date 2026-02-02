@@ -1782,7 +1782,7 @@ async def get_daily_stats():
 
 @api_router.post("/admin/init-votes")
 async def init_votes():
-    """Initialize all personalities with random votes (minimum 10,000) to make the app look active"""
+    """Initialize all personalities with random votes (8,500-12,000) to make the app look active"""
     import random
     try:
         # Get all persons
@@ -1791,12 +1791,19 @@ async def init_votes():
         updated_count = 0
         now = now_utc()
         
+        # Generate unique vote counts for each person
+        used_votes = set()
+        
         for person in persons:
-            # Generate random votes between 10,000 and 50,000
-            base_votes = random.randint(10000, 50000)
+            # Generate unique random votes between 8,500 and 12,000
+            while True:
+                base_votes = random.randint(8500, 12000)
+                if base_votes not in used_votes:
+                    used_votes.add(base_votes)
+                    break
             
-            # Random like ratio between 40% and 80%
-            like_ratio = random.uniform(0.4, 0.8)
+            # Random like ratio between 45% and 75%
+            like_ratio = random.uniform(0.45, 0.75)
             likes = int(base_votes * like_ratio)
             dislikes = base_votes - likes
             
@@ -1828,7 +1835,7 @@ async def init_votes():
         
         return {
             "success": True,
-            "message": f"Initialized {updated_count} personalities with random votes",
+            "message": f"Initialized {updated_count} personalities with random votes (8,500-12,000)",
             "updated_count": updated_count
         }
         
