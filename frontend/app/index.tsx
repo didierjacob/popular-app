@@ -183,6 +183,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
+  const [outsider, setOutsider] = useState<Outsider | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -194,15 +195,28 @@ export default function HomeScreen() {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      const response = await fetch(API("/people?limit=10"));
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+      
+      const [peopleRes, outsidersRes] = await Promise.all([
+        fetch(API("/people?limit=10")),
+        fetch(API("/outsiders?limit=1"))
+      ]);
+      
+      if (!peopleRes.ok) throw new Error(`HTTP ${peopleRes.status}`);
+      const data = await peopleRes.json();
       setPeople(data);
       
       // Select personality of the day (highest score)
       if (data.length > 0) {
         const sorted = [...data].sort((a, b) => b.score - a.score);
         setPersonOfTheDay(sorted[0]);
+      }
+      
+      // Load outsider
+      if (outsidersRes.ok) {
+        const outsiders = await outsidersRes.json();
+        if (outsiders.length > 0) {
+          setOutsider(outsiders[0]);
+        }
       }
     } catch (e: any) {
       if (!silent) setError(e.message);
