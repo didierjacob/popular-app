@@ -26,7 +26,7 @@
       }
     },
     "android": {
-      "package": "com.popular.app",
+      "package": "com.didierjacob.popularapp",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
