@@ -699,6 +699,48 @@ async def search_suggestions_by_category(window: str = Query(default="24h"), per
     return result
 
 
+@api_router.get("/outsiders")
+async def get_outsiders(limit: int = Query(default=3, le=10)):
+    """Get outsiders - people who received premium boosts (non-celebrities trying to become popular)"""
+    try:
+        # Find people who have received premium votes or were added by users (not seed)
+        pipeline = [
+            {
+                "$match": {
+                    "$or": [
+                        {"source": {"$ne": "seed"}},
+                        {"source": {"$exists": False}},
+                        {"boosted": True}
+                    ]
+                }
+            },
+            {"$sort": {"total_votes": -1}},
+            {"$limit": limit}
+        ]
+        
+        outsiders = await db.persons.aggregate(pipeline).to_list(length=limit)
+        
+        # If no outsiders found, return some random low-vote personalities as potential outsiders
+        if len(outsiders) == 0:
+            outsiders = await db.persons.find({}).sort("total_votes", 1).limit(limit).to_list(length=limit)
+        
+        return [
+            {
+                "id": str(doc["_id"]),
+                "name": doc.get("name"),
+                "category": doc.get("category", "other"),
+                "score": doc.get("score", 50.0),
+                "total_votes": doc.get("total_votes", 0),
+                "likes": doc.get("likes", 0),
+                "dislikes": doc.get("dislikes", 0),
+            }
+            for doc in outsiders
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get outsiders: {e}")
+        return []
+
+
 @api_router.get("/last-searches")
 async def last_searches(limit: int = Query(default=5, le=20)):
     """Return the last unique searches (most recent first)."""
