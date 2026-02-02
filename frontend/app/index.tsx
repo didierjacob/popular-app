@@ -42,6 +42,14 @@ interface Person {
   total_votes: number;
 }
 
+interface Outsider {
+  id: string;
+  name: string;
+  category: string;
+  score: number;
+  total_votes: number;
+}
+
 interface Category {
   key: string;
   label: string;
