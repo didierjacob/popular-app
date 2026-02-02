@@ -324,18 +324,43 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Categories */}
+        {/* Outsider Box */}
+        {outsider && (
+          <TouchableOpacity 
+            style={styles.outsiderCard}
+            onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
+          >
+            <View style={styles.outsiderBadge}>
+              <Ionicons name="rocket" size={16} color={PALETTE.accent2} />
+              <Text style={styles.outsiderBadgeText}>Outsider</Text>
+            </View>
+            <View style={styles.potdContent}>
+              <View style={styles.potdInfo}>
+                <Text style={styles.outsiderName}>{outsider.name}</Text>
+                <Text style={styles.outsiderMeta}>
+                  {capitalize(outsider.category)} • Score {Math.round(outsider.score)}
+                </Text>
+                <Text style={styles.outsiderVotes}>
+                  {formatNumber(outsider.total_votes)} {outsider.total_votes <= 1 ? 'vote' : 'votes'}
+                </Text>
+              </View>
+              <BigOscillatingGauge score={outsider.score} size={90} />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Categories - Compact */}
         <View style={styles.categoriesContainer}>
           <Text style={styles.sectionTitle}>Categories</Text>
-          <View style={styles.categoriesGrid}>
+          <View style={styles.categoriesRow}>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
                 key={cat.key}
-                style={styles.categoryCard}
+                style={styles.categoryCardSmall}
                 onPress={() => router.push({ pathname: "/category/[key]", params: { key: cat.key } })}
               >
-                <Ionicons name={cat.icon as any} size={28} color={PALETTE.accent2} />
-                <Text style={styles.categoryLabel}>{cat.label}</Text>
+                <Ionicons name={cat.icon as any} size={20} color={PALETTE.accent2} />
+                <Text style={styles.categoryLabelSmall}>{cat.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
