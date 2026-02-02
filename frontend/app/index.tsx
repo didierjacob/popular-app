@@ -5,13 +5,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   RefreshControl,
+  Animated,
+  Easing,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Circle, Path, Defs, LinearGradient, Stop, Ellipse } from "react-native-svg";
 
 const PALETTE = {
@@ -23,15 +25,13 @@ const PALETTE = {
   accent2: "#E04F5F",
   green: "#009B4D",
   border: "#2E6148",
+  gold: "#FFD700",
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
-// Helper to capitalize first letter
 const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-
-// Helper to format numbers without decimals
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
 interface Person {
@@ -55,11 +55,9 @@ const CATEGORIES: Category[] = [
   { key: "sport", label: "Sport", icon: "football" },
 ];
 
-// 3D Gauge Icon Component
+// Small Gauge Icon for cards
 function GaugeIcon({ score, size = 32 }: { score: number; size?: number }) {
-  // Normalize score to 0-100 range for the gauge
   const normalizedScore = Math.min(100, Math.max(0, score));
-  // Convert score to angle (-135 to 135 degrees, so 270 degree sweep)
   const angle = -135 + (normalizedScore / 100) * 270;
   const angleRad = (angle * Math.PI) / 180;
   
@@ -80,116 +78,107 @@ function GaugeIcon({ score, size = 32 }: { score: number; size?: number }) {
         </LinearGradient>
         <LinearGradient id="bezelGradient" x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop offset="0%" stopColor="#5A7868" />
-          <Stop offset="30%" stopColor="#3E5A4A" />
-          <Stop offset="70%" stopColor="#2A4636" />
           <Stop offset="100%" stopColor="#1C3428" />
         </LinearGradient>
-        <LinearGradient id="innerShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-          <Stop offset="0%" stopColor="#0F2F22" />
-          <Stop offset="100%" stopColor="#1C3A2C" />
-        </LinearGradient>
-        <LinearGradient id="needleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <Stop offset="0%" stopColor="#FF6B6B" />
-          <Stop offset="50%" stopColor="#EE5A5A" />
-          <Stop offset="100%" stopColor="#CC4444" />
-        </LinearGradient>
       </Defs>
-      
-      {/* Outer bezel - 3D ring effect */}
-      <Circle
-        cx={centerX}
-        cy={centerY}
-        r={size * 0.46}
-        fill="url(#bezelGradient)"
-      />
-      
-      {/* Inner shadow ring */}
-      <Circle
-        cx={centerX}
-        cy={centerY}
-        r={size * 0.40}
-        fill="url(#innerShadow)"
-      />
-      
-      {/* Main gauge face */}
-      <Circle
-        cx={centerX}
-        cy={centerY}
-        r={size * 0.36}
-        fill="url(#gaugeGradient)"
-      />
-      
-      {/* Scale arc background */}
+      <Circle cx={centerX} cy={centerY} r={size * 0.46} fill="url(#bezelGradient)" />
+      <Circle cx={centerX} cy={centerY} r={size * 0.36} fill="url(#gaugeGradient)" />
       <Path
-        d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} 
-            A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
-        stroke="#1A3328"
-        strokeWidth={size * 0.06}
-        fill="none"
-        strokeLinecap="round"
-      />
-      
-      {/* Colored scale arc */}
-      <Path
-        d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} 
-            A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
+        d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
         stroke="#2E6148"
         strokeWidth={size * 0.04}
         fill="none"
         strokeLinecap="round"
         opacity={0.6}
       />
-      
-      {/* Needle shadow */}
-      <Path
-        d={`M ${centerX + 1} ${centerY + 1} L ${needleX + 1} ${needleY + 1}`}
-        stroke="rgba(0,0,0,0.4)"
-        strokeWidth={size * 0.05}
-        strokeLinecap="round"
-      />
-      
-      {/* Main needle */}
-      <Path
-        d={`M ${centerX} ${centerY} L ${needleX} ${needleY}`}
-        stroke="url(#needleGradient)"
-        strokeWidth={size * 0.045}
-        strokeLinecap="round"
-      />
-      
-      {/* Center hub - outer ring */}
-      <Circle
-        cx={centerX}
-        cy={centerY}
-        r={size * 0.09}
-        fill="#4A6858"
-      />
-      
-      {/* Center hub - inner */}
-      <Circle
-        cx={centerX}
-        cy={centerY}
-        r={size * 0.06}
-        fill="#3A5848"
-      />
-      
-      {/* Center hub - highlight */}
-      <Ellipse
-        cx={centerX - size * 0.015}
-        cy={centerY - size * 0.02}
-        rx={size * 0.025}
-        ry={size * 0.02}
-        fill="rgba(255,255,255,0.2)"
-      />
+      <Path d={`M ${centerX} ${centerY} L ${needleX} ${needleY}`} stroke="#E04F5F" strokeWidth={size * 0.045} strokeLinecap="round" />
+      <Circle cx={centerX} cy={centerY} r={size * 0.08} fill="#3A5848" />
     </Svg>
+  );
+}
+
+// Big Oscillating Gauge for Personality of the Day
+function BigOscillatingGauge({ score, size = 100 }: { score: number; size?: number }) {
+  const oscillation = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(oscillation, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        Animated.timing(oscillation, { toValue: -1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+      ])
+    ).start();
+  }, []);
+
+  const normalizedScore = Math.min(100, Math.max(0, score));
+  const baseAngle = -135 + (normalizedScore / 100) * 270;
+  
+  const animatedAngle = oscillation.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [baseAngle - 5, baseAngle + 5],
+  });
+
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const needleLength = size * 0.35;
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <LinearGradient id="bigGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#4A6858" />
+            <Stop offset="100%" stopColor="#1C3A2C" />
+          </LinearGradient>
+          <LinearGradient id="bigBezelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#5A7868" />
+            <Stop offset="100%" stopColor="#1C3428" />
+          </LinearGradient>
+        </Defs>
+        <Circle cx={centerX} cy={centerY} r={size * 0.46} fill="url(#bigBezelGrad)" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.40} fill="#0F2F22" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.36} fill="url(#bigGaugeGrad)" />
+        <Path
+          d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
+          stroke="#2E6148"
+          strokeWidth={size * 0.04}
+          fill="none"
+          strokeLinecap="round"
+        />
+        <Circle cx={centerX} cy={centerY} r={size * 0.10} fill="#4A6858" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.06} fill="#3A5848" />
+      </Svg>
+      
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: needleLength,
+          height: 4,
+          backgroundColor: '#E04F5F',
+          borderRadius: 2,
+          left: centerX,
+          top: centerY - 2,
+          transformOrigin: 'left center',
+          transform: [{
+            rotate: animatedAngle.interpolate({
+              inputRange: [-180, 180],
+              outputRange: ['-180deg', '180deg'],
+            })
+          }],
+        }}
+      />
+    </View>
   );
 }
 
 export default function HomeScreen() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
+  const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchName, setSearchName] = useState("");
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -201,6 +190,12 @@ export default function HomeScreen() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       setPeople(data);
+      
+      // Select personality of the day (highest score)
+      if (data.length > 0) {
+        const sorted = [...data].sort((a, b) => b.score - a.score);
+        setPersonOfTheDay(sorted[0]);
+      }
     } catch (e: any) {
       if (!silent) setError(e.message);
     } finally {
@@ -222,33 +217,40 @@ export default function HomeScreen() {
 
   const handleTitleTap = () => {
     titleTapCount.current += 1;
-    
-    if (titleTapTimer.current) {
-      clearTimeout(titleTapTimer.current);
-    }
-    
+    if (titleTapTimer.current) clearTimeout(titleTapTimer.current);
     if (titleTapCount.current >= 7) {
       titleTapCount.current = 0;
       router.push("/admin");
       return;
     }
+    titleTapTimer.current = setTimeout(() => { titleTapCount.current = 0; }, 2000);
+  };
+
+  const handleSearch = async () => {
+    if (!searchName.trim()) return;
     
-    titleTapTimer.current = setTimeout(() => {
-      titleTapCount.current = 0;
-    }, 2000);
+    // Search for the person in the database
+    try {
+      const response = await fetch(API(`/search?query=${encodeURIComponent(searchName.trim())}`));
+      if (response.ok) {
+        const results = await response.json();
+        if (results.length > 0) {
+          router.push({ pathname: "/person", params: { id: results[0].id, name: results[0].name } });
+          setSearchName("");
+          return;
+        }
+      }
+    } catch {}
+    
+    // If not found, show alert
+    alert(`"${searchName}" not found. Try another name.`);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         style={{ flex: 1 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={PALETTE.accent2}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
@@ -256,6 +258,49 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <Text style={styles.subtitle}>Rate them. Buy credits to become popular</Text>
         </View>
+
+        {/* Search Box */}
+        <View style={styles.searchCard}>
+          <Text style={styles.searchLabel}>Rate a personality</Text>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Enter a name"
+              placeholderTextColor={PALETTE.subtext}
+              value={searchName}
+              onChangeText={setSearchName}
+              onSubmitEditing={handleSearch}
+            />
+            <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+              <Text style={styles.searchButtonText}>Rate</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Personality of the Day */}
+        {personOfTheDay && (
+          <TouchableOpacity 
+            style={styles.potdCard}
+            onPress={() => router.push({ pathname: "/person", params: { id: personOfTheDay.id, name: personOfTheDay.name } })}
+          >
+            <View style={styles.potdBadge}>
+              <Ionicons name="star" size={16} color={PALETTE.gold} />
+              <Text style={styles.potdBadgeText}>Personality of the Day</Text>
+            </View>
+            <View style={styles.potdContent}>
+              <View style={styles.potdInfo}>
+                <Text style={styles.potdName}>{personOfTheDay.name}</Text>
+                <Text style={styles.potdMeta}>
+                  {capitalize(personOfTheDay.category)} • Score {Math.round(personOfTheDay.score)}
+                </Text>
+                <Text style={styles.potdVotes}>
+                  {formatNumber(personOfTheDay.total_votes)} {personOfTheDay.total_votes <= 1 ? 'vote' : 'votes'}
+                </Text>
+              </View>
+              <BigOscillatingGauge score={personOfTheDay.score} size={90} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Categories */}
         <View style={styles.categoriesContainer}>
@@ -321,40 +366,68 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: PALETTE.bg },
+  header: { padding: 20, alignItems: "center" },
+  title: { fontSize: 32, fontWeight: "bold", color: PALETTE.text },
+  subtitle: { fontSize: 14, color: PALETTE.subtext, marginTop: 4 },
+  
+  // Search Box
+  searchCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  searchLabel: { color: PALETTE.text, fontSize: 16, fontWeight: "600", marginBottom: 10 },
+  searchRow: { flexDirection: "row", gap: 10 },
+  searchInput: {
     flex: 1,
     backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: PALETTE.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
   },
-  header: {
-    padding: 20,
+  searchButton: {
+    backgroundColor: PALETTE.accent,
+    paddingHorizontal: 24,
+    borderRadius: 8,
     alignItems: "center",
+    justifyContent: "center",
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: PALETTE.text,
+  searchButtonText: { color: PALETTE.text, fontWeight: "700", fontSize: 16 },
+  
+  // Personality of the Day
+  potdCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: PALETTE.gold,
   },
-  subtitle: {
-    fontSize: 14,
-    color: PALETTE.subtext,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: PALETTE.text,
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  categoriesContainer: {
-    marginTop: 8,
-  },
-  categoriesGrid: {
+  potdBadge: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 12,
-    gap: 8,
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
   },
+  potdBadgeText: { color: PALETTE.gold, fontSize: 14, fontWeight: "700" },
+  potdContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  potdInfo: { flex: 1 },
+  potdName: { color: PALETTE.text, fontSize: 22, fontWeight: "700" },
+  potdMeta: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
+  potdVotes: { color: PALETTE.accent2, fontSize: 14, fontWeight: "600", marginTop: 4 },
+  
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: PALETTE.text, marginBottom: 12, paddingHorizontal: 16 },
+  categoriesContainer: { marginTop: 20 },
+  categoriesGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8 },
   categoryCard: {
     width: "47%",
     backgroundColor: PALETTE.card,
@@ -364,39 +437,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PALETTE.border,
   },
-  categoryLabel: {
-    color: PALETTE.text,
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 8,
-  },
-  topSection: {
-    marginTop: 24,
-    paddingBottom: 24,
-  },
-  center: {
-    padding: 40,
-    alignItems: "center",
-  },
-  loadingText: {
-    color: PALETTE.subtext,
-    marginTop: 10,
-  },
-  errorText: {
-    color: "#E04F5F",
-    fontSize: 16,
-  },
-  retryBtn: {
-    marginTop: 20,
-    backgroundColor: PALETTE.accent,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: PALETTE.text,
-    fontWeight: "600",
-  },
+  categoryLabel: { color: PALETTE.text, fontSize: 14, fontWeight: "600", marginTop: 8 },
+  topSection: { marginTop: 24, paddingBottom: 24 },
+  center: { padding: 40, alignItems: "center" },
+  loadingText: { color: PALETTE.subtext, marginTop: 10 },
+  errorText: { color: "#E04F5F", fontSize: 16 },
+  retryBtn: { marginTop: 20, backgroundColor: PALETTE.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryText: { color: PALETTE.text, fontWeight: "600" },
   personCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -417,25 +464,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  rankText: {
-    color: PALETTE.text,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  personInfo: {
-    flex: 1,
-  },
-  personName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: PALETTE.text,
-  },
-  personMeta: {
-    fontSize: 13,
-    color: PALETTE.subtext,
-    marginTop: 2,
-  },
-  gaugeContainer: {
-    marginLeft: 8,
-  },
+  rankText: { color: PALETTE.text, fontWeight: "700", fontSize: 14 },
+  personInfo: { flex: 1 },
+  personName: { fontSize: 16, fontWeight: "600", color: PALETTE.text },
+  personMeta: { fontSize: 13, color: PALETTE.subtext, marginTop: 2 },
+  gaugeContainer: { marginLeft: 8 },
 });
