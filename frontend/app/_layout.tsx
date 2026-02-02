@@ -26,10 +26,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="popular"
         options={{
-          title: "Popular",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trending-up-outline" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
