@@ -1,12 +1,10 @@
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, StyleSheet, Animated, Easing } from "react-native";
 
 const PALETTE = {
   bg: "#0F2F22",
-  bgLight: "#1C3A2C",
   text: "#EAEAEA",
   accent: "#009B4D",
-  subtext: "#C9D8D2",
 };
 
 interface SplashScreenProps {
@@ -14,25 +12,37 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    // Simple timeout without animations
+    // Start rotation animation
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 2000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Finish after 3 seconds
     const timer = setTimeout(() => {
       onFinish();
-    }, 2000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, []);
 
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   return (
     <View style={styles.container}>
-      <View style={styles.letterContainer}>
-        <Text style={styles.letter}>P</Text>
-      </View>
-      
-      <View style={styles.bottomTextContainer}>
-        <Text style={styles.bottomText}>No registration required.</Text>
-        <Text style={styles.bottomText}>Your vote is anonymous.</Text>
-      </View>
+      <Animated.Text style={[styles.letter, { transform: [{ rotateY: spin }] }]}>
+        P
+      </Animated.Text>
     </View>
   );
 }
@@ -44,30 +54,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  letterContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
   letter: {
     fontSize: 140,
     fontWeight: "300",
     color: PALETTE.text,
-    letterSpacing: -2,
     textShadowColor: PALETTE.accent,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
-  },
-  bottomTextContainer: {
-    position: "absolute",
-    bottom: 60,
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  bottomText: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: PALETTE.subtext,
-    textAlign: "center",
-    lineHeight: 20,
   },
 });
