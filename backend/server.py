@@ -626,6 +626,34 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
     return {"ok": True}
 
 
+@api_router.get("/search")
+async def search_people(query: str = Query(..., min_length=1), limit: int = Query(default=10, le=50)):
+    """Search for people by name (case-insensitive)"""
+    try:
+        # Case-insensitive regex search
+        regex_pattern = {"$regex": query, "$options": "i"}
+        
+        cursor = db.persons.find({"name": regex_pattern}).sort("score", -1).limit(limit)
+        results = await cursor.to_list(length=limit)
+        
+        return [
+            {
+                "id": str(doc["_id"]),
+                "name": doc.get("name"),
+                "category": doc.get("category", "other"),
+                "score": doc.get("score", 50.0),
+                "total_votes": doc.get("total_votes", 0),
+                "likes": doc.get("likes", 0),
+                "dislikes": doc.get("dislikes", 0),
+                "source": doc.get("source", "unknown"),
+            }
+            for doc in results
+        ]
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        return []
+
+
 @api_router.get("/search-suggestions")
 async def search_suggestions(window: str = Query(default="24h"), limit: int = Query(default=10, le=20)):
     m = re.match(r"^(\d+)([mh])$", window)
