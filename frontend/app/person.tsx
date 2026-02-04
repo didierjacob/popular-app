@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, Animated, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Easing } from "react-native";
+import { ActivityIndicator, Animated, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Easing, Share, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LineChart } from "react-native-gifted-charts";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import Svg, { Circle, Path, Defs, LinearGradient, Stop, Ellipse } from "react-native-svg";
+import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { fetchWithCache } from "../services/cacheService";
 import { useCredits } from "../services/creditsService";
 
@@ -52,33 +52,21 @@ function BigGaugeIcon({ score, size = 120 }: { score: number; size?: number }) {
   const oscillation = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    const animate = () => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(oscillation, {
-            toValue: 1,
-            duration: 1500,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: false,
-          }),
-          Animated.timing(oscillation, {
-            toValue: -1,
-            duration: 1500,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
-    };
-    animate();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(oscillation, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        Animated.timing(oscillation, { toValue: -1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+      ])
+    ).start();
   }, []);
 
+  // Score is 0-100, needle position based on score
   const normalizedScore = Math.min(100, Math.max(0, score));
   const baseAngle = -135 + (normalizedScore / 100) * 270;
   
   const animatedAngle = oscillation.interpolate({
     inputRange: [-1, 1],
-    outputRange: [baseAngle - 5, baseAngle + 5],
+    outputRange: [baseAngle - 3, baseAngle + 3],
   });
 
   const centerX = size / 2;
@@ -96,39 +84,24 @@ function BigGaugeIcon({ score, size = 120 }: { score: number; size?: number }) {
           </LinearGradient>
           <LinearGradient id="bigBezelGradient" x1="0%" y1="0%" x2="0%" y2="100%">
             <Stop offset="0%" stopColor="#5A7868" />
-            <Stop offset="30%" stopColor="#3E5A4A" />
-            <Stop offset="70%" stopColor="#2A4636" />
             <Stop offset="100%" stopColor="#1C3428" />
-          </LinearGradient>
-          <LinearGradient id="bigInnerShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#0F2F22" />
-            <Stop offset="100%" stopColor="#1C3A2C" />
           </LinearGradient>
         </Defs>
         
         <Circle cx={centerX} cy={centerY} r={size * 0.46} fill="url(#bigBezelGradient)" />
-        <Circle cx={centerX} cy={centerY} r={size * 0.40} fill="url(#bigInnerShadow)" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.40} fill="#0F2F22" />
         <Circle cx={centerX} cy={centerY} r={size * 0.36} fill="url(#bigGaugeGradient)" />
         
-        <Path
-          d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
-          stroke="#1A3328"
-          strokeWidth={size * 0.06}
-          fill="none"
-          strokeLinecap="round"
-        />
         <Path
           d={`M ${centerX - size * 0.26} ${centerY + size * 0.1} A ${size * 0.28} ${size * 0.28} 0 1 1 ${centerX + size * 0.26} ${centerY + size * 0.1}`}
           stroke="#2E6148"
           strokeWidth={size * 0.04}
           fill="none"
           strokeLinecap="round"
-          opacity={0.6}
         />
         
-        <Circle cx={centerX} cy={centerY} r={size * 0.12} fill="#4A6858" />
-        <Circle cx={centerX} cy={centerY} r={size * 0.08} fill="#3A5848" />
-        <Ellipse cx={centerX - size * 0.02} cy={centerY - size * 0.025} rx={size * 0.03} ry={size * 0.025} fill="rgba(255,255,255,0.2)" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.10} fill="#4A6858" />
+        <Circle cx={centerX} cy={centerY} r={size * 0.06} fill="#3A5848" />
       </Svg>
       
       <Animated.View
@@ -173,6 +146,7 @@ export default function Person() {
 
   const { balance, useCredit, refreshBalance } = useCredits();
   const [isPremiumMode, setIsPremiumMode] = useState(false);
+  const [premiumVoteCount, setPremiumVoteCount] = useState(1);
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
@@ -207,23 +181,30 @@ export default function Person() {
   const like = async (value: 1 | -1) => {
     try {
       if (isPremiumMode) {
-        if (balance < 1) {
-          alert('Insufficient credits!\n\nBuy credits in the Premium tab to use x100 votes.');
+        if (balance < premiumVoteCount) {
+          Alert.alert('Insufficient credits', `You need ${premiumVoteCount} credits but only have ${balance}.`);
           return;
         }
-        try {
-          const result = await useCredit(id, name, value);
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-          setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 3000);
-          await Promise.all([fetchData(true), refreshBalance()]);
-          alert(`✨ Premium Vote Applied!\n\n+${result.votes_applied} votes • New score: ${Math.round(result.new_score)}\nCredits remaining: ${result.new_balance}`);
-          setIsPremiumMode(false);
-          return;
-        } catch (error: any) {
-          alert('Error: ' + (error.message || 'Premium vote failed'));
-          return;
+
+        // Apply multiple premium votes
+        for (let i = 0; i < premiumVoteCount; i++) {
+          try {
+            await useCredit(id, name, value);
+          } catch (error) {
+            console.error(`Premium vote ${i + 1} failed:`, error);
+            break;
+          }
         }
+        
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+        await Promise.all([fetchData(true), refreshBalance()]);
+        
+        Alert.alert('✨ Premium Votes Applied!', `Applied ${premiumVoteCount} x100 ${value === 1 ? 'likes' : 'dislikes'}!`);
+        setIsPremiumMode(false);
+        setPremiumVoteCount(1);
+        return;
       }
 
       const scaleAnim = value === 1 ? likeScaleAnim : dislikeScaleAnim;
@@ -260,13 +241,42 @@ export default function Person() {
     } catch {}
   };
 
+  // Share functions
+  const shareMessage = `Check out ${name} on Popular! Current score: ${Math.round(person?.score || 0)} with ${formatNumber(person?.total_votes || 0)} votes! 📊`;
+
+  const shareToFacebook = async () => {
+    const url = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;
+    await Linking.openURL(url);
+  };
+
+  const shareToTwitter = async () => {
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`;
+    await Linking.openURL(url);
+  };
+
+  const shareToInstagram = async () => {
+    // Instagram doesn't have a direct share URL, so we use the native share
+    try {
+      await Share.share({
+        message: shareMessage,
+      });
+    } catch (error) {
+      Alert.alert('Share', 'Copy this text and share on Instagram:\n\n' + shareMessage);
+    }
+  };
+
+  const shareGeneric = async () => {
+    try {
+      await Share.share({
+        message: shareMessage,
+      });
+    } catch (error) {
+      console.error('Share failed:', error);
+    }
+  };
+
   // Chart data with rounded values
   const lineData = chart.map((p) => ({ value: Math.round(p.score) }));
-  
-  // Calculate Y-axis labels (rounded)
-  const scores = chart.map(p => p.score);
-  const minScore = Math.floor(Math.min(...scores, 0));
-  const maxScore = Math.ceil(Math.max(...scores, 100));
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
@@ -282,39 +292,46 @@ export default function Person() {
               <Text style={styles.homeText}>Home</Text>
             </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
-            <Text style={styles.meta}>Score {formatNumber(person?.score || 0)} • Likes {formatNumber(person?.likes || 0)} • Dislikes {formatNumber(person?.dislikes || 0)}</Text>
+            <Text style={styles.meta}>
+              Score {Math.round(person?.score || 0)} • {formatNumber(person?.likes || 0)} likes • {formatNumber(person?.dislikes || 0)} dislikes
+            </Text>
           </View>
 
           {/* Big Oscillating Gauge */}
           <View style={styles.gaugeSection}>
             <BigGaugeIcon score={person?.score || 50} size={140} />
             <Text style={styles.gaugeScore}>{Math.round(person?.score || 0)}</Text>
+            <Text style={styles.gaugeVotes}>{formatNumber(person?.total_votes || 0)} total votes</Text>
           </View>
 
           {/* Live Ratings Chart */}
           <View style={styles.card}>
             <Text style={styles.section}>Live ratings</Text>
-            <LineChart
-              areaChart
-              data={lineData}
-              curved
-              color={PALETTE.accent2}
-              thickness={2}
-              startFillColor={PALETTE.accent2}
-              startOpacity={0.25}
-              endOpacity={0.05}
-              hideDataPoints
-              yAxisColor={PALETTE.border}
-              xAxisColor={PALETTE.border}
-              backgroundColor={PALETTE.card}
-              rulesColor={PALETTE.border}
-              noOfSections={4}
-              initialSpacing={0}
-              formatYLabel={(val) => Math.round(Number(val)).toString()}
-            />
+            {lineData.length > 0 ? (
+              <LineChart
+                areaChart
+                data={lineData}
+                curved
+                color={PALETTE.accent2}
+                thickness={2}
+                startFillColor={PALETTE.accent2}
+                startOpacity={0.25}
+                endOpacity={0.05}
+                hideDataPoints
+                yAxisColor={PALETTE.border}
+                xAxisColor={PALETTE.border}
+                backgroundColor={PALETTE.card}
+                rulesColor={PALETTE.border}
+                noOfSections={4}
+                initialSpacing={0}
+                formatYLabel={(val) => Math.round(Number(val)).toString()}
+              />
+            ) : (
+              <Text style={styles.noData}>No data yet - vote to see trends!</Text>
+            )}
           </View>
 
-          {/* Premium Vote Toggle */}
+          {/* Premium Vote Toggle with Count Selection */}
           {balance > 0 && (
             <View style={styles.card}>
               <TouchableOpacity style={styles.premiumToggle} onPress={() => setIsPremiumMode(!isPremiumMode)}>
@@ -324,13 +341,43 @@ export default function Person() {
                     <Text style={styles.premiumToggleTitle}>Use my booster</Text>
                   </View>
                   <Text style={styles.premiumToggleSubtitle}>
-                    {isPremiumMode ? `✓ Active • ${balance} ${balance <= 1 ? 'vote' : 'votes'} left` : `${balance} ${balance <= 1 ? 'vote' : 'votes'} available`}
+                    {isPremiumMode ? `Active • ${balance} credits left` : `${balance} credits available`}
                   </Text>
                 </View>
                 <View style={[styles.toggleSwitch, isPremiumMode && styles.toggleSwitchActive]}>
                   <View style={[styles.toggleThumb, isPremiumMode && styles.toggleThumbActive]} />
                 </View>
               </TouchableOpacity>
+              
+              {isPremiumMode && (
+                <View style={styles.voteCountSelector}>
+                  <Text style={styles.voteCountLabel}>Number of boosts to use:</Text>
+                  <View style={styles.voteCountRow}>
+                    <TouchableOpacity 
+                      style={styles.voteCountBtn} 
+                      onPress={() => setPremiumVoteCount(Math.max(1, premiumVoteCount - 1))}
+                    >
+                      <Text style={styles.voteCountBtnText}>-</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.voteCountInput}
+                      value={String(premiumVoteCount)}
+                      onChangeText={(v) => {
+                        const num = parseInt(v) || 1;
+                        setPremiumVoteCount(Math.min(balance, Math.max(1, num)));
+                      }}
+                      keyboardType="number-pad"
+                    />
+                    <TouchableOpacity 
+                      style={styles.voteCountBtn} 
+                      onPress={() => setPremiumVoteCount(Math.min(balance, premiumVoteCount + 1))}
+                    >
+                      <Text style={styles.voteCountBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.voteCountInfo}>= {premiumVoteCount * 100} votes</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -341,9 +388,9 @@ export default function Person() {
                 style={[styles.cta, { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent }]} 
                 onPress={() => like(1)}
               >
-                {isPremiumMode && <Ionicons name="diamond" size={14} color="#000" style={{ marginRight: 4 }} />}
+                <Ionicons name={isPremiumMode ? "diamond" : "thumbs-up"} size={18} color={isPremiumMode ? "#000" : "#fff"} />
                 <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
-                  Like {isPremiumMode && 'x100'}
+                  {isPremiumMode ? `Like x${premiumVoteCount * 100}` : 'Like'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
@@ -352,9 +399,9 @@ export default function Person() {
                 style={[styles.cta, { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent2 }]} 
                 onPress={() => like(-1)}
               >
-                {isPremiumMode && <Ionicons name="diamond" size={14} color="#000" style={{ marginRight: 4 }} />}
+                <Ionicons name={isPremiumMode ? "diamond" : "thumbs-down"} size={18} color={isPremiumMode ? "#000" : "#fff"} />
                 <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
-                  Dislike {isPremiumMode && 'x100'}
+                  {isPremiumMode ? `Dislike x${premiumVoteCount * 100}` : 'Dislike'}
                 </Text>
               </TouchableOpacity>
             </Animated.View>
@@ -363,22 +410,28 @@ export default function Person() {
           {/* Personality Trends */}
           <Trends />
 
-          {/* Share Section - At Bottom */}
-          {Platform.OS !== 'web' && (
-            <View style={[styles.card, { marginBottom: 30 }]}>
-              <Text style={styles.section}>Share</Text>
-              <View style={[styles.row, { marginHorizontal: 0, marginTop: 8, gap: 8 }]}>
-                <TouchableOpacity style={styles.shareButton} onPress={() => {}}>
-                  <Ionicons name="logo-facebook" size={20} color="white" />
-                  <Text style={styles.shareText}>Facebook</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.shareButton} onPress={() => {}}>
-                  <Ionicons name="logo-twitter" size={20} color="white" />
-                  <Text style={styles.shareText}>X (Twitter)</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Share Section */}
+          <View style={[styles.card, { marginBottom: 30 }]}>
+            <Text style={styles.section}>Share</Text>
+            <View style={styles.shareGrid}>
+              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1877F2' }]} onPress={shareToFacebook}>
+                <Ionicons name="logo-facebook" size={22} color="white" />
+                <Text style={styles.shareText}>Facebook</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1DA1F2' }]} onPress={shareToTwitter}>
+                <Ionicons name="logo-twitter" size={22} color="white" />
+                <Text style={styles.shareText}>Twitter</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#E4405F' }]} onPress={shareToInstagram}>
+                <Ionicons name="logo-instagram" size={22} color="white" />
+                <Text style={styles.shareText}>Instagram</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.shareButton, { backgroundColor: PALETTE.accent }]} onPress={shareGeneric}>
+                <Ionicons name="share-outline" size={22} color="white" />
+                <Text style={styles.shareText}>More</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
         </ScrollView>
       )}
       
@@ -391,12 +444,17 @@ export default function Person() {
 
 function Trends() {
   const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const fetchTrends = useCallback(async () => {
     try {
-      const res = await apiGet<any[]>("/trends?window=60m&limit=20");
+      const res = await apiGet<any[]>("/trends?window=60m&limit=10");
       setItems(res);
-    } catch {}
+    } catch (e) {
+      console.error("Failed to fetch trends:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -404,6 +462,24 @@ function Trends() {
     const i = setInterval(fetchTrends, 5000);
     return () => clearInterval(i);
   }, [fetchTrends]);
+
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.section}>Personality trends (live)</Text>
+        <ActivityIndicator color={PALETTE.accent2} style={{ paddingVertical: 20 }} />
+      </View>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.section}>Personality trends (live)</Text>
+        <Text style={styles.noData}>No trends data yet - votes will appear here!</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.card}>
@@ -435,17 +511,20 @@ const styles = StyleSheet.create({
   title: { color: PALETTE.text, fontSize: 24, fontWeight: '700' },
   meta: { color: PALETTE.subtext, marginTop: 4 },
   gaugeSection: { alignItems: 'center', paddingVertical: 20 },
-  gaugeScore: { color: PALETTE.text, fontSize: 28, fontWeight: '700', marginTop: 10 },
+  gaugeScore: { color: PALETTE.text, fontSize: 32, fontWeight: '700', marginTop: 10 },
+  gaugeVotes: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
   card: { backgroundColor: PALETTE.card, marginHorizontal: 16, marginTop: 16, borderRadius: 12, padding: 12, borderColor: PALETTE.border, borderWidth: 1 },
-  section: { color: PALETTE.subtext, marginBottom: 8 },
+  section: { color: PALETTE.subtext, marginBottom: 8, fontWeight: '600' },
+  noData: { color: PALETTE.subtext, textAlign: 'center', paddingVertical: 20, fontStyle: 'italic' },
   row: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginTop: 16 },
-  cta: { flex: 1, height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  cta: { flex: 1, height: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   ctaText: { color: 'white', fontWeight: '700', fontSize: 16 },
   trendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
-  trendName: { color: PALETTE.text },
+  trendName: { color: PALETTE.text, flex: 1 },
   trendDelta: { fontWeight: '700' },
-  shareButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: PALETTE.accent, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },
-  shareText: { color: 'white', fontWeight: '600', fontSize: 14 },
+  shareGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  shareButton: { flex: 1, minWidth: '45%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },
+  shareText: { color: 'white', fontWeight: '600', fontSize: 13 },
   premiumToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   premiumToggleTitle: { color: '#FFD700', fontSize: 16, fontWeight: '700' },
   premiumToggleSubtitle: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
@@ -453,4 +532,11 @@ const styles = StyleSheet.create({
   toggleSwitchActive: { backgroundColor: '#FFD700' },
   toggleThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' },
   toggleThumbActive: { alignSelf: 'flex-end' },
+  voteCountSelector: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: PALETTE.border },
+  voteCountLabel: { color: PALETTE.text, fontSize: 14, marginBottom: 10 },
+  voteCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  voteCountBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFD700', alignItems: 'center', justifyContent: 'center' },
+  voteCountBtnText: { color: '#000', fontSize: 24, fontWeight: '700' },
+  voteCountInput: { width: 60, height: 44, backgroundColor: PALETTE.bg, borderRadius: 8, textAlign: 'center', color: PALETTE.text, fontSize: 18, fontWeight: '700' },
+  voteCountInfo: { color: '#FFD700', textAlign: 'center', marginTop: 8, fontWeight: '600' },
 });
