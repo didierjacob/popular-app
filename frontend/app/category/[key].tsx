@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -14,8 +14,11 @@ const PALETTE = {
   border: "#2E6148",
 };
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
+
+const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(API(path));
@@ -25,6 +28,13 @@ async function apiGet<T>(path: string): Promise<T> {
 
 interface Person { id: string; name: string; category?: string; score: number; total_votes: number }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  politics: "Politics",
+  culture: "Culture",
+  business: "Business",
+  sport: "Sport",
+};
+
 export default function CategoryList() {
   const router = useRouter();
   const params = useLocalSearchParams<{ key: string }>();
@@ -33,7 +43,7 @@ export default function CategoryList() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const title = useMemo(() => "List", []);
+  const title = useMemo(() => CATEGORY_LABELS[catKey] || capitalize(catKey), [catKey]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -41,38 +51,56 @@ export default function CategoryList() {
       const qs = catKey && catKey !== "all" ? `?category=${encodeURIComponent(catKey)}` : "";
       const data = await apiGet<Person[]>(`/people${qs}`);
       setItems([...data].sort((a, b) => b.score - a.score));
-    } finally { if (!silent) setLoading(false); }
+    } catch (e) {
+      console.error(e);
+    } finally { 
+      if (!silent) setLoading(false); 
+    }
   }, [catKey]);
 
-  useEffect(() => { load(false); const i = setInterval(() => load(true), 5000); return () => clearInterval(i); }, [load]);
+  useEffect(() => { 
+    load(false); 
+    const i = setInterval(() => load(true), 5000); 
+    return () => clearInterval(i); 
+  }, [load]);
 
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(true); setRefreshing(false); }, [load]);
+  const onRefresh = useCallback(async () => { 
+    setRefreshing(true); 
+    await load(true); 
+    setRefreshing(false); 
+  }, [load]);
 
   const renderItem = ({ item }: { item: Person }) => (
     <TouchableOpacity style={styles.row} onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}>
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.meta}>{item.category} • Score {item.score.toFixed(0)} • {item.total_votes} votes</Text>
+        <Text style={styles.meta}>
+          {capitalize(item.category || 'other')} • Score {Math.round(item.score)} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+        </Text>
       </View>
-      <Text style={styles.chev}>{">"}</Text>
+      <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>{title}</Text>
+      </View>
+      
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={PALETTE.accent2} /></View>
       ) : (
-        <>
-          <View style={styles.header}><Text style={styles.title}>{title}</Text></View>
-          <FlashList
-            data={items}
-            keyExtractor={(it) => it.id}
-            renderItem={renderItem}
-            estimatedItemSize={72}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
-          />
-        </>
+        <FlatList
+          data={items}
+          keyExtractor={(it) => it.id}
+          renderItem={renderItem}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        />
       )}
     </SafeAreaView>
   );
@@ -80,10 +108,10 @@ export default function CategoryList() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: PALETTE.bg },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  backBtn: { marginRight: 12 },
   title: { color: PALETTE.text, fontSize: 20, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth },
   name: { color: PALETTE.text, fontSize: 16, fontWeight: '600' },
-  meta: { color: PALETTE.subtext, marginTop: 4 },
-  chev: { color: PALETTE.subtext, fontWeight: '800' }
+  meta: { color: PALETTE.subtext, marginTop: 4, fontSize: 13 },
 });
