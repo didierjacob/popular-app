@@ -1667,6 +1667,88 @@ async def admin_get_scheduler_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Mapping of sports personalities that need category correction
+SPORTS_PERSONALITIES = [
+    "Lionel Messi", "Cristiano Ronaldo", "Serena Williams", "LeBron James",
+    "Kylian Mbappé", "Lewis Hamilton", "Roger Federer", "Tom Brady",
+    "Michael Jordan", "Usain Bolt", "Tiger Woods", "Rafael Nadal",
+    "Novak Djokovic", "Mike Tyson", "Neymar", "Mohamed Salah"
+]
+
+@api_router.post("/admin/fix-categories")
+async def admin_fix_categories():
+    """Admin-only: Fix category assignments for sports personalities"""
+    try:
+        fixed_count = 0
+        fixed_names = []
+        
+        for name in SPORTS_PERSONALITIES:
+            result = await db.persons.update_one(
+                {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+                {"$set": {"category": "sport", "updated_at": now_utc()}}
+            )
+            if result.modified_count > 0:
+                fixed_count += 1
+                fixed_names.append(name)
+        
+        return {
+            "success": True,
+            "message": f"Fixed {fixed_count} personality categories to 'sport'",
+            "fixed_names": fixed_names,
+        }
+        
+    except Exception as e:
+        logger.error(f"Fix categories error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/initialize-votes")
+async def admin_initialize_votes():
+    """Admin-only: Initialize existing personalities with realistic vote counts"""
+    import random
+    try:
+        # Find all personalities with 0 or very low votes
+        low_vote_persons = await db.persons.find({
+            "total_votes": {"$lt": 100},
+            "source": {"$ne": "self_boosted"}  # Don't touch self-boosted
+        }).to_list(1000)
+        
+        updated_count = 0
+        for person in low_vote_persons:
+            # Generate random initial votes between 8000 and 15000
+            initial_votes = random.randint(8000, 15000)
+            like_ratio = random.uniform(0.40, 0.80)
+            initial_likes = int(initial_votes * like_ratio)
+            initial_dislikes = initial_votes - initial_likes
+            raw_score = like_ratio * 100
+            initial_score = round(raw_score / 25) * 25
+            initial_score = max(0, min(100, initial_score))
+            
+            await db.persons.update_one(
+                {"_id": person["_id"]},
+                {
+                    "$set": {
+                        "likes": initial_likes,
+                        "dislikes": initial_dislikes,
+                        "total_votes": initial_votes,
+                        "score": float(initial_score),
+                        "updated_at": now_utc(),
+                    }
+                }
+            )
+            updated_count += 1
+        
+        return {
+            "success": True,
+            "message": f"Initialized vote counts for {updated_count} personalities",
+            "updated_count": updated_count,
+        }
+        
+    except Exception as e:
+        logger.error(f"Initialize votes error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
         logger.error(f"Admin update settings error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
