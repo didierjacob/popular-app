@@ -1,8 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import SplashScreen from "./splash";
 
 export default function RootLayout() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -26,7 +33,10 @@ export default function RootLayout() {
       <Tabs.Screen
         name="popular"
         options={{
-          href: null,
+          title: "Popular",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="trending-up-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -53,15 +63,6 @@ export default function RootLayout() {
           title: "Premium",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: "Account",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
