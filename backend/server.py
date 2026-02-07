@@ -292,28 +292,33 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
 
 
 @api_router.get("/people", response_model=List[PersonOut])
-async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50), category: Optional[str] = Query(default=None)):
+async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50), category: Optional[str] = Query(default=None), include_outsiders: bool = Query(default=False)):
     filter_q: Dict[str, Any] = {"approved": True}
+    
+    # Exclude "outsiders" (self_boosted) from main lists unless explicitly requested
+    if not include_outsiders:
+        filter_q["source"] = {"$ne": "self_boosted"}
+    
     if query:
         # Search for partial matches in name (case-insensitive)
-        # This allows "trump" to match "Donald Trump", "elon" to match "Elon Musk", etc.
         search_term = query.strip()
-        # Split the search term into words and create a regex that matches any part of the name
         words = search_term.split()
         if len(words) == 1:
-            # Single word search: match anywhere in the name
             regex = re.escape(words[0])
             filter_q["name"] = {"$regex": regex, "$options": "i"}
         else:
-            # Multiple words: match all words in any order
             regexes = [{"name": {"$regex": re.escape(word), "$options": "i"}} for word in words]
             filter_q["$and"] = regexes
     if category:
         cat = category.strip().lower()
         if cat != "all":
-            if cat not in {"politics", "culture", "business", "sport", "other"}:
+            if cat == "outsider":
+                # Special category for self-boosted users
+                filter_q["source"] = "self_boosted"
+            elif cat not in {"politics", "culture", "business", "sport", "other"}:
                 raise HTTPException(status_code=400, detail="Invalid category")
-            filter_q["category"] = cat
+            else:
+                filter_q["category"] = cat
     cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
     docs = await cursor.to_list(length=limit)
     return [person_to_out(d) for d in docs]
