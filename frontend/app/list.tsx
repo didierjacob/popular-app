@@ -46,10 +46,10 @@ export default function List() {
 
   const load = useCallback(async () => {
     try {
-      const data = await apiGet<Person[]>("/people?limit=30");
+      const data = await apiGet<Person[]>("/people?limit=100");
       setPeople(data);
     } catch (error) {
-      console.error("Failed to load top 30:", error);
+      console.error("Failed to load top 100:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
