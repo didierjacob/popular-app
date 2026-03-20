@@ -211,6 +211,10 @@ export default function HomeScreen() {
         setPersonOfTheDay(sorted[0]);
       }
       
+      // Sort people by total_votes (descending) for the Top Personalities list
+      const sortedByVotes = [...data].sort((a, b) => b.total_votes - a.total_votes);
+      setPeople(sortedByVotes);
+      
       // Load outsider
       if (outsidersRes.ok) {
         const outsiders = await outsidersRes.json();
