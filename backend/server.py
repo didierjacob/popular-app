@@ -172,7 +172,6 @@ SEED_PEOPLE = [
     {"name": "Beyoncé", "category": "culture"},
     {"name": "Greta Thunberg", "category": "culture"},
     {"name": "Malala Yousafzai", "category": "culture"},
-    {"name": "Pope Francis", "category": "culture"},
     {"name": "Kanye West", "category": "culture"},
     {"name": "Rihanna", "category": "culture"},
     # Sport
