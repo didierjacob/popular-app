@@ -182,7 +182,7 @@ export default function AccountScreen() {
           <View style={styles.card}>
             <TouchableOpacity style={styles.menuItem}>
               <Ionicons name="lock-closed-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>Change Password</Text>
+              <Text style={styles.menuItemText}>Enter/Change Password</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
