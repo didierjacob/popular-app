@@ -712,12 +712,27 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 
 @api_router.get("/search")
 async def search_people(query: str = Query(..., min_length=1), limit: int = Query(default=10, le=50)):
-    """Search for people by name (case-insensitive)"""
+    """Search for people by name (case-insensitive, partial match)"""
     try:
-        # Case-insensitive regex search
-        regex_pattern = {"$regex": query, "$options": "i"}
+        search_term = query.strip()
         
-        cursor = db.persons.find({"name": regex_pattern}).sort("score", -1).limit(limit)
+        # Build filter for approved personalities only
+        filter_q: Dict[str, Any] = {"approved": True}
+        
+        # Split into words for multi-word search
+        words = search_term.split()
+        
+        if len(words) == 1:
+            # Single word: match anywhere in name
+            filter_q["name"] = {"$regex": re.escape(words[0]), "$options": "i"}
+        else:
+            # Multiple words: match all words in any order
+            filter_q["$and"] = [
+                {"name": {"$regex": re.escape(word), "$options": "i"}} 
+                for word in words
+            ]
+        
+        cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
         
         return [
