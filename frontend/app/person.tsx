@@ -154,14 +154,18 @@ export default function Person() {
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
     try {
-      const [p, c24] = await Promise.all([
+      const [p, c24, vc24] = await Promise.all([
         fetchWithCache(`/people/${id}`, `person_${id}`, () => apiGet(`/people/${id}`), 2 * 60 * 1000),
         fetchWithCache(`/people/${id}/chart?window=24h`, `chart_24h_${id}`, () => apiGet(`/people/${id}/chart?window=24h`), 2 * 60 * 1000),
+        apiGet(`/people/${id}/votes-chart?window=24h`).catch(() => ({ points: [] })),
       ]);
       setPerson(p);
       const cRes = c24 as ChartRes;
       setName(cRes.name);
       setChart(cRes.points.map(pt => ({ t: pt.t, score: pt.score })));
+      
+      const vcRes = vc24 as VotesChartRes;
+      setVotesChart(vcRes.points || []);
     } catch (e) {
       console.error(e);
     } finally {
