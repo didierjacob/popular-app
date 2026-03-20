@@ -466,7 +466,17 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         {"_id": oid},
         {"$inc": inc_doc, "$set": {"score": new_score, "updated_at": now_utc()}}
     )
-    await db.person_ticks.insert_one({"person_id": oid, "score": new_score, "created_at": now_utc()})
+    
+    # Fetch updated totals for tick
+    updated_person = await db.persons.find_one({"_id": oid})
+    total_votes_now = updated_person.get("total_votes", 0) if updated_person else 0
+    
+    await db.person_ticks.insert_one({
+        "person_id": oid, 
+        "score": new_score, 
+        "total_votes": total_votes_now,
+        "created_at": now_utc()
+    })
     await write_vote_event(oid, x_device_id, int(delta))
 
     # fetch updated person
