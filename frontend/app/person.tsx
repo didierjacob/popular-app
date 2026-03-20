@@ -128,6 +128,8 @@ function BigGaugeIcon({ score, size = 120 }: { score: number; size?: number }) {
 
 interface ChartPoint { t: string; score: number }
 interface ChartRes { id: string; name: string; points: ChartPoint[] }
+interface VotesChartPoint { t: string; total_votes: number }
+interface VotesChartRes { id: string; name: string; points: VotesChartPoint[] }
 
 export default function Person() {
   const router = useRouter();
