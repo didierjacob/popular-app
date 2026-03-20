@@ -710,27 +710,48 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
     return {"ok": True}
 
 
+import unicodedata
+
+def remove_accents(text: str) -> str:
+    """Remove accents from text for search matching"""
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
+
 @api_router.get("/search")
 async def search_people(query: str = Query(..., min_length=1), limit: int = Query(default=10, le=50)):
-    """Search for people by name (case-insensitive, partial match)"""
+    """Search for people by name (case-insensitive, accent-insensitive, partial match)"""
     try:
         search_term = query.strip()
+        search_term_normalized = remove_accents(search_term)
         
         # Build filter for approved personalities only
         filter_q: Dict[str, Any] = {"approved": True}
         
         # Split into words for multi-word search
-        words = search_term.split()
+        words = search_term_normalized.split()
         
         if len(words) == 1:
-            # Single word: match anywhere in name
-            filter_q["name"] = {"$regex": re.escape(words[0]), "$options": "i"}
+            # Single word: match anywhere in name (with or without accents)
+            # Create regex that matches both accented and non-accented versions
+            word = words[0]
+            # Build a flexible regex that handles common accent variations
+            flexible_regex = ''.join([
+                f"[{c}{get_accent_variants(c)}]" if c.isalpha() else re.escape(c)
+                for c in word
+            ])
+            filter_q["name"] = {"$regex": flexible_regex, "$options": "i"}
         else:
             # Multiple words: match all words in any order
-            filter_q["$and"] = [
-                {"name": {"$regex": re.escape(word), "$options": "i"}} 
-                for word in words
-            ]
+            regex_list = []
+            for word in words:
+                flexible_regex = ''.join([
+                    f"[{c}{get_accent_variants(c)}]" if c.isalpha() else re.escape(c)
+                    for c in word
+                ])
+                regex_list.append({"name": {"$regex": flexible_regex, "$options": "i"}})
+            filter_q["$and"] = regex_list
         
         cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
@@ -751,6 +772,20 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
     except Exception as e:
         logger.error(f"Search error: {e}")
         return []
+
+def get_accent_variants(char: str) -> str:
+    """Get common accent variants for a character"""
+    variants = {
+        'a': 'àáâãäåæ', 'A': 'ÀÁÂÃÄÅÆ',
+        'e': 'èéêëẽ', 'E': 'ÈÉÊËẼ',
+        'i': 'ìíîïĩ', 'I': 'ÌÍÎÏĨ',
+        'o': 'òóôõöø', 'O': 'ÒÓÔÕÖØ',
+        'u': 'ùúûüũ', 'U': 'ÙÚÛÜŨ',
+        'c': 'ç', 'C': 'Ç',
+        'n': 'ñ', 'N': 'Ñ',
+        'y': 'ýÿ', 'Y': 'ÝŸ',
+    }
+    return variants.get(char, '')
 
 
 @api_router.get("/search-suggestions")
