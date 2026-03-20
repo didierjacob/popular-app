@@ -284,6 +284,9 @@ export default function Person() {
 
   // Chart data with rounded values
   const lineData = chart.map((p) => ({ value: Math.round(p.score) }));
+  
+  // Votes chart data
+  const votesLineData = votesChart.map((p) => ({ value: p.total_votes }));
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
