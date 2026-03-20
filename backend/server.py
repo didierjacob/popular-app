@@ -728,14 +728,18 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
         params = {
             "action": "query",
             "list": "search",
-            "srsearch": f"{query} person",
+            "srsearch": f"{query}",
             "format": "json",
             "srlimit": 5,
         }
+        headers = {
+            "User-Agent": "PopularApp/1.0 (https://popular-app.onrender.com; contact@popular-app.com)"
+        }
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(search_url, params=params)
+            response = await client.get(search_url, params=params, headers=headers)
             if response.status_code != 200:
+                logger.warning(f"Wikipedia API returned {response.status_code}")
                 return None
             
             data = response.json()
