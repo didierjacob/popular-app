@@ -257,12 +257,15 @@ const styles = StyleSheet.create({
   indicator: { width: 28, alignItems: 'center' },
   chip: {
     backgroundColor: PALETTE.card,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderColor: PALETTE.border,
     borderWidth: 1,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipText: { color: PALETTE.text, fontWeight: '600' },
+  chipText: { color: PALETTE.text, fontWeight: '600', fontSize: 14, textAlign: 'center' },
 });
 // sync
