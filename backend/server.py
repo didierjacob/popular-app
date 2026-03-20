@@ -1677,11 +1677,12 @@ SPORTS_PERSONALITIES = [
 
 @api_router.post("/admin/fix-categories")
 async def admin_fix_categories():
-    """Admin-only: Fix category assignments for sports personalities"""
+    """Admin-only: Fix category assignments for sports personalities and Pope Francis"""
     try:
         fixed_count = 0
         fixed_names = []
         
+        # Fix sports personalities
         for name in SPORTS_PERSONALITIES:
             result = await db.persons.update_one(
                 {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
@@ -1689,11 +1690,20 @@ async def admin_fix_categories():
             )
             if result.modified_count > 0:
                 fixed_count += 1
-                fixed_names.append(name)
+                fixed_names.append(f"{name} → sport")
+        
+        # Fix Pope Francis to politics
+        pope_result = await db.persons.update_one(
+            {"name": {"$regex": "^Pope Francis$", "$options": "i"}},
+            {"$set": {"category": "politics", "updated_at": now_utc()}}
+        )
+        if pope_result.modified_count > 0:
+            fixed_count += 1
+            fixed_names.append("Pope Francis → politics")
         
         return {
             "success": True,
-            "message": f"Fixed {fixed_count} personality categories to 'sport'",
+            "message": f"Fixed {fixed_count} personality categories",
             "fixed_names": fixed_names,
         }
         
