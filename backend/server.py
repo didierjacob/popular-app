@@ -1786,6 +1786,60 @@ async def admin_fix_categories():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.post("/admin/create-demo-outsider")
+async def admin_create_demo_outsider():
+    """Admin-only: Create a demo outsider to show the feature"""
+    import random
+    try:
+        # Check if demo outsider already exists
+        existing = await db.persons.find_one({"name": "Alex Martin", "source": "self_boosted"})
+        if existing:
+            return {
+                "success": True,
+                "message": "Demo outsider already exists",
+                "outsider": {
+                    "id": str(existing["_id"]),
+                    "name": existing["name"],
+                }
+            }
+        
+        # Create demo outsider
+        initial_votes = random.randint(50, 200)
+        like_ratio = random.uniform(0.55, 0.75)
+        initial_likes = int(initial_votes * like_ratio)
+        initial_dislikes = initial_votes - initial_likes
+        score = like_ratio * 100
+        
+        doc = {
+            "name": "Alex Martin",
+            "slug": "alex-martin",
+            "category": "other",
+            "approved": True,
+            "created_at": now_utc(),
+            "updated_at": now_utc(),
+            "score": round(score, 2),
+            "likes": initial_likes,
+            "dislikes": initial_dislikes,
+            "total_votes": initial_votes,
+            "source": "self_boosted",  # This makes it an "outsider"
+        }
+        
+        result = await db.persons.insert_one(doc)
+        
+        return {
+            "success": True,
+            "message": "Demo outsider 'Alex Martin' created successfully",
+            "outsider": {
+                "id": str(result.inserted_id),
+                "name": "Alex Martin",
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Create demo outsider error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.post("/admin/initialize-votes")
 async def admin_initialize_votes():
     """Admin-only: Initialize existing personalities with realistic vote counts"""
