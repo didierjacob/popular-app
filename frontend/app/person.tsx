@@ -559,6 +559,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: PALETTE.card, marginHorizontal: 16, marginTop: 16, borderRadius: 12, padding: 12, borderColor: PALETTE.border, borderWidth: 1 },
   section: { color: PALETTE.subtext, marginBottom: 8, fontWeight: '600' },
   noData: { color: PALETTE.subtext, textAlign: 'center', paddingVertical: 20, fontStyle: 'italic' },
+  votesChartPlaceholder: { alignItems: 'center', paddingVertical: 20 },
+  currentVotesText: { color: '#2ECC71', fontWeight: '600', marginTop: 8, fontSize: 16 },
   row: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginTop: 16 },
   cta: { flex: 1, height: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   ctaText: { color: 'white', fontWeight: '700', fontSize: 16 },
