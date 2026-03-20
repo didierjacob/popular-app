@@ -711,6 +711,7 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 
 
 import unicodedata
+import httpx
 
 def remove_accents(text: str) -> str:
     """Remove accents from text for search matching"""
@@ -719,9 +720,75 @@ def remove_accents(text: str) -> str:
         if unicodedata.category(c) != 'Mn'
     )
 
+async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
+    """Search Wikipedia for a person and return their info if found"""
+    try:
+        # Search Wikipedia API
+        search_url = "https://en.wikipedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": f"{query} person",
+            "format": "json",
+            "srlimit": 5,
+        }
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(search_url, params=params)
+            if response.status_code != 200:
+                return None
+            
+            data = response.json()
+            search_results = data.get("query", {}).get("search", [])
+            
+            if not search_results:
+                return None
+            
+            # Try to find a person in the results
+            for result in search_results:
+                title = result.get("title", "")
+                snippet = result.get("snippet", "").lower()
+                
+                # Check if it looks like a person (contains common person-related keywords)
+                person_keywords = ["born", "politician", "actor", "actress", "singer", "player", 
+                                   "athlete", "businessman", "businesswoman", "president", "minister",
+                                   "celebrity", "artist", "musician", "footballer", "basketball",
+                                   "tennis", "author", "director", "entrepreneur", "ceo", "founder"]
+                
+                is_person = any(keyword in snippet for keyword in person_keywords)
+                
+                # Also check if the title looks like a name (2-4 words, capitalized)
+                words = title.split()
+                looks_like_name = 1 <= len(words) <= 5 and all(w[0].isupper() for w in words if w)
+                
+                if is_person or looks_like_name:
+                    # Determine category based on snippet
+                    category = "other"
+                    if any(k in snippet for k in ["politician", "president", "minister", "senator", "governor", "pope"]):
+                        category = "politics"
+                    elif any(k in snippet for k in ["footballer", "basketball", "tennis", "athlete", "player", "olympic", "sport"]):
+                        category = "sport"
+                    elif any(k in snippet for k in ["businessman", "businesswoman", "ceo", "entrepreneur", "founder", "investor"]):
+                        category = "business"
+                    elif any(k in snippet for k in ["actor", "actress", "singer", "musician", "artist", "director", "author"]):
+                        category = "culture"
+                    
+                    return {
+                        "name": title,
+                        "category": category,
+                        "source": "wikipedia",
+                    }
+            
+            return None
+            
+    except Exception as e:
+        logger.error(f"Wikipedia search error: {e}")
+        return None
+
 @api_router.get("/search")
 async def search_people(query: str = Query(..., min_length=1), limit: int = Query(default=10, le=50)):
-    """Search for people by name (case-insensitive, accent-insensitive, partial match)"""
+    """Search for people by name (case-insensitive, accent-insensitive, partial match)
+    If not found locally, searches Wikipedia and adds the person to the database."""
     try:
         search_term = query.strip()
         search_term_normalized = remove_accents(search_term)
@@ -734,9 +801,7 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
         
         if len(words) == 1:
             # Single word: match anywhere in name (with or without accents)
-            # Create regex that matches both accented and non-accented versions
             word = words[0]
-            # Build a flexible regex that handles common accent variations
             flexible_regex = ''.join([
                 f"[{c}{get_accent_variants(c)}]" if c.isalpha() else re.escape(c)
                 for c in word
@@ -755,6 +820,47 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
         
         cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
+        
+        # If no local results found, search Wikipedia
+        if not results and len(search_term) >= 3:
+            wiki_person = await search_wikipedia_person(search_term)
+            
+            if wiki_person:
+                # Check if this person already exists (exact name match)
+                existing = await db.persons.find_one({
+                    "name": {"$regex": f"^{re.escape(wiki_person['name'])}$", "$options": "i"}
+                })
+                
+                if existing:
+                    results = [existing]
+                else:
+                    # Create the person in the database
+                    import random
+                    initial_votes = random.randint(100, 500)
+                    like_ratio = random.uniform(0.45, 0.70)
+                    initial_likes = int(initial_votes * like_ratio)
+                    initial_dislikes = initial_votes - initial_likes
+                    score = like_ratio * 100
+                    
+                    new_person = {
+                        "name": wiki_person["name"],
+                        "slug": slugify(wiki_person["name"]),
+                        "category": wiki_person["category"],
+                        "approved": True,
+                        "created_at": now_utc(),
+                        "updated_at": now_utc(),
+                        "score": round(score, 2),
+                        "likes": initial_likes,
+                        "dislikes": initial_dislikes,
+                        "total_votes": initial_votes,
+                        "source": "wikipedia",
+                    }
+                    
+                    result = await db.persons.insert_one(new_person)
+                    new_person["_id"] = result.inserted_id
+                    results = [new_person]
+                    
+                    logger.info(f"Added new personality from Wikipedia: {wiki_person['name']}")
         
         return [
             {
