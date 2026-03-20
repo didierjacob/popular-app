@@ -241,7 +241,7 @@ export default function Premium() {
 
             <View style={styles.packFooter}>
               <Text style={styles.packDetail}>
-                Boost any personality instantly
+                Become a personality & get voted on!
               </Text>
               <Ionicons name="arrow-forward-circle" size={24} color={PALETTE.gold} />
             </View>
