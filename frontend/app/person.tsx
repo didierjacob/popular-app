@@ -138,6 +138,7 @@ export default function Person() {
   const [name, setName] = useState(params.name || "");
   const [initialLoading, setInitialLoading] = useState(true);
   const [chart, setChart] = useState<ChartPoint[]>([]);
+  const [votesChart, setVotesChart] = useState<VotesChartPoint[]>([]);
   const [person, setPerson] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   
