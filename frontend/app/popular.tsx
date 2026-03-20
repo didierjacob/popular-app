@@ -206,7 +206,7 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
   }, [dir, scale, rot]);
 
   const iconColor = dir === "up" ? PALETTE.accent : dir === "down" ? PALETTE.green : PALETTE.subtext;
-  const arrowChar = dir === "up" ? "▲" : dir === "down" ? "▼" : "–";
+  const arrowIcon = dir === "up" ? "arrow-up" : dir === "down" ? "arrow-down" : "remove";
   const styleAnim = {
     transform: [
       { scale },
