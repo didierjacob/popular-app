@@ -813,28 +813,18 @@ async def search_suggestions_by_category(window: str = Query(default="24h"), per
 
 @api_router.get("/outsiders")
 async def get_outsiders(limit: int = Query(default=3, le=10)):
-    """Get outsiders - people who received premium boosts (non-celebrities trying to become popular)"""
+    """Get outsiders - only people who paid to become a personality (self_boosted)"""
     try:
-        # Find people who have received premium votes or were added by users (not seed)
-        pipeline = [
-            {
-                "$match": {
-                    "$or": [
-                        {"source": {"$ne": "seed"}},
-                        {"source": {"$exists": False}},
-                        {"boosted": True}
-                    ]
-                }
-            },
-            {"$sort": {"total_votes": -1}},
-            {"$limit": limit}
-        ]
+        # Only return people who have paid to become a personality (self_boosted)
+        outsiders = await db.persons.find({
+            "source": "self_boosted",
+            "approved": True
+        }).sort("total_votes", -1).limit(limit).to_list(length=limit)
         
-        outsiders = await db.persons.aggregate(pipeline).to_list(length=limit)
-        
-        # If no outsiders found, return some random low-vote personalities as potential outsiders
+        # If no self_boosted outsiders found, return empty list
+        # (Don't show celebrities as "Outsiders")
         if len(outsiders) == 0:
-            outsiders = await db.persons.find({}).sort("total_votes", 1).limit(limit).to_list(length=limit)
+            return []
         
         return [
             {
