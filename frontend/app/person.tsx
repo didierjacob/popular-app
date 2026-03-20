@@ -341,6 +341,39 @@ export default function Person() {
             )}
           </View>
 
+          {/* Votes History Chart */}
+          <View style={styles.card}>
+            <Text style={styles.section}>Vote history (24h)</Text>
+            {votesLineData.length > 1 ? (
+              <LineChart
+                areaChart
+                data={votesLineData}
+                curved
+                color="#2ECC71"
+                thickness={2}
+                startFillColor="#2ECC71"
+                startOpacity={0.25}
+                endOpacity={0.05}
+                hideDataPoints
+                yAxisColor={PALETTE.border}
+                xAxisColor={PALETTE.border}
+                backgroundColor={PALETTE.card}
+                rulesColor={PALETTE.border}
+                noOfSections={4}
+                initialSpacing={0}
+                formatYLabel={(val) => formatNumber(Number(val))}
+              />
+            ) : (
+              <View style={styles.votesChartPlaceholder}>
+                <Ionicons name="bar-chart-outline" size={40} color={PALETTE.subtext} />
+                <Text style={styles.noData}>Vote history will appear as votes come in</Text>
+                <Text style={styles.currentVotesText}>
+                  Current: {formatNumber(person?.total_votes || 0)} votes
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Premium Vote Toggle with Count Selection */}
           {balance > 0 && (
             <View style={styles.card}>
