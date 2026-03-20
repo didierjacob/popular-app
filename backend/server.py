@@ -195,6 +195,7 @@ SEED_PEOPLE = [
     {"name": "Vladimir Putin", "category": "politics"},
     {"name": "Volodymyr Zelenskyy", "category": "politics"},
     {"name": "Ursula von der Leyen", "category": "politics"},
+    {"name": "Pope Francis", "category": "politics"},
 ]
 
 
