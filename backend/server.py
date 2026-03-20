@@ -292,7 +292,7 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
 
 
 @api_router.get("/people", response_model=List[PersonOut])
-async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=50), category: Optional[str] = Query(default=None), include_outsiders: bool = Query(default=False)):
+async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=100), category: Optional[str] = Query(default=None), include_outsiders: bool = Query(default=False)):
     filter_q: Dict[str, Any] = {"approved": True}
     
     # Exclude "outsiders" (self_boosted) from main lists unless explicitly requested
