@@ -527,6 +527,65 @@ async def get_chart(person_id: str, window: str = Query(default="24h")):
     return ChartOut(id=str(person["_id"]), name=person.get("name"), points=points)
 
 
+class VotesChartPoint(BaseModel):
+    t: str
+    total_votes: int
+
+class VotesChartOut(BaseModel):
+    id: str
+    name: str
+    points: List[VotesChartPoint]
+
+@api_router.get("/people/{person_id}/votes-chart", response_model=VotesChartOut)
+async def get_votes_chart(person_id: str, window: str = Query(default="24h")):
+    """Get vote count history for a person over time"""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    # parse window
+    m = re.match(r"^(\d+)([mhd])$", window)
+    if not m:
+        raise HTTPException(status_code=400, detail="Invalid window; use like '60m', '24h', or '7d'")
+    value, unit = int(m.group(1)), m.group(2)
+    if unit == 'm':
+        start = now_utc() - timedelta(minutes=value)
+    elif unit == 'h':
+        start = now_utc() - timedelta(hours=value)
+    else:  # 'd'
+        start = now_utc() - timedelta(days=value)
+
+    cursor = db.person_ticks.find({
+        "person_id": oid,
+        "created_at": {"$gte": start}
+    }).sort("created_at", 1)
+    ticks = await cursor.to_list(length=2000)
+
+    # Build points from ticks that have total_votes
+    points = []
+    current_total = person.get("total_votes", 0)
+    
+    for t in ticks:
+        votes = t.get("total_votes")
+        if votes is not None:
+            points.append({
+                "t": t["created_at"].isoformat() + "Z", 
+                "total_votes": int(votes)
+            })
+    
+    # If no historical data with votes, create synthetic data points
+    if not points:
+        # Just show current value as a single point
+        points = [{"t": now_utc().isoformat() + "Z", "total_votes": current_total}]
+    
+    return VotesChartOut(id=str(person["_id"]), name=person.get("name"), points=points)
+
+
 @api_router.get("/trends", response_model=List[TrendItem])
 async def get_trends(window: str = Query(default="60m"), limit: int = Query(default=20, le=50)):
     # window: e.g. "60m", "24h", "7d"
