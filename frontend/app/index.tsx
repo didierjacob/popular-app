@@ -203,17 +203,16 @@ export default function HomeScreen() {
       
       if (!peopleRes.ok) throw new Error(`HTTP ${peopleRes.status}`);
       const data = await peopleRes.json();
-      setPeople(data);
+      
+      // Sort people by total_votes (descending) for the Top Personalities list
+      const sortedByVotes = [...data].sort((a: Person, b: Person) => b.total_votes - a.total_votes);
+      setPeople(sortedByVotes);
       
       // Select personality of the day (highest score)
       if (data.length > 0) {
-        const sorted = [...data].sort((a, b) => b.score - a.score);
+        const sorted = [...data].sort((a: Person, b: Person) => b.score - a.score);
         setPersonOfTheDay(sorted[0]);
       }
-      
-      // Sort people by total_votes (descending) for the Top Personalities list
-      const sortedByVotes = [...data].sort((a, b) => b.total_votes - a.total_votes);
-      setPeople(sortedByVotes);
       
       // Load outsider
       if (outsidersRes.ok) {
