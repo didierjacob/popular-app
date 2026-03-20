@@ -222,7 +222,7 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
       </View>
       <View style={styles.indicator}>
         <Animated.View accessible accessibilityLabel={`direction-${dir}`} style={styleAnim}>
-          <Text style={{ color: iconColor, fontWeight: '800' }}>{arrowChar}</Text>
+          <Ionicons name={arrowIcon as any} size={18} color={iconColor} />
         </Animated.View>
       </View>
     </TouchableOpacity>
