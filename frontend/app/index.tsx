@@ -316,7 +316,7 @@ export default function HomeScreen() {
               <View style={styles.potdInfo}>
                 <Text style={styles.potdName}>{personOfTheDay.name}</Text>
                 <Text style={styles.potdMeta}>
-                  {capitalize(personOfTheDay.category)} • Score {Math.round(personOfTheDay.score)}
+                  {capitalize(personOfTheDay.category)} • {formatNumber(personOfTheDay.total_votes)} votes
                 </Text>
                 <Text style={styles.potdVotes}>
                   {formatNumber(personOfTheDay.total_votes)} {personOfTheDay.total_votes <= 1 ? 'vote' : 'votes'}
