@@ -253,6 +253,16 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
   },
+  filterContainer: {
+    backgroundColor: PALETTE.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+  },
+  filterScrollContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -267,15 +277,28 @@ const styles = StyleSheet.create({
   indicator: { width: 28, alignItems: 'center' },
   chip: {
     backgroundColor: PALETTE.card,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
     borderColor: PALETTE.border,
     borderWidth: 1,
-    minWidth: 60,
+    marginRight: 8,
+    minWidth: 50,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipText: { color: PALETTE.text, fontWeight: '600', fontSize: 14, textAlign: 'center' },
+  chipActive: {
+    backgroundColor: PALETTE.accent,
+    borderColor: PALETTE.accent,
+  },
+  chipText: { 
+    color: PALETTE.text, 
+    fontWeight: '600', 
+    fontSize: 14, 
+    textAlign: 'center',
+  },
+  chipTextActive: {
+    color: 'white',
+  },
 });
 // sync
