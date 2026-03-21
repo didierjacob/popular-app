@@ -2088,6 +2088,60 @@ async def admin_create_demo_outsider():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.post("/admin/add-missing-seeds")
+async def admin_add_missing_seeds():
+    """Admin-only: Add any missing seed personalities to the database"""
+    import random
+    try:
+        added_count = 0
+        added_names = []
+        
+        for p in SEED_PEOPLE:
+            # Check if personality already exists
+            existing = await db.persons.find_one({
+                "name": {"$regex": f"^{re.escape(p['name'])}$", "$options": "i"}
+            })
+            
+            if not existing:
+                # Generate random initial votes between 8000 and 15000
+                initial_votes = random.randint(8000, 15000)
+                like_ratio = random.uniform(0.40, 0.80)
+                initial_likes = int(initial_votes * like_ratio)
+                initial_dislikes = initial_votes - initial_likes
+                raw_score = like_ratio * 100
+                initial_score = round(raw_score / 25) * 25
+                initial_score = max(0, min(100, initial_score))
+                
+                doc = {
+                    "name": p["name"],
+                    "slug": slugify(p["name"]),
+                    "category": p.get("category", "other"),
+                    "approved": True,
+                    "created_at": now_utc(),
+                    "updated_at": now_utc(),
+                    "score": float(initial_score),
+                    "likes": initial_likes,
+                    "dislikes": initial_dislikes,
+                    "total_votes": initial_votes,
+                    "source": "seed",
+                }
+                
+                await db.persons.insert_one(doc)
+                added_count += 1
+                added_names.append(p["name"])
+        
+        return {
+            "success": True,
+            "message": f"Added {added_count} new personalities",
+            "added_count": added_count,
+            "added_names": added_names,
+        }
+        
+    except Exception as e:
+        logger.error(f"Add missing seeds error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.post("/admin/initialize-votes")
 async def admin_initialize_votes():
     """Admin-only: Initialize existing personalities with realistic vote counts"""
