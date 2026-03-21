@@ -88,7 +88,7 @@ export default function List() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-            {capitalize(item.category || 'other')} • Score {Math.round(item.score)} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+            {capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
           </Text>
         </View>
         <View style={styles.arrowBox}>
