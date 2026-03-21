@@ -139,7 +139,9 @@ class VoteOut(BaseModel):
     likes: int
     dislikes: int
     total_votes: int
-    voted_value: int
+    voted_value: Optional[int] = None
+    already_voted: bool = False
+    next_vote_time: Optional[str] = None
 
 
 class ChartOut(BaseModel):
