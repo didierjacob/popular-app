@@ -174,16 +174,26 @@ function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: Fi
     { key: "sport", label: "Sport" },
   ];
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}>
-      {tabs.map(t => {
-        const active = filter === t.key;
-        return (
-          <TouchableOpacity key={t.key} onPress={() => setFilter(t.key)} style={[styles.chip, active ? { backgroundColor: PALETTE.accent } : {}]}>
-            <Text style={[styles.chipText, active ? { color: "white" } : {}]}>{t.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <View style={styles.filterContainer}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        contentContainerStyle={styles.filterScrollContent}
+      >
+        {tabs.map(t => {
+          const active = filter === t.key;
+          return (
+            <TouchableOpacity 
+              key={t.key} 
+              onPress={() => setFilter(t.key)} 
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
