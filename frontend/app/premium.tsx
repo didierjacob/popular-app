@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useCredits, CREDIT_PACKS, CreditsService, type Transaction } from '../services/creditsService';
+import { useCredits, BOOSTER_PACKS, CreditsService, type Transaction } from '../services/creditsService';
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -16,7 +16,7 @@ const PALETTE = {
 };
 
 export default function Premium() {
-  const { balance, isPremium, loading, purchaseCredits, refreshBalance } = useCredits();
+  const { boosters, superBoosters, isPremium, loading, purchaseCredits, refreshBalance } = useCredits();
   const [purchasing, setPurchasing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -38,12 +38,12 @@ export default function Premium() {
   };
 
   const handlePurchase = async (packId: string) => {
-    const pack = CREDIT_PACKS.find(p => p.id === packId);
+    const pack = BOOSTER_PACKS.find(p => p.id === packId);
       if (!pack) return;
 
     Alert.alert(
       'Confirm purchase',
-      `Buy ${pack.credits} credit${pack.credits > 1 ? 's' : ''} for ${pack.price}€ ?\n\n(Simulation - No real payment)`,
+      `Buy 1 ${pack.name} for ${pack.price}€?\n\n• Applies ${pack.votes} votes instantly\n• Use it on any personality\n\n(Simulation - No real payment)`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
