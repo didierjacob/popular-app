@@ -69,25 +69,34 @@ export default function List() {
     load();
   }, [load]);
 
-  const renderItem = ({ item, index }: { item: Person; index: number }) => (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
-    >
-      <View style={styles.rank}>
-        <Text style={styles.rankText}>#{index + 1}</Text>
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
-        <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-          {capitalize(item.category || 'other')} • Score {Math.round(item.score)} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
-        </Text>
-      </View>
-      <View style={styles.scoreBox}>
-        <Text style={styles.scoreText} numberOfLines={1}>{formatNumber(item.score)}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item, index }: { item: Person; index: number }) => {
+    // Determine arrow direction based on score
+    const score = item.score;
+    const isUp = score > 50;
+    const isDown = score < 50;
+    const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "remove";
+    const arrowColor = isUp ? PALETTE.green : isDown ? PALETTE.accent : PALETTE.subtext;
+    
+    return (
+      <TouchableOpacity
+        style={styles.row}
+        onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
+      >
+        <View style={styles.rank}>
+          <Text style={styles.rankText}>#{index + 1}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+          <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
+            {capitalize(item.category || 'other')} • Score {Math.round(item.score)} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+          </Text>
+        </View>
+        <View style={styles.arrowBox}>
+          <Ionicons name={arrowIcon as any} size={22} color={arrowColor} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
