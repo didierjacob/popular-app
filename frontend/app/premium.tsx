@@ -171,15 +171,24 @@ export default function Premium() {
         {/* Balance Card */}
         <View style={[styles.card, styles.balanceCard]}>
           <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>Your Votes</Text>
+            <Text style={styles.balanceLabel}>Your Boosters</Text>
             <TouchableOpacity onPress={refreshBalance}>
               <Ionicons name="refresh" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.balanceAmount}>{balance}</Text>
-          <Text style={styles.balanceSubtext}>
-            Available to boost personalities
-          </Text>
+          <View style={styles.boosterCounts}>
+            <View style={styles.boosterItem}>
+              <Text style={styles.boosterCount}>{boosters}</Text>
+              <Text style={styles.boosterLabel}>Boosters</Text>
+              <Text style={styles.boosterVotes}>(100 votes each)</Text>
+            </View>
+            <View style={styles.boosterDivider} />
+            <View style={styles.boosterItem}>
+              <Text style={styles.boosterCount}>{superBoosters}</Text>
+              <Text style={styles.boosterLabel}>Super Boosters</Text>
+              <Text style={styles.boosterVotes}>(1000 votes each)</Text>
+            </View>
+          </View>
           {isPremium && (
             <View style={styles.premiumBadge}>
               <Ionicons name="star" size={16} color={PALETTE.gold} />
@@ -193,17 +202,17 @@ export default function Premium() {
           <Ionicons name="trophy" size={48} color={PALETTE.gold} />
           <Text style={styles.heroTitle}>Get to the Top!</Text>
           <Text style={styles.heroText}>
-            Try to get into the top of the world's most popular personalities by buying boosters and super boosters
+            Buy a Booster, use it on any personality, and apply all votes instantly!
           </Text>
           
-          {balance > 0 && (
+          {boosters > 0 && (
             <TouchableOpacity 
               style={styles.boostMyselfButton}
               onPress={handleBoostMyself}
               disabled={purchasing}
             >
               <Ionicons name="person-add" size={20} color="#000" />
-              <Text style={styles.boostMyselfText}>Boost Myself (1 credit)</Text>
+              <Text style={styles.boostMyselfText}>Boost Myself (uses 1 Booster)</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -211,7 +220,7 @@ export default function Premium() {
         {/* Packs Section */}
         <Text style={styles.sectionTitle}>Buy Boosters</Text>
         
-        {CREDIT_PACKS.map((pack) => (
+        {BOOSTER_PACKS.map((pack) => (
           <TouchableOpacity
             key={pack.id}
             style={[
@@ -223,7 +232,7 @@ export default function Premium() {
           >
             {pack.popular && (
               <View style={styles.popularBadge}>
-                <Text style={styles.popularText}>POPULAR</Text>
+                <Text style={styles.popularText}>BEST VALUE</Text>
               </View>
             )}
             
@@ -231,7 +240,7 @@ export default function Premium() {
               <View>
                 <Text style={styles.packName}>{pack.name}</Text>
                 <Text style={styles.packCredits}>
-                  {pack.credits} votes
+                  +{pack.votes} votes instantly
                 </Text>
               </View>
               <View style={styles.packPriceContainer}>
@@ -241,7 +250,7 @@ export default function Premium() {
 
             <View style={styles.packFooter}>
               <Text style={styles.packDetail}>
-                Become a personality & get voted on!
+                Use on any personality in 1 click
               </Text>
               <Ionicons name="arrow-forward-circle" size={24} color={PALETTE.gold} />
             </View>
