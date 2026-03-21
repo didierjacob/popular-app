@@ -355,14 +355,25 @@ export default function Person() {
             </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
             <Text style={styles.meta}>
-              Score {Math.round(person?.score || 0)} • {formatNumber(person?.likes || 0)} likes • {formatNumber(person?.dislikes || 0)} dislikes
+              {formatNumber(person?.likes || 0)} likes • {formatNumber(person?.dislikes || 0)} dislikes
             </Text>
           </View>
 
-          {/* Big Oscillating Gauge */}
+          {/* Popularity Indicator */}
           <View style={styles.gaugeSection}>
-            <BigGaugeIcon score={person?.score || 50} size={140} />
-            <Text style={styles.gaugeScore}>{Math.round(person?.score || 0)}</Text>
+            <View style={styles.popularityIndicator}>
+              <Ionicons 
+                name={(person?.score || 50) >= 50 ? "arrow-up-circle" : "arrow-down-circle"} 
+                size={80} 
+                color={(person?.score || 50) >= 50 ? "#009B4D" : "#8B0000"} 
+              />
+              <Text style={[
+                styles.popularityText, 
+                { color: (person?.score || 50) >= 50 ? "#009B4D" : "#8B0000" }
+              ]}>
+                {(person?.score || 50) >= 50 ? "Popular" : "Unpopular"}
+              </Text>
+            </View>
             <Text style={styles.gaugeVotes}>{formatNumber(person?.total_votes || 0)} total votes</Text>
           </View>
 
