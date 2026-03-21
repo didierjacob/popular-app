@@ -133,7 +133,7 @@ export default function MyVotes() {
           <Text style={styles.emptySubtext}>Vote for personalities to see them here</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
           {/* Streak Card */}
           <View style={styles.streakCard}>
             <View style={styles.streakHeader}>
