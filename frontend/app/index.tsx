@@ -396,7 +396,7 @@ export default function HomeScreen() {
               onPress={() => router.push({ pathname: "/person", params: { id: person.id, name: person.name } })}
             >
               <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>#{index + 1}</Text>
+                <Text style={styles.rankText}>{index + 1}</Text>
               </View>
               <View style={styles.personInfo}>
                 <Text style={styles.personName}>{person.name}</Text>
