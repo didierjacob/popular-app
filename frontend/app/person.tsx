@@ -223,20 +223,69 @@ export default function Person() {
       ]).start();
       
       const did = await getDeviceId();
-      await apiPost(`/people/${id}/vote`, { value }, { "X-Device-ID": did });
+      const response = await fetch(API(`/people/${id}/vote`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': did,
+        },
+        body: JSON.stringify({ value }),
+      });
       
+      const result = await response.json();
+      
+      // Check if already voted (24h limit)
+      if (result.already_voted) {
+        const nextVoteTime = result.next_vote_time ? new Date(result.next_vote_time) : null;
+        let timeMessage = '';
+        if (nextVoteTime) {
+          const now = new Date();
+          const hoursLeft = Math.ceil((nextVoteTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+          const minutesLeft = Math.ceil((nextVoteTime.getTime() - now.getTime()) / (1000 * 60)) % 60;
+          if (hoursLeft > 1) {
+            timeMessage = `You can vote again in ${hoursLeft} hours.`;
+          } else if (hoursLeft === 1) {
+            timeMessage = `You can vote again in about 1 hour.`;
+          } else {
+            timeMessage = `You can vote again in ${minutesLeft} minutes.`;
+          }
+        }
+        Alert.alert(
+          '⏰ Already Voted',
+          `You already voted for ${name} today.\n\n${timeMessage}`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Vote successful - update local state immediately
+      if (person) {
+        const updatedPerson = {
+          ...person,
+          total_votes: result.total_votes,
+          likes: result.likes,
+          dislikes: result.dislikes,
+          score: result.score,
+        };
+        setPerson(updatedPerson);
+      }
+      
+      // Save to local history
       try {
         const VOTES_KEY = "popular_my_votes";
         const storedVotes = await AsyncStorage.getItem(VOTES_KEY);
         const votes = storedVotes ? JSON.parse(storedVotes) : [];
-        votes.push({
+        
+        // Remove old vote for this person if exists
+        const filteredVotes = votes.filter((v: any) => v.personId !== id);
+        filteredVotes.push({
           personId: id,
           personName: name,
           category: person?.category || "other",
           vote: value,
           timestamp: new Date().toISOString(),
         });
-        await AsyncStorage.setItem(VOTES_KEY, JSON.stringify(votes.slice(-100)));
+        await AsyncStorage.setItem(VOTES_KEY, JSON.stringify(filteredVotes.slice(-100)));
       } catch (error) {}
       
       if (value === 1) {
@@ -244,8 +293,11 @@ export default function Person() {
         setTimeout(() => setShowConfetti(false), 3000);
       }
       
+      // Fetch fresh data from server
       await fetchData(true);
-    } catch {}
+    } catch (error) {
+      console.error('Vote error:', error);
+    }
   };
 
   // Share functions
