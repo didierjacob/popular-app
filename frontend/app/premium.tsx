@@ -396,6 +396,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  boosterCounts: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  boosterItem: {
+    alignItems: 'center',
+  },
+  boosterCount: {
+    color: PALETTE.gold,
+    fontSize: 48,
+    fontWeight: '700',
+  },
+  boosterLabel: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  boosterVotes: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+  },
+  boosterDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: PALETTE.border,
+  },
   cardTitle: {
     color: PALETTE.text,
     fontSize: 18,
