@@ -341,7 +341,7 @@ export default function HomeScreen() {
               <View style={styles.potdInfo}>
                 <Text style={styles.outsiderName}>{outsider.name}</Text>
                 <Text style={styles.outsiderMeta}>
-                  {capitalize(outsider.category)} • Score {Math.round(outsider.score)}
+                  {capitalize(outsider.category)} • {formatNumber(outsider.total_votes)} votes
                 </Text>
                 <Text style={styles.outsiderVotes}>
                   {formatNumber(outsider.total_votes)} {outsider.total_votes <= 1 ? 'vote' : 'votes'}
