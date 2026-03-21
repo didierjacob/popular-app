@@ -23,33 +23,42 @@ async function getUserId(): Promise<string> {
   }
 }
 
-export interface CreditPack {
+export interface BoosterPack {
   id: string;
   name: string;
-  credits: number;
+  votes: number;  // How many votes this booster applies
   price: number;
-  savings?: number;
   popular?: boolean;
 }
 
-export const CREDIT_PACKS: CreditPack[] = [
+export const BOOSTER_PACKS: BoosterPack[] = [
   {
     id: 'booster',
     name: 'Booster',
-    credits: 100,
+    votes: 100,
     price: 0.99,
   },
   {
     id: 'super_booster',
     name: 'Super Booster',
-    credits: 1000,
+    votes: 1000,
     price: 4.99,
     popular: true,
   },
 ];
 
-export interface CreditBalance {
-  balance: number;
+// Keep old export for backwards compatibility
+export const CREDIT_PACKS = BOOSTER_PACKS.map(p => ({
+  id: p.id,
+  name: p.name,
+  credits: p.votes,
+  price: p.price,
+  popular: p.popular,
+}));
+
+export interface BoosterBalance {
+  boosters: number;      // Number of Boosters available (100 votes each)
+  super_boosters: number; // Number of Super Boosters available (1000 votes each)
   is_premium: boolean;
 }
 
@@ -64,19 +73,19 @@ export interface Transaction {
 }
 
 /**
- * Service de gestion des crédits premium
+ * Service for managing boosters
  */
 export class CreditsService {
   /**
-   * Acheter des crédits (simulation)
+   * Purchase a booster pack (simulation)
    */
-  static async purchaseCredits(packId: string): Promise<{ success: boolean; new_balance: number; message: string }> {
+  static async purchaseCredits(packId: string): Promise<{ success: boolean; new_balance: number; boosters: number; super_boosters: number; message: string }> {
     try {
       const userId = await getUserId();
-      const pack = CREDIT_PACKS.find(p => p.id === packId);
+      const pack = BOOSTER_PACKS.find(p => p.id === packId);
       
       if (!pack) {
-        throw new Error('Pack invalide');
+        throw new Error('Invalid pack');
       }
 
       const response = await fetch(API('/credits/purchase'), {
@@ -87,13 +96,13 @@ export class CreditsService {
         body: JSON.stringify({
           user_id: userId,
           pack: packId,
-          amount: pack.credits,
+          amount: 1, // Always 1 booster per purchase
           price: pack.price,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Échec de l\'achat');
+        throw new Error('Purchase failed');
       }
 
       return await response.json();
@@ -104,59 +113,71 @@ export class CreditsService {
   }
 
   /**
-   * Obtenir le solde de crédits
+   * Get booster balance
    */
-  static async getBalance(): Promise<CreditBalance> {
+  static async getBalance(): Promise<BoosterBalance> {
     try {
       const userId = await getUserId();
       const response = await fetch(API(`/credits/balance/${userId}`));
       
       if (!response.ok) {
-        throw new Error('Échec de récupération du solde');
+        throw new Error('Failed to get balance');
       }
 
-      return await response.json();
+      const data = await response.json();
+      return {
+        boosters: data.boosters || 0,
+        super_boosters: data.super_boosters || 0,
+        is_premium: data.is_premium || false,
+      };
     } catch (error) {
       console.error('Get balance error:', error);
-      return { balance: 0, is_premium: false };
+      return { boosters: 0, super_boosters: 0, is_premium: false };
     }
   }
 
   /**
-   * Utiliser un crédit pour un vote premium
+   * Use a booster on a personality (applies all votes at once)
    */
-  static async useCreditForVote(personId: string, personName: string, vote: number): Promise<any> {
+  static async useBooster(personId: string, personName: string, vote: number, boosterType: 'booster' | 'super_booster'): Promise<any> {
     try {
       const userId = await getUserId();
+      const votes = boosterType === 'super_booster' ? 1000 : 100;
       
-      const response = await fetch(API('/credits/use'), {
+      const response = await fetch(API('/credits/use-booster'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'user_id': userId,
         },
         body: JSON.stringify({
+          user_id: userId,
           person_id: personId,
           person_name: personName,
           vote: vote,
-          multiplier: 100,
+          booster_type: boosterType,
+          votes: votes,
         }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Échec du vote premium');
+        throw new Error(error.detail || 'Failed to use booster');
       }
 
       return await response.json();
     } catch (error) {
-      console.error('Use credit error:', error);
+      console.error('Use booster error:', error);
       throw error;
     }
   }
 
+  // Keep old method for backwards compatibility
+  static async useCreditForVote(personId: string, personName: string, vote: number): Promise<any> {
+    return this.useBooster(personId, personName, vote, 'booster');
+  }
+
   /**
-   * Obtenir l'historique des transactions
+   * Get transaction history
    */
   static async getHistory(limit: number = 20): Promise<Transaction[]> {
     try {
@@ -164,7 +185,7 @@ export class CreditsService {
       const response = await fetch(API(`/credits/history/${userId}?limit=${limit}`));
       
       if (!response.ok) {
-        throw new Error('Échec de récupération de l\'historique');
+        throw new Error('Failed to get history');
       }
 
       const data = await response.json();
@@ -176,9 +197,9 @@ export class CreditsService {
   }
 
   /**
-   * Boost yourself - Create a new personality and apply 100 votes for 1 credit
+   * Boost yourself - Create a new personality (costs 1 Booster)
    */
-  static async boostMyself(name: string, category: string = 'other'): Promise<{ success: boolean; person_id: string; person_name: string; new_balance: number; message: string }> {
+  static async boostMyself(name: string, category: string = 'other'): Promise<{ success: boolean; person_id: string; person_name: string; boosters: number; super_boosters: number; message: string }> {
     try {
       const userId = await getUserId();
       
@@ -196,7 +217,7 @@ export class CreditsService {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Échec de la création');
+        throw new Error(error.detail || 'Failed to create personality');
       }
 
       return await response.json();
@@ -208,18 +229,23 @@ export class CreditsService {
 }
 
 /**
- * Hook React pour gérer les crédits
+ * React hook for managing boosters
  */
 export function useCredits() {
-  const [balance, setBalance] = useState(0);
+  const [boosters, setBoosters] = useState(0);
+  const [superBoosters, setSuperBoosters] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // For backwards compatibility
+  const balance = boosters + superBoosters;
 
   const loadBalance = useCallback(async () => {
     setLoading(true);
     try {
       const data = await CreditsService.getBalance();
-      setBalance(data.balance);
+      setBoosters(data.boosters);
+      setSuperBoosters(data.super_boosters);
       setIsPremium(data.is_premium);
     } catch (error) {
       console.error('Failed to load balance:', error);
@@ -235,29 +261,37 @@ export function useCredits() {
   const purchaseCredits = async (packId: string) => {
     try {
       const result = await CreditsService.purchaseCredits(packId);
-      await loadBalance(); // Recharger le solde
+      await loadBalance();
       return result;
     } catch (error) {
       throw error;
     }
   };
 
-  const useCredit = async (personId: string, personName: string, vote: number) => {
+  const useBooster = async (personId: string, personName: string, vote: number, boosterType: 'booster' | 'super_booster' = 'booster') => {
     try {
-      const result = await CreditsService.useCreditForVote(personId, personName, vote);
-      await loadBalance(); // Recharger le solde
+      const result = await CreditsService.useBooster(personId, personName, vote, boosterType);
+      await loadBalance();
       return result;
     } catch (error) {
       throw error;
     }
+  };
+
+  // Keep old method for backwards compatibility
+  const useCredit = async (personId: string, personName: string, vote: number) => {
+    return useBooster(personId, personName, vote, 'booster');
   };
 
   return {
     balance,
+    boosters,
+    superBoosters,
     isPremium,
     loading,
     purchaseCredits,
     useCredit,
+    useBooster,
     refreshBalance: loadBalance,
   };
 }
