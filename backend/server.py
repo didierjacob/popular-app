@@ -1969,27 +1969,31 @@ async def admin_fix_categories():
 @api_router.post("/admin/create-demo-outsider")
 async def admin_create_demo_outsider():
     """Admin-only: Create a demo outsider to show the feature"""
-    import random
     try:
         # Check if demo outsider already exists
         existing = await db.persons.find_one({"name": "Alex Martin", "source": "self_boosted"})
         if existing:
+            # Update to zero votes if it exists
+            await db.persons.update_one(
+                {"_id": existing["_id"]},
+                {"$set": {
+                    "likes": 0,
+                    "dislikes": 0,
+                    "total_votes": 0,
+                    "score": 50.0,  # Neutral starting score
+                    "updated_at": now_utc(),
+                }}
+            )
             return {
                 "success": True,
-                "message": "Demo outsider already exists",
+                "message": "Demo outsider reset to zero votes",
                 "outsider": {
                     "id": str(existing["_id"]),
                     "name": existing["name"],
                 }
             }
         
-        # Create demo outsider
-        initial_votes = random.randint(50, 200)
-        like_ratio = random.uniform(0.55, 0.75)
-        initial_likes = int(initial_votes * like_ratio)
-        initial_dislikes = initial_votes - initial_likes
-        score = like_ratio * 100
-        
+        # Create demo outsider with ZERO votes (unknown person)
         doc = {
             "name": "Alex Martin",
             "slug": "alex-martin",
@@ -1997,10 +2001,10 @@ async def admin_create_demo_outsider():
             "approved": True,
             "created_at": now_utc(),
             "updated_at": now_utc(),
-            "score": round(score, 2),
-            "likes": initial_likes,
-            "dislikes": initial_dislikes,
-            "total_votes": initial_votes,
+            "score": 50.0,  # Neutral starting score
+            "likes": 0,
+            "dislikes": 0,
+            "total_votes": 0,
             "source": "self_boosted",  # This makes it an "outsider"
         }
         
@@ -2008,7 +2012,7 @@ async def admin_create_demo_outsider():
         
         return {
             "success": True,
-            "message": "Demo outsider 'Alex Martin' created successfully",
+            "message": "Demo outsider 'Alex Martin' created with zero votes",
             "outsider": {
                 "id": str(result.inserted_id),
                 "name": "Alex Martin",
