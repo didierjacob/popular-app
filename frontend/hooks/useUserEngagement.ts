@@ -34,11 +34,11 @@ export interface VoteStats {
 }
 
 const BADGES: Badge[] = [
-  { id: 'beginner', name: 'Débutant', description: 'Votez 10 fois', icon: 'star-outline', threshold: 10, unlocked: false },
-  { id: 'active', name: 'Actif', description: 'Votez 50 fois', icon: 'star-half-outline', threshold: 50, unlocked: false },
-  { id: 'expert', name: 'Expert', description: 'Votez 100 fois', icon: 'star', threshold: 100, unlocked: false },
-  { id: 'legend', name: 'Légende', description: 'Votez 250 fois', icon: 'trophy-outline', threshold: 250, unlocked: false },
-  { id: 'master', name: 'Maître', description: 'Votez 500 fois', icon: 'trophy', threshold: 500, unlocked: false },
+  { id: 'beginner', name: 'Beginner', description: 'Vote 10 times', icon: 'star-outline', threshold: 10, unlocked: false },
+  { id: 'active', name: 'Active', description: 'Vote 50 times', icon: 'star-half-outline', threshold: 50, unlocked: false },
+  { id: 'expert', name: 'Expert', description: 'Vote 100 times', icon: 'star', threshold: 100, unlocked: false },
+  { id: 'legend', name: 'Legend', description: 'Vote 250 times', icon: 'trophy-outline', threshold: 250, unlocked: false },
+  { id: 'master', name: 'Master', description: 'Vote 500 times', icon: 'trophy', threshold: 500, unlocked: false },
 ];
 
 export function useUserEngagement() {
