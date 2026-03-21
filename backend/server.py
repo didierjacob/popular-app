@@ -1144,7 +1144,7 @@ CREDIT_PACKS = {
 
 @api_router.post("/credits/purchase")
 async def purchase_credits(purchase: CreditPurchase):
-    """Simulate credit purchase (MVP - no real payment)"""
+    """Purchase a booster pack (MVP - no real payment simulation)"""
     try:
         # Validate pack
         if purchase.pack not in CREDIT_PACKS:
@@ -1152,37 +1152,52 @@ async def purchase_credits(purchase: CreditPurchase):
         
         pack_info = CREDIT_PACKS[purchase.pack]
         
-        # Validate amount and price
-        if purchase.amount != pack_info["credits"] or purchase.price != pack_info["price"]:
-            raise HTTPException(status_code=400, detail="Invalid pack configuration")
-        
         # Create transaction record
         transaction = {
             "user_id": purchase.user_id,
             "type": "purchase",
-            "amount": purchase.amount,
-            "price": purchase.price,
             "pack": purchase.pack,
-            "description": f"Purchased {purchase.amount} premium vote(s)",
+            "price": pack_info["price"],
+            "description": f"Purchased 1 {pack_info['name']}",
             "timestamp": datetime.utcnow(),
             "status": "completed"
         }
         
         await db.credit_transactions.insert_one(transaction)
         
-        # Update user balance
+        # Update user booster count
         user_credits = await db.user_credits.find_one({"user_id": purchase.user_id})
         
+        booster_field = "boosters" if purchase.pack == "booster" else "super_boosters"
+        
         if user_credits:
-            new_balance = user_credits["balance"] + purchase.amount
+            current_boosters = user_credits.get("boosters", 0)
+            current_super = user_credits.get("super_boosters", 0)
+            
+            if purchase.pack == "booster":
+                current_boosters += 1
+            else:
+                current_super += 1
+            
             await db.user_credits.update_one(
                 {"user_id": purchase.user_id},
-                {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}}
+                {"$set": {
+                    "boosters": current_boosters,
+                    "super_boosters": current_super,
+                    "is_premium": True,
+                    "updated_at": datetime.utcnow()
+                }}
             )
+            new_boosters = current_boosters
+            new_super = current_super
         else:
+            new_boosters = 1 if purchase.pack == "booster" else 0
+            new_super = 1 if purchase.pack == "super_booster" else 0
             await db.user_credits.insert_one({
                 "user_id": purchase.user_id,
-                "balance": purchase.amount,
+                "boosters": new_boosters,
+                "super_boosters": new_super,
+                "balance": 0,  # Keep for backwards compatibility
                 "is_premium": True,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
@@ -1190,9 +1205,10 @@ async def purchase_credits(purchase: CreditPurchase):
         
         return {
             "success": True,
-            "transaction_id": str(transaction.get("_id")),
-            "new_balance": user_credits["balance"] + purchase.amount if user_credits else purchase.amount,
-            "message": f"Successfully purchased {purchase.amount} credit(s)!"
+            "boosters": new_boosters,
+            "super_boosters": new_super,
+            "new_balance": new_boosters + new_super,  # backwards compatibility
+            "message": f"Successfully purchased 1 {pack_info['name']}!"
         }
         
     except Exception as e:
@@ -1201,19 +1217,116 @@ async def purchase_credits(purchase: CreditPurchase):
 
 @api_router.get("/credits/balance/{user_id}")
 async def get_credit_balance(user_id: str):
-    """Get user's credit balance"""
+    """Get user's booster balance"""
     user_credits = await db.user_credits.find_one({"user_id": user_id})
     
     if not user_credits:
         return {
-            "balance": 0,
+            "boosters": 0,
+            "super_boosters": 0,
+            "balance": 0,  # backwards compatibility
             "is_premium": False
         }
     
     return {
-        "balance": user_credits.get("balance", 0),
+        "boosters": user_credits.get("boosters", 0),
+        "super_boosters": user_credits.get("super_boosters", 0),
+        "balance": user_credits.get("boosters", 0) + user_credits.get("super_boosters", 0),  # backwards compatibility
         "is_premium": user_credits.get("is_premium", False)
     }
+
+
+class UseBoosterRequest(BaseModel):
+    user_id: str
+    person_id: str
+    person_name: str
+    vote: int
+    booster_type: str  # 'booster' or 'super_booster'
+    votes: int  # 100 or 1000
+
+
+@api_router.post("/credits/use-booster")
+async def use_booster(req: UseBoosterRequest):
+    """Use a booster on a personality (applies all votes at once)"""
+    try:
+        # Validate booster type
+        if req.booster_type not in ["booster", "super_booster"]:
+            raise HTTPException(status_code=400, detail="Invalid booster type")
+        
+        votes_to_apply = 100 if req.booster_type == "booster" else 1000
+        booster_field = "boosters" if req.booster_type == "booster" else "super_boosters"
+        
+        # Check user has the booster
+        user_credits = await db.user_credits.find_one({"user_id": req.user_id})
+        
+        if not user_credits or user_credits.get(booster_field, 0) < 1:
+            raise HTTPException(status_code=400, detail=f"No {req.booster_type.replace('_', ' ')} available")
+        
+        # Get person
+        try:
+            oid = ObjectId(req.person_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid person ID")
+        
+        person_doc = await db.persons.find_one({"_id": oid})
+        if not person_doc:
+            raise HTTPException(status_code=404, detail="Person not found")
+        
+        # Apply votes
+        if req.vote == 1:
+            inc_doc = {"likes": votes_to_apply, "total_votes": votes_to_apply}
+        else:
+            inc_doc = {"dislikes": votes_to_apply, "total_votes": votes_to_apply}
+        
+        # Calculate new score
+        current_likes = person_doc.get("likes", 0) + (votes_to_apply if req.vote == 1 else 0)
+        current_dislikes = person_doc.get("dislikes", 0) + (votes_to_apply if req.vote == -1 else 0)
+        total = current_likes + current_dislikes
+        new_score = (current_likes / total * 100) if total > 0 else 50.0
+        new_score = round(new_score / 25) * 25  # Round to nearest 25
+        new_score = max(0, min(100, new_score))
+        
+        await db.persons.update_one(
+            {"_id": oid},
+            {"$inc": inc_doc, "$set": {"score": new_score, "updated_at": now_utc()}}
+        )
+        
+        # Deduct booster from user
+        await db.user_credits.update_one(
+            {"user_id": req.user_id},
+            {"$inc": {booster_field: -1}, "$set": {"updated_at": datetime.utcnow()}}
+        )
+        
+        # Log transaction
+        await db.credit_transactions.insert_one({
+            "user_id": req.user_id,
+            "type": "use",
+            "pack": req.booster_type,
+            "person_id": str(oid),
+            "person_name": req.person_name,
+            "votes_applied": votes_to_apply,
+            "vote_direction": req.vote,
+            "description": f"Used {req.booster_type.replace('_', ' ')} on {req.person_name} (+{votes_to_apply} {'likes' if req.vote == 1 else 'dislikes'})",
+            "timestamp": datetime.utcnow(),
+        })
+        
+        # Get updated balance
+        updated_credits = await db.user_credits.find_one({"user_id": req.user_id})
+        
+        return {
+            "success": True,
+            "votes_applied": votes_to_apply,
+            "new_score": new_score,
+            "boosters": updated_credits.get("boosters", 0),
+            "super_boosters": updated_credits.get("super_boosters", 0),
+            "message": f"Applied {votes_to_apply} {'likes' if req.vote == 1 else 'dislikes'} to {req.person_name}!"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Use booster error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/credits/use")
 async def use_credit(vote: PremiumVote, user_id: str = Header(...)):
