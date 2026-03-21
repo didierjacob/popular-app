@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 const PALETTE = {
   bg: "#0F2F22",
   card: "#1C3A2C",
   text: "#EAEAEA",
   subtext: "#C9D8D2",
-  accent: "#8B0000",
+  accent: "#8B0000",  // dark red (down/negative)
+  green: "#009B4D",   // green (up/positive)
   accent2: "#E04F5F",
   border: "#2E6148",
 };
