@@ -402,24 +402,33 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
 
     if existing_vote:
         old_val = int(existing_vote.get("value", 0))
-        if old_val == new_val:
-            # no change; just return current state
+        last_vote_time = existing_vote.get("updated_at") or existing_vote.get("created_at")
+        
+        # Check if 24 hours have passed since last vote
+        time_since_last_vote = now_utc() - last_vote_time if last_vote_time else timedelta(days=2)
+        hours_remaining = 24 - (time_since_last_vote.total_seconds() / 3600)
+        
+        if time_since_last_vote < timedelta(hours=24):
+            # Less than 24h - cannot vote again
+            next_vote_time = (last_vote_time + timedelta(hours=24)).isoformat() + "Z" if last_vote_time else None
             return VoteOut(
                 id=str(person["_id"]),
                 score=float(person.get("score", 100.0)),
                 likes=int(person.get("likes", 0)),
                 dislikes=int(person.get("dislikes", 0)),
                 total_votes=int(person.get("total_votes", 0)),
-                voted_value=new_val,
+                voted_value=old_val,
+                already_voted=True,
+                next_vote_time=next_vote_time,
             )
-        delta = new_val - old_val
-        # adjust likes/dislikes counters
-        if new_val == 1 and old_val == -1:
+        
+        # 24h passed - can vote again
+        if new_val == 1:
             inc_doc["likes"] = 1
-            inc_doc["dislikes"] = -1
-        elif new_val == -1 and old_val == 1:
-            inc_doc["likes"] = -1
+        else:
             inc_doc["dislikes"] = 1
+        inc_doc["total_votes"] = 1
+        
         await db.votes.update_one(
             {"_id": existing_vote["_id"]},
             {"$set": {"value": new_val, "updated_at": now_utc()}}
