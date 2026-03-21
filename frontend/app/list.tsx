@@ -83,7 +83,7 @@ export default function List() {
         onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
       >
         <View style={styles.rank}>
-          <Text style={styles.rankText}>#{index + 1}</Text>
+          <Text style={styles.rankText}>{index + 1}</Text>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
