@@ -56,10 +56,14 @@ export default function MyVotes() {
 
   useEffect(() => {
     loadVotes();
-    // Reload when screen gets focus
-    const unsubscribe = router.addListener?.('focus', loadVotes);
-    return () => unsubscribe?.();
-  }, [loadVotes, router]);
+  }, []);
+
+  // Reload votes every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadVotes();
+    }, [loadVotes])
+  );
 
   const clearHistory = useCallback(async () => {
     try {
