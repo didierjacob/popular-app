@@ -182,19 +182,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
   },
-  scoreBox: {
+  arrowBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: PALETTE.card,
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 50,
     alignItems: "center",
-  },
-  scoreText: {
-    color: PALETTE.text,
-    fontSize: 16,
-    fontWeight: "700",
+    justifyContent: "center",
   },
 });
