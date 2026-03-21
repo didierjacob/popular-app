@@ -215,12 +215,17 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
     ]).start();
   }, [dir, scale, rot]);
 
-  const iconColor = dir === "up" ? PALETTE.accent : dir === "down" ? PALETTE.green : PALETTE.subtext;
-  const arrowIcon = dir === "up" ? "arrow-up" : dir === "down" ? "arrow-down" : "remove";
+  // Arrow based on score (like List page): score > 50 = up, score < 50 = down
+  const score = item.score;
+  const isUp = score > 50;
+  const isDown = score < 50;
+  const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "remove";
+  const iconColor = isUp ? PALETTE.green : isDown ? PALETTE.accent : PALETTE.subtext;
+  
   const styleAnim = {
     transform: [
       { scale },
-      { rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", dir === "up" ? "-6deg" : "6deg"] }) },
+      { rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", isUp ? "-6deg" : "6deg"] }) },
     ],
   } as any;
 
@@ -231,8 +236,8 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
         <Text style={styles.meta}>{capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}</Text>
       </View>
       <View style={styles.indicator}>
-        <Animated.View accessible accessibilityLabel={`direction-${dir}`} style={styleAnim}>
-          <Ionicons name={arrowIcon as any} size={18} color={iconColor} />
+        <Animated.View accessible accessibilityLabel={`direction-${isUp ? 'up' : isDown ? 'down' : 'flat'}`} style={styleAnim}>
+          <Ionicons name={arrowIcon as any} size={22} color={iconColor} />
         </Animated.View>
       </View>
     </TouchableOpacity>
