@@ -9,7 +9,6 @@ import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { fetchWithCache } from "../services/cacheService";
-import { useCredits } from "../services/creditsService";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -147,10 +146,6 @@ export default function Person() {
   const likeScaleAnim = useRef(new Animated.Value(1)).current;
   const dislikeScaleAnim = useRef(new Animated.Value(1)).current;
 
-  const { balance, useCredit, refreshBalance } = useCredits();
-  const [isPremiumMode, setIsPremiumMode] = useState(false);
-  const [premiumVoteCount, setPremiumVoteCount] = useState(1);
-
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
     try {
@@ -187,33 +182,6 @@ export default function Person() {
 
   const like = async (value: 1 | -1) => {
     try {
-      if (isPremiumMode) {
-        if (balance < premiumVoteCount) {
-          Alert.alert('Insufficient credits', `You need ${premiumVoteCount} credits but only have ${balance}.`);
-          return;
-        }
-
-        // Apply multiple premium votes
-        for (let i = 0; i < premiumVoteCount; i++) {
-          try {
-            await useCredit(id, name, value);
-          } catch (error) {
-            console.error(`Premium vote ${i + 1} failed:`, error);
-            break;
-          }
-        }
-        
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-        await Promise.all([fetchData(true), refreshBalance()]);
-        
-        Alert.alert('✨ Premium Votes Applied!', `Applied ${premiumVoteCount} x100 ${value === 1 ? 'likes' : 'dislikes'}!`);
-        setIsPremiumMode(false);
-        setPremiumVoteCount(1);
-        return;
-      }
-
       const scaleAnim = value === 1 ? likeScaleAnim : dislikeScaleAnim;
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
@@ -437,78 +405,24 @@ export default function Person() {
             )}
           </View>
 
-          {/* Premium Vote Toggle with Count Selection */}
-          {balance > 0 && (
-            <View style={styles.card}>
-              <TouchableOpacity style={styles.premiumToggle} onPress={() => setIsPremiumMode(!isPremiumMode)}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="rocket" size={20} color="#FFD700" />
-                    <Text style={styles.premiumToggleTitle}>Use my booster</Text>
-                  </View>
-                  <Text style={styles.premiumToggleSubtitle}>
-                    {isPremiumMode ? `Active • ${balance} credits left` : `${balance} credits available`}
-                  </Text>
-                </View>
-                <View style={[styles.toggleSwitch, isPremiumMode && styles.toggleSwitchActive]}>
-                  <View style={[styles.toggleThumb, isPremiumMode && styles.toggleThumbActive]} />
-                </View>
-              </TouchableOpacity>
-              
-              {isPremiumMode && (
-                <View style={styles.voteCountSelector}>
-                  <Text style={styles.voteCountLabel}>Number of boosts to use:</Text>
-                  <View style={styles.voteCountRow}>
-                    <TouchableOpacity 
-                      style={styles.voteCountBtn} 
-                      onPress={() => setPremiumVoteCount(Math.max(1, premiumVoteCount - 1))}
-                    >
-                      <Text style={styles.voteCountBtnText}>-</Text>
-                    </TouchableOpacity>
-                    <TextInput
-                      style={styles.voteCountInput}
-                      value={String(premiumVoteCount)}
-                      onChangeText={(v) => {
-                        const num = parseInt(v) || 1;
-                        setPremiumVoteCount(Math.min(balance, Math.max(1, num)));
-                      }}
-                      keyboardType="number-pad"
-                    />
-                    <TouchableOpacity 
-                      style={styles.voteCountBtn} 
-                      onPress={() => setPremiumVoteCount(Math.min(balance, premiumVoteCount + 1))}
-                    >
-                      <Text style={styles.voteCountBtnText}>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.voteCountInfo}>= {premiumVoteCount * 100} votes</Text>
-                </View>
-              )}
-            </View>
-          )}
-
           {/* Vote Buttons */}
           <View style={[styles.row, { justifyContent: 'space-between' }]}>
             <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
               <TouchableOpacity 
-                style={[styles.cta, { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent }]} 
+                style={[styles.cta, { backgroundColor: PALETTE.accent }]} 
                 onPress={() => like(1)}
               >
-                <Ionicons name={isPremiumMode ? "diamond" : "thumbs-up"} size={18} color={isPremiumMode ? "#000" : "#fff"} />
-                <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
-                  {isPremiumMode ? `Like x${premiumVoteCount * 100}` : 'Like'}
-                </Text>
+                <Ionicons name="thumbs-up" size={18} color="#fff" />
+                <Text style={styles.ctaText}>Like</Text>
               </TouchableOpacity>
             </Animated.View>
             <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
               <TouchableOpacity 
-                style={[styles.cta, { backgroundColor: isPremiumMode ? '#FFD700' : PALETTE.accent2 }]} 
+                style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} 
                 onPress={() => like(-1)}
               >
-                <Ionicons name={isPremiumMode ? "diamond" : "thumbs-down"} size={18} color={isPremiumMode ? "#000" : "#fff"} />
-                <Text style={[styles.ctaText, isPremiumMode && { color: '#000' }]}>
-                  {isPremiumMode ? `Dislike x${premiumVoteCount * 100}` : 'Dislike'}
-                </Text>
+                <Ionicons name="thumbs-down" size={18} color="#fff" />
+                <Text style={styles.ctaText}>Dislike</Text>
               </TouchableOpacity>
             </Animated.View>
           </View>
@@ -634,18 +548,4 @@ const styles = StyleSheet.create({
   shareGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   shareButton: { flex: 1, minWidth: '45%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },
   shareText: { color: 'white', fontWeight: '600', fontSize: 13 },
-  premiumToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  premiumToggleTitle: { color: '#FFD700', fontSize: 16, fontWeight: '700' },
-  premiumToggleSubtitle: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
-  toggleSwitch: { width: 50, height: 28, borderRadius: 14, backgroundColor: PALETTE.border, padding: 2, justifyContent: 'center' },
-  toggleSwitchActive: { backgroundColor: '#FFD700' },
-  toggleThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' },
-  toggleThumbActive: { alignSelf: 'flex-end' },
-  voteCountSelector: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: PALETTE.border },
-  voteCountLabel: { color: PALETTE.text, fontSize: 14, marginBottom: 10 },
-  voteCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-  voteCountBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFD700', alignItems: 'center', justifyContent: 'center' },
-  voteCountBtnText: { color: '#000', fontSize: 24, fontWeight: '700' },
-  voteCountInput: { width: 60, height: 44, backgroundColor: PALETTE.bg, borderRadius: 8, textAlign: 'center', color: PALETTE.text, fontSize: 18, fontWeight: '700' },
-  voteCountInfo: { color: '#FFD700', textAlign: 'center', marginTop: 8, fontWeight: '600' },
 });
