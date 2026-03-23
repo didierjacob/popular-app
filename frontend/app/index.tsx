@@ -268,10 +268,6 @@ function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden
         {outsider.name}
       </Text>
 
-      <Text style={styles.outsiderMeta}>
-        {formatNumber(outsider.total_votes)} {outsider.total_votes <= 1 ? 'vote' : 'votes'}
-      </Text>
-
       <SocialLinksRow links={outsider.social_links} />
     </TouchableOpacity>
   );
