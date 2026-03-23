@@ -22,7 +22,7 @@
       "node": "22.12.0"
     },
     "production": {
-      "distribution": "internal",
+      "distribution": "store",
       "android": {
         "buildType": "app-bundle"
       },
