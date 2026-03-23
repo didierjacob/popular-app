@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useCredits, BOOSTER_PACKS, CreditsService, type Transaction } from '../services/creditsService';
+import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -13,10 +25,35 @@ const PALETTE = {
   green: "#2ECC71",
   gold: "#FFD700",
   border: "#2E6148",
+  accent2: "#E04F5F",
 };
 
+const TIER_COLORS: Record<string, string> = {
+  booster: "#2ECC71",
+  super_booster: "#3498DB",
+  golden_booster: "#FFD700",
+};
+
+const TIER_ICONS: Record<string, string> = {
+  booster: "flash",
+  super_booster: "rocket",
+  golden_booster: "trophy",
+};
+
+function getDurationLabel(hours: number): string {
+  if (hours === 1) return "1 hour";
+  if (hours === 24) return "24 hours";
+  if (hours === 168) return "1 week";
+  return `${hours}h`;
+}
+
 export default function Premium() {
-  const { boosters, superBoosters, isPremium, loading, purchaseCredits, refreshBalance } = useCredits();
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [twitter, setTwitter] = useState('');
+  const [facebook, setFacebook] = useState('');
   const [purchasing, setPurchasing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -37,22 +74,60 @@ export default function Premium() {
     }
   };
 
-  const handlePurchase = async (packId: string) => {
-    const pack = BOOSTER_PACKS.find(p => p.id === packId);
-      if (!pack) return;
+  const handlePurchase = async () => {
+    if (!selectedTier) {
+      Alert.alert('Select a Booster', 'Please choose a booster tier first.');
+      return;
+    }
+    if (!name.trim()) {
+      Alert.alert('Name required', 'Please enter your name to appear on the Home page.');
+      return;
+    }
+
+    const tier = BOOSTER_TIERS.find(t => t.id === selectedTier);
+    if (!tier) return;
+
+    const durationLabel = getDurationLabel(tier.duration_hours);
 
     Alert.alert(
-      'Confirm purchase',
-      `Buy 1 ${pack.name} for ${pack.price}€?\n\n• Applies ${pack.votes} votes instantly\n• Use it on any personality\n\n(Simulation - No real payment)`,
+      'Confirm Boost',
+      `Activate ${tier.name} for €${tier.price.toFixed(2)}?\n\n` +
+      `• "${name.trim()}" will appear on the Home page\n` +
+      `• Duration: ${durationLabel}\n` +
+      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}\n\n` +
+      `(Simulation - No real payment)`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Buy',
+          text: `Buy €${tier.price.toFixed(2)}`,
           onPress: async () => {
+            Keyboard.dismiss();
             setPurchasing(true);
             try {
-              const result = await purchaseCredits(packId);
-              Alert.alert('Success!', result.message);
+              const socialLinks: any = {};
+              if (instagram.trim()) socialLinks.instagram = instagram.trim();
+              if (twitter.trim()) socialLinks.twitter = twitter.trim();
+              if (facebook.trim()) socialLinks.facebook = facebook.trim();
+
+              const result = await CreditsService.boostMyself(
+                name.trim(),
+                selectedTier,
+                Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
+                email.trim() || undefined,
+              );
+
+              Alert.alert(
+                '🎉 Boost Activated!',
+                `${result.message}\n\nExpires: ${new Date(result.end_time).toLocaleString()}`,
+              );
+
+              // Reset form
+              setName('');
+              setEmail('');
+              setInstagram('');
+              setTwitter('');
+              setFacebook('');
+              setSelectedTier(null);
               await loadHistory();
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Purchase failed');
@@ -65,83 +140,9 @@ export default function Premium() {
     );
   };
 
-  const handleBoostMyself = () => {
-    if (Platform.OS === 'ios') {
-      // iOS supports Alert.prompt
-      Alert.prompt(
-        'Boost Myself',
-        'Enter your full name to add yourself as a personality with 100 votes (costs 1 credit) :',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Create & Boost',
-            onPress: async (name) => {
-              if (name && name.trim()) {
-                await processBoostMyself(name.trim());
-              } else {
-                Alert.alert('Error', 'Please enter a valid name');
-              }
-            },
-          },
-        ],
-        'plain-text'
-      );
-    } else {
-      // Android doesn't support Alert.prompt, show a simple alert
-      Alert.alert(
-        'Boost Myself',
-        'This feature requires text input.\n\nYou will be added as a personality with 100 votes for 1 credit.\n\nPlease enter your name :',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Continuer',
-            onPress: () => {
-              // On Android, we'll use a default prompt
-              // In a production app, you'd use a modal with TextInput
-              Alert.prompt(
-                'Votre Nom',
-                'Entrez votre nom complet :',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Create',
-                    onPress: async (name) => {
-                      if (name && name.trim()) {
-                        await processBoostMyself(name.trim());
-                      }
-                    },
-                  },
-                ]
-              );
-            },
-          },
-        ]
-      );
-    }
-  };
-
-  const processBoostMyself = async (name: string) => {
-    setPurchasing(true);
-    try {
-      const result = await CreditsService.boostMyself(name);
-      Alert.alert(
-        '🎉 Success !',
-        `${result.message}\n\nVous avez maintenant ${result.new_balance} credit${result.new_balance > 1 ? 's' : ''} restant${result.new_balance > 1 ? 's' : ''}.`,
-        [{ text: 'OK' }]
-      );
-      await refreshBalance();
-      await loadHistory();
-    } catch (error: any) {
-      const message = error.message || 'Creation failed';
-      Alert.alert('Error', message);
-    } finally {
-      setPurchasing(false);
-    }
-  };
-
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
@@ -149,167 +150,233 @@ export default function Premium() {
     });
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={PALETTE.gold} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView>
-        {/* Header */}
-        <View style={styles.header}>
-          <Ionicons name="rocket" size={32} color={PALETTE.gold} />
-          <Text style={styles.title}>Boosters</Text>
-        </View>
-
-        {/* Balance Card */}
-        <View style={[styles.card, styles.balanceCard]}>
-          <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>Your Boosters</Text>
-            <TouchableOpacity onPress={refreshBalance}>
-              <Ionicons name="refresh" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {/* Header */}
+          <View style={styles.header}>
+            <Ionicons name="rocket" size={32} color={PALETTE.gold} />
+            <Text style={styles.title}>Boost Yourself</Text>
           </View>
-          <View style={styles.boosterCounts}>
-            <View style={styles.boosterItem}>
-              <Text style={styles.boosterCount}>{boosters}</Text>
-              <Text style={styles.boosterLabel}>Boosters</Text>
-              <Text style={styles.boosterVotes}>(100 votes each)</Text>
-            </View>
-            <View style={styles.boosterDivider} />
-            <View style={styles.boosterItem}>
-              <Text style={styles.boosterCount}>{superBoosters}</Text>
-              <Text style={styles.boosterLabel}>Super Boosters</Text>
-              <Text style={styles.boosterVotes}>(1000 votes each)</Text>
-            </View>
+
+          {/* Hero */}
+          <View style={styles.heroCard}>
+            <Ionicons name="megaphone" size={48} color={PALETTE.gold} />
+            <Text style={styles.heroTitle}>Get Noticed!</Text>
+            <Text style={styles.heroText}>
+              Purchase a Booster and your name will appear on the Home page for everyone to see.
+            </Text>
           </View>
-          {isPremium && (
-            <View style={styles.premiumBadge}>
-              <Ionicons name="star" size={16} color={PALETTE.gold} />
-              <Text style={styles.premiumBadgeText}>Premium Member</Text>
-            </View>
-          )}
-        </View>
 
-        {/* Hero Message */}
-        <View style={styles.heroCard}>
-          <Ionicons name="trophy" size={48} color={PALETTE.gold} />
-          <Text style={styles.heroTitle}>Get to the Top!</Text>
-          <Text style={styles.heroText}>
-            Buy a Booster, use it on any personality, and apply all votes instantly!
-          </Text>
-          
-          {boosters > 0 && (
-            <TouchableOpacity 
-              style={styles.boostMyselfButton}
-              onPress={handleBoostMyself}
-              disabled={purchasing}
-            >
-              <Ionicons name="person-add" size={20} color="#000" />
-              <Text style={styles.boostMyselfText}>Boost Myself (uses 1 Booster)</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          {/* Tier Selection */}
+          <Text style={styles.sectionTitle}>Choose Your Booster</Text>
 
-        {/* Packs Section */}
-        <Text style={styles.sectionTitle}>Buy Boosters</Text>
-        
-        {BOOSTER_PACKS.map((pack) => (
-          <TouchableOpacity
-            key={pack.id}
-            style={[
-              styles.packCard,
-              pack.popular && styles.packCardPopular,
-            ]}
-            onPress={() => handlePurchase(pack.id)}
-            disabled={purchasing}
-          >
-            {pack.popular && (
-              <View style={styles.popularBadge}>
-                <Text style={styles.popularText}>BEST VALUE</Text>
-              </View>
-            )}
-            
-            <View style={styles.packHeader}>
-              <View>
-                <Text style={styles.packName}>{pack.name}</Text>
-                <Text style={styles.packCredits}>
-                  +{pack.votes} votes instantly
+          {BOOSTER_TIERS.map((tier) => {
+            const isSelected = selectedTier === tier.id;
+            const color = TIER_COLORS[tier.id] || PALETTE.gold;
+            const iconName = TIER_ICONS[tier.id] || "flash";
+
+            return (
+              <TouchableOpacity
+                key={tier.id}
+                style={[
+                  styles.tierCard,
+                  isSelected && { borderColor: color, borderWidth: 2 },
+                ]}
+                onPress={() => setSelectedTier(tier.id)}
+                activeOpacity={0.7}
+              >
+                {tier.id === 'golden_booster' && (
+                  <View style={[styles.bestBadge, { backgroundColor: color }]}>
+                    <Text style={styles.bestBadgeText}>BEST VALUE</Text>
+                  </View>
+                )}
+
+                <View style={styles.tierHeader}>
+                  <View style={styles.tierLeft}>
+                    <View style={[styles.tierIconCircle, { backgroundColor: color + '20' }]}>
+                      <Ionicons name={iconName as any} size={24} color={color} />
+                    </View>
+                    <View style={styles.tierInfo}>
+                      <Text style={styles.tierName}>{tier.name}</Text>
+                      <Text style={[styles.tierDuration, { color }]}>
+                        {getDurationLabel(tier.duration_hours)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.tierPriceBox}>
+                    <Text style={styles.tierPrice}>€{tier.price.toFixed(2)}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.tierDesc}>{tier.description}</Text>
+
+                {tier.position === 'top' && (
+                  <View style={styles.tierHighlight}>
+                    <Ionicons name="star" size={14} color={PALETTE.gold} />
+                    <Text style={styles.tierHighlightText}>
+                      Appears at the top of the Home page + name in the ranking
+                    </Text>
+                  </View>
+                )}
+
+                {isSelected && (
+                  <View style={[styles.selectedIndicator, { backgroundColor: color }]}>
+                    <Ionicons name="checkmark" size={16} color="#000" />
+                    <Text style={styles.selectedText}>Selected</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Form - Only show when a tier is selected */}
+          {selectedTier && (
+            <View style={styles.formSection}>
+              <Text style={styles.sectionTitle}>Your Information</Text>
+
+              <View style={styles.formCard}>
+                <Text style={styles.inputLabel}>Your Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={PALETTE.subtext}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+
+                <Text style={styles.inputLabel}>Email (for confirmation)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor={PALETTE.subtext}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>
+                  Social Media (optional)
                 </Text>
-              </View>
-              <View style={styles.packPriceContainer}>
-                <Text style={styles.packPrice}>${pack.price}</Text>
-              </View>
-            </View>
 
-            <View style={styles.packFooter}>
-              <Text style={styles.packDetail}>
-                Use on any personality in 1 click
-              </Text>
-              <Ionicons name="arrow-forward-circle" size={24} color={PALETTE.gold} />
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {/* History Section */}
-        <Text style={styles.sectionTitle}>History</Text>
-        
-        {loadingHistory ? (
-          <View style={styles.card}>
-            <ActivityIndicator size="small" color={PALETTE.gold} />
-          </View>
-        ) : transactions.length === 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.emptyText}>No transactions</Text>
-          </View>
-        ) : (
-          <View style={styles.card}>
-            {transactions.map((t) => (
-              <View key={t._id} style={styles.transactionRow}>
-                <View style={styles.transactionIcon}>
-                  <Ionicons
-                    name={t.type === 'purchase' ? 'add-circle' : 'remove-circle'}
-                    size={24}
-                    color={t.type === 'purchase' ? PALETTE.green : PALETTE.accent}
+                <View style={styles.socialRow}>
+                  <View style={[styles.socialIcon, { backgroundColor: '#E1306C20' }]}>
+                    <Ionicons name="logo-instagram" size={18} color="#E1306C" />
+                  </View>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="@username"
+                    placeholderTextColor={PALETTE.subtext}
+                    value={instagram}
+                    onChangeText={setInstagram}
+                    autoCapitalize="none"
                   />
                 </View>
-                <View style={styles.transactionInfo}>
-                  <Text style={styles.transactionDesc}>{t.description}</Text>
-                  <Text style={styles.transactionDate}>{formatDate(t.timestamp)}</Text>
+
+                <View style={styles.socialRow}>
+                  <View style={[styles.socialIcon, { backgroundColor: '#1DA1F220' }]}>
+                    <Ionicons name="logo-twitter" size={18} color="#1DA1F2" />
+                  </View>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="@username"
+                    placeholderTextColor={PALETTE.subtext}
+                    value={twitter}
+                    onChangeText={setTwitter}
+                    autoCapitalize="none"
+                  />
                 </View>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    t.type === 'purchase' && styles.transactionAmountPositive,
-                  ]}
-                >
-                  {t.type === 'purchase' ? '+' : ''}{t.amount}
-                </Text>
+
+                <View style={styles.socialRow}>
+                  <View style={[styles.socialIcon, { backgroundColor: '#1877F220' }]}>
+                    <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+                  </View>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="Profile name or URL"
+                    placeholderTextColor={PALETTE.subtext}
+                    value={facebook}
+                    onChangeText={setFacebook}
+                    autoCapitalize="none"
+                  />
+                </View>
               </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+
+              {/* Purchase Button */}
+              <TouchableOpacity
+                style={[
+                  styles.purchaseButton,
+                  { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
+                  purchasing && { opacity: 0.6 },
+                ]}
+                onPress={handlePurchase}
+                disabled={purchasing}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <>
+                    <Ionicons name="flash" size={20} color="#000" />
+                    <Text style={styles.purchaseButtonText}>
+                      Activate Boost - €{BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* History Section */}
+          <Text style={styles.sectionTitle}>History</Text>
+
+          {loadingHistory ? (
+            <View style={styles.card}>
+              <ActivityIndicator size="small" color={PALETTE.gold} />
+            </View>
+          ) : transactions.length === 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.emptyText}>No transactions yet</Text>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              {transactions.map((t) => (
+                <View key={t._id} style={styles.transactionRow}>
+                  <View style={styles.transactionIcon}>
+                    <Ionicons
+                      name={t.type === 'purchase' ? 'rocket' : 'time'}
+                      size={24}
+                      color={t.type === 'purchase' ? PALETTE.green : PALETTE.subtext}
+                    />
+                  </View>
+                  <View style={styles.transactionInfo}>
+                    <Text style={styles.transactionDesc}>{t.description}</Text>
+                    <Text style={styles.transactionDate}>{formatDate(t.timestamp)}</Text>
+                  </View>
+                  {t.price !== undefined && (
+                    <Text style={[styles.transactionAmount, { color: PALETTE.green }]}>
+                      €{t.price?.toFixed(2)}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: PALETTE.bg,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: PALETTE.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -318,50 +385,11 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
-  title: {
-    color: PALETTE.text,
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  card: {
-    backgroundColor: PALETTE.card,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  balanceCard: {
-    alignItems: 'center',
-    borderColor: PALETTE.gold,
-    borderWidth: 2,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  balanceLabel: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  balanceAmount: {
-    color: PALETTE.gold,
-    fontSize: 48,
-    fontWeight: '700',
-  },
-  balanceSubtext: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    marginTop: 4,
-  },
+  title: { color: PALETTE.text, fontSize: 28, fontWeight: '700' },
+
   heroCard: {
     backgroundColor: PALETTE.card,
     marginHorizontal: 16,
-    marginTop: 16,
     borderRadius: 12,
     padding: 24,
     borderWidth: 2,
@@ -372,160 +400,153 @@ const styles = StyleSheet.create({
     color: PALETTE.gold,
     fontSize: 24,
     fontWeight: '700',
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 8,
   },
   heroText: {
     color: PALETTE.text,
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  premiumBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: PALETTE.gold + '20',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 12,
-  },
-  premiumBadgeText: {
-    color: PALETTE.gold,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  boosterCounts: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  boosterItem: {
-    alignItems: 'center',
-  },
-  boosterCount: {
-    color: PALETTE.gold,
-    fontSize: 48,
-    fontWeight: '700',
-  },
-  boosterLabel: {
-    color: PALETTE.text,
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  boosterVotes: {
-    color: PALETTE.subtext,
-    fontSize: 12,
-  },
-  boosterDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: PALETTE.border,
-  },
-  cardTitle: {
-    color: PALETTE.text,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  infoText: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
+
   sectionTitle: {
     color: PALETTE.text,
     fontSize: 20,
     fontWeight: '700',
     marginHorizontal: 16,
     marginTop: 24,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  packCard: {
+
+  // Tier cards
+  tierCard: {
     backgroundColor: PALETTE.card,
     marginHorizontal: 16,
-    marginTop: 12,
+    marginBottom: 12,
     borderRadius: 12,
     padding: 16,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     position: 'relative',
   },
-  packCardPopular: {
-    borderColor: PALETTE.gold,
-  },
-  popularBadge: {
+  bestBadge: {
     position: 'absolute',
     top: -10,
     right: 16,
-    backgroundColor: PALETTE.gold,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  popularText: {
-    color: PALETTE.bg,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  packHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  packName: {
-    color: PALETTE.text,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  packCredits: {
-    color: PALETTE.gold,
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  packPriceContainer: {
-    alignItems: 'flex-end',
-  },
-  packPrice: {
-    color: PALETTE.text,
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  packSavings: {
-    color: PALETTE.green,
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  packFooter: {
+  bestBadgeText: { color: '#000', fontSize: 10, fontWeight: '700' },
+  tierHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: PALETTE.border,
+    marginBottom: 8,
   },
-  packDetail: {
-    color: PALETTE.subtext,
+  tierLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  tierIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tierInfo: {},
+  tierName: { color: PALETTE.text, fontSize: 18, fontWeight: '700' },
+  tierDuration: { fontSize: 14, fontWeight: '600', marginTop: 2 },
+  tierPriceBox: { alignItems: 'flex-end' },
+  tierPrice: { color: PALETTE.text, fontSize: 24, fontWeight: '700' },
+  tierDesc: { color: PALETTE.subtext, fontSize: 14, marginTop: 4, marginBottom: 4 },
+  tierHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: PALETTE.gold + '15',
+    padding: 8,
+    borderRadius: 8,
+  },
+  tierHighlightText: { color: PALETTE.gold, fontSize: 12, fontWeight: '600', flex: 1 },
+  selectedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  selectedText: { color: '#000', fontWeight: '700', fontSize: 14 },
+
+  // Form
+  formSection: {},
+  formCard: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  inputLabel: {
+    color: PALETTE.text,
     fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
   },
-  emptyText: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    textAlign: 'center',
+  input: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: PALETTE.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    marginBottom: 12,
   },
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  socialIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  purchaseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  purchaseButtonText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+
+  // History
+  card: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  emptyText: { color: PALETTE.subtext, fontSize: 14, textAlign: 'center' },
   transactionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -533,49 +554,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: PALETTE.border,
   },
-  transactionIcon: {
-    marginRight: 12,
-  },
-  transactionInfo: {
-    flex: 1,
-  },
-  transactionDesc: {
-    color: PALETTE.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  transactionDate: {
-    color: PALETTE.subtext,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  transactionAmount: {
-    color: PALETTE.accent,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  transactionAmountPositive: {
-    color: PALETTE.green,
-  },
-  boostMyselfButton: {
-    backgroundColor: PALETTE.gold,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-    shadowColor: PALETTE.gold,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  boostMyselfText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  transactionIcon: { marginRight: 12 },
+  transactionInfo: { flex: 1 },
+  transactionDesc: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
+  transactionDate: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
+  transactionAmount: { fontSize: 16, fontWeight: '700' },
 });

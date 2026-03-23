@@ -6,9 +6,6 @@ const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/
 
 const USER_ID_KEY = 'popular_user_id';
 
-/**
- * Generate or retrieve a unique user ID
- */
 async function getUserId(): Promise<string> {
   try {
     let userId = await AsyncStorage.getItem(USER_ID_KEY);
@@ -23,171 +20,192 @@ async function getUserId(): Promise<string> {
   }
 }
 
-export interface BoosterPack {
+// ---- Types ----
+
+export interface BoosterTier {
   id: string;
   name: string;
-  votes: number;  // How many votes this booster applies
   price: number;
-  popular?: boolean;
+  duration_hours: number;
+  position: 'top' | 'bottom';
+  description: string;
 }
 
-export const BOOSTER_PACKS: BoosterPack[] = [
-  {
-    id: 'booster',
-    name: 'Booster',
-    votes: 100,
-    price: 0.99,
-  },
-  {
-    id: 'super_booster',
-    name: 'Super Booster',
-    votes: 1000,
-    price: 4.99,
-    popular: true,
-  },
-];
+export interface SocialLinks {
+  instagram?: string;
+  twitter?: string;
+  facebook?: string;
+}
 
-// Keep old export for backwards compatibility
-export const CREDIT_PACKS = BOOSTER_PACKS.map(p => ({
-  id: p.id,
-  name: p.name,
-  credits: p.votes,
-  price: p.price,
-  popular: p.popular,
-}));
+export interface OutsiderData {
+  id: string;
+  boost_id: string;
+  name: string;
+  category: string;
+  score: number;
+  total_votes: number;
+  likes: number;
+  dislikes: number;
+  tier: string;
+  tier_name: string;
+  position: string;
+  end_time: string;
+  hours_remaining: number;
+  social_links: SocialLinks;
+}
 
-export interface BoosterBalance {
-  boosters: number;      // Number of Boosters available (100 votes each)
-  super_boosters: number; // Number of Super Boosters available (1000 votes each)
-  is_premium: boolean;
+export interface OutsidersResponse {
+  golden: OutsiderData[];
+  regular: OutsiderData[];
+  total_active: number;
 }
 
 export interface Transaction {
   _id: string;
   type: 'purchase' | 'use' | 'refund';
-  amount: number;
+  amount?: number;
   description: string;
   timestamp: string;
   price?: number;
   pack?: string;
 }
 
-/**
- * Service for managing boosters
- */
+export const BOOSTER_TIERS: BoosterTier[] = [
+  {
+    id: 'booster',
+    name: 'Booster',
+    price: 0.99,
+    duration_hours: 1,
+    position: 'bottom',
+    description: 'Appear on the Home page for 1 hour',
+  },
+  {
+    id: 'super_booster',
+    name: 'Super Booster',
+    price: 9.99,
+    duration_hours: 24,
+    position: 'bottom',
+    description: 'Appear on the Home page for 24 hours',
+  },
+  {
+    id: 'golden_booster',
+    name: 'Golden Booster',
+    price: 49.99,
+    duration_hours: 168,
+    position: 'top',
+    description: 'Top of the Home page for 1 week',
+  },
+];
+
+// Keep old exports for backwards compatibility
+export const BOOSTER_PACKS = BOOSTER_TIERS.map(t => ({
+  id: t.id,
+  name: t.name,
+  votes: 0,
+  price: t.price,
+  popular: t.id === 'golden_booster',
+}));
+
+export const CREDIT_PACKS = BOOSTER_PACKS;
+
+export interface BoosterBalance {
+  active_boosts: number;
+  boosters: number;
+  super_boosters: number;
+  is_premium: boolean;
+}
+
+// ---- Service ----
+
 export class CreditsService {
-  /**
-   * Purchase a booster pack (simulation)
-   */
-  static async purchaseCredits(packId: string): Promise<{ success: boolean; new_balance: number; boosters: number; super_boosters: number; message: string }> {
+
+  static async boostMyself(
+    name: string,
+    tier: string = 'booster',
+    socialLinks?: SocialLinks,
+    email?: string,
+  ): Promise<any> {
     try {
       const userId = await getUserId();
-      const pack = BOOSTER_PACKS.find(p => p.id === packId);
-      
-      if (!pack) {
-        throw new Error('Invalid pack');
-      }
-
-      const response = await fetch(API('/credits/purchase'), {
+      const response = await fetch(API('/boost-myself'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId,
-          pack: packId,
-          amount: 1, // Always 1 booster per purchase
-          price: pack.price,
+          name: name.trim(),
+          tier,
+          social_links: socialLinks || {},
+          email: email || '',
         }),
       });
-
       if (!response.ok) {
-        throw new Error('Purchase failed');
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to activate boost');
       }
-
       return await response.json();
-    } catch (error) {
-      console.error('Purchase error:', error);
+    } catch (error: any) {
+      console.error('Boost myself error:', error);
       throw error;
     }
   }
 
-  /**
-   * Get booster balance
-   */
+  static async extendBoost(boostId: string, tier: string): Promise<any> {
+    try {
+      const userId = await getUserId();
+      const response = await fetch(API('/boost-myself/extend'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          boost_id: boostId,
+          tier,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to extend boost');
+      }
+      return await response.json();
+    } catch (error: any) {
+      console.error('Extend boost error:', error);
+      throw error;
+    }
+  }
+
+  static async getOutsiders(): Promise<OutsidersResponse> {
+    try {
+      const response = await fetch(API('/outsiders'));
+      if (!response.ok) throw new Error('Failed to get outsiders');
+      return await response.json();
+    } catch (error) {
+      console.error('Get outsiders error:', error);
+      return { golden: [], regular: [], total_active: 0 };
+    }
+  }
+
   static async getBalance(): Promise<BoosterBalance> {
     try {
       const userId = await getUserId();
       const response = await fetch(API(`/credits/balance/${userId}`));
-      
-      if (!response.ok) {
-        throw new Error('Failed to get balance');
-      }
-
+      if (!response.ok) throw new Error('Failed to get balance');
       const data = await response.json();
       return {
+        active_boosts: data.active_boosts || 0,
         boosters: data.boosters || 0,
         super_boosters: data.super_boosters || 0,
         is_premium: data.is_premium || false,
       };
     } catch (error) {
       console.error('Get balance error:', error);
-      return { boosters: 0, super_boosters: 0, is_premium: false };
+      return { active_boosts: 0, boosters: 0, super_boosters: 0, is_premium: false };
     }
   }
 
-  /**
-   * Use a booster on a personality (applies all votes at once)
-   */
-  static async useBooster(personId: string, personName: string, vote: number, boosterType: 'booster' | 'super_booster'): Promise<any> {
-    try {
-      const userId = await getUserId();
-      const votes = boosterType === 'super_booster' ? 1000 : 100;
-      
-      const response = await fetch(API('/credits/use-booster'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          person_id: personId,
-          person_name: personName,
-          vote: vote,
-          booster_type: boosterType,
-          votes: votes,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to use booster');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Use booster error:', error);
-      throw error;
-    }
-  }
-
-  // Keep old method for backwards compatibility
-  static async useCreditForVote(personId: string, personName: string, vote: number): Promise<any> {
-    return this.useBooster(personId, personName, vote, 'booster');
-  }
-
-  /**
-   * Get transaction history
-   */
   static async getHistory(limit: number = 20): Promise<Transaction[]> {
     try {
       const userId = await getUserId();
       const response = await fetch(API(`/credits/history/${userId}?limit=${limit}`));
-      
-      if (!response.ok) {
-        throw new Error('Failed to get history');
-      }
-
+      if (!response.ok) throw new Error('Failed to get history');
       const data = await response.json();
       return data.transactions || [];
     } catch (error) {
@@ -196,54 +214,34 @@ export class CreditsService {
     }
   }
 
-  /**
-   * Boost yourself - Create a new personality (costs 1 Booster)
-   */
-  static async boostMyself(name: string, category: string = 'other'): Promise<{ success: boolean; person_id: string; person_name: string; boosters: number; super_boosters: number; message: string }> {
-    try {
-      const userId = await getUserId();
-      
-      const response = await fetch(API('/boost-myself'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          name: name.trim(),
-          category: category,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to create personality');
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      console.error('Boost myself error:', error);
-      throw error;
-    }
+  // Backwards compat stubs
+  static async purchaseCredits(packId: string): Promise<any> {
+    return { success: true, message: 'Use boost-myself instead' };
+  }
+  static async useBooster(personId: string, personName: string, vote: number, boosterType: string): Promise<any> {
+    return { success: true };
+  }
+  static async useCreditForVote(personId: string, personName: string, vote: number): Promise<any> {
+    return { success: true };
   }
 }
 
-/**
- * React hook for managing boosters
- */
+// ---- React Hook ----
+
 export function useCredits() {
+  const [activeBoosts, setActiveBoosts] = useState(0);
   const [boosters, setBoosters] = useState(0);
   const [superBoosters, setSuperBoosters] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // For backwards compatibility
-  const balance = boosters + superBoosters;
+  const balance = activeBoosts;
 
   const loadBalance = useCallback(async () => {
     setLoading(true);
     try {
       const data = await CreditsService.getBalance();
+      setActiveBoosts(data.active_boosts);
       setBoosters(data.boosters);
       setSuperBoosters(data.super_boosters);
       setIsPremium(data.is_premium);
@@ -259,32 +257,20 @@ export function useCredits() {
   }, [loadBalance]);
 
   const purchaseCredits = async (packId: string) => {
-    try {
-      const result = await CreditsService.purchaseCredits(packId);
-      await loadBalance();
-      return result;
-    } catch (error) {
-      throw error;
-    }
+    return CreditsService.purchaseCredits(packId);
   };
 
-  const useBooster = async (personId: string, personName: string, vote: number, boosterType: 'booster' | 'super_booster' = 'booster') => {
-    try {
-      const result = await CreditsService.useBooster(personId, personName, vote, boosterType);
-      await loadBalance();
-      return result;
-    } catch (error) {
-      throw error;
-    }
+  const useBooster = async (personId: string, personName: string, vote: number, boosterType: string = 'booster') => {
+    return CreditsService.useBooster(personId, personName, vote, boosterType);
   };
 
-  // Keep old method for backwards compatibility
   const useCredit = async (personId: string, personName: string, vote: number) => {
     return useBooster(personId, personName, vote, 'booster');
   };
 
   return {
     balance,
+    activeBoosts,
     boosters,
     superBoosters,
     isPremium,

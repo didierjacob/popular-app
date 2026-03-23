@@ -38,7 +38,7 @@ async def startup_event():
     logger.info("🚀 Starting Popular API...")
     
     # Initialize and start the scheduler
-    init_scheduler(db, trends_service)
+    init_scheduler(db, trends_service, email_service)
     start_scheduler()
     
     logger.info("✅ Scheduler initialized and started")
@@ -1071,35 +1071,57 @@ async def search_suggestions_by_category(window: str = Query(default="24h"), per
 
 
 @api_router.get("/outsiders")
-async def get_outsiders(limit: int = Query(default=3, le=10)):
-    """Get outsiders - only people who paid to become a personality (self_boosted)"""
+async def get_outsiders(limit: int = Query(default=20, le=50)):
+    """Get active outsiders with visibility boosts, split by position (golden=top, regular=bottom)"""
     try:
-        # Only return people who have paid to become a personality (self_boosted)
-        outsiders = await db.persons.find({
-            "source": "self_boosted",
-            "approved": True
-        }).sort("total_votes", -1).limit(limit).to_list(length=limit)
-        
-        # If no self_boosted outsiders found, return empty list
-        # (Don't show celebrities as "Outsiders")
-        if len(outsiders) == 0:
-            return []
-        
-        return [
-            {
-                "id": str(doc["_id"]),
-                "name": doc.get("name"),
-                "category": doc.get("category", "other"),
-                "score": doc.get("score", 50.0),
-                "total_votes": doc.get("total_votes", 0),
-                "likes": doc.get("likes", 0),
-                "dislikes": doc.get("dislikes", 0),
+        now = now_utc()
+
+        # Get all active boosts (not expired)
+        active_boosts = await db.active_boosts.find({
+            "end_time": {"$gt": now},
+        }).sort("start_time", -1).to_list(length=100)
+
+        golden_outsiders = []
+        regular_outsiders = []
+
+        for boost in active_boosts:
+            person = await db.persons.find_one({"_id": boost["person_id"]})
+            if not person:
+                continue
+
+            time_remaining = (boost["end_time"] - now).total_seconds()
+            hours_remaining = max(0, time_remaining / 3600)
+
+            outsider_data = {
+                "id": str(person["_id"]),
+                "boost_id": str(boost["_id"]),
+                "name": person.get("name", ""),
+                "category": person.get("category", "other"),
+                "score": person.get("score", 50.0),
+                "total_votes": person.get("total_votes", 0),
+                "likes": person.get("likes", 0),
+                "dislikes": person.get("dislikes", 0),
+                "tier": boost.get("tier", "booster"),
+                "tier_name": BOOSTER_TIERS.get(boost.get("tier", "booster"), {}).get("name", "Booster"),
+                "position": boost.get("position", "bottom"),
+                "end_time": boost["end_time"].isoformat(),
+                "hours_remaining": round(hours_remaining, 1),
+                "social_links": person.get("social_links", {}),
             }
-            for doc in outsiders
-        ]
+
+            if boost.get("position") == "top":
+                golden_outsiders.append(outsider_data)
+            else:
+                regular_outsiders.append(outsider_data)
+
+        return {
+            "golden": golden_outsiders[:limit],
+            "regular": regular_outsiders[:limit],
+            "total_active": len(golden_outsiders) + len(regular_outsiders),
+        }
     except Exception as e:
         logger.error(f"Failed to get outsiders: {e}")
-        return []
+        return {"golden": [], "regular": [], "total_active": 0}
 
 
 @api_router.get("/last-searches")
@@ -1116,400 +1138,346 @@ async def last_searches(limit: int = Query(default=5, le=20)):
     return {"terms": [r["term"] for r in rows]}
 
 
-# -------------------- Premium / Credits System --------------------
+# -------------------- Booster Visibility System --------------------
 
-class CreditPurchase(BaseModel):
-    user_id: str
-    pack: Literal["booster", "super_booster"]
-    amount: int  # Number of credits
-    price: float  # Price in euros
-
-class CreditTransaction(BaseModel):
-    user_id: str
-    type: Literal["purchase", "use", "refund"]
-    amount: int
-    description: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class PremiumVote(BaseModel):
-    person_id: str
-    person_name: str
-    vote: int  # 1 for like, -1 for dislike
-    multiplier: int = 100  # Premium vote = x100
-
-CREDIT_PACKS = {
-    "booster": {"name": "Booster", "credits": 100, "price": 0.99},
-    "super_booster": {"name": "Super Booster", "credits": 1000, "price": 4.99}
+# Booster tiers: visibility on the Home page
+BOOSTER_TIERS = {
+    "booster": {
+        "name": "Booster",
+        "price": 0.99,
+        "duration_hours": 1,
+        "position": "bottom",  # Below categories & top personalities
+        "description": "Appear on the Home page for 1 hour",
+    },
+    "super_booster": {
+        "name": "Super Booster",
+        "price": 9.99,
+        "duration_hours": 24,
+        "position": "bottom",
+        "description": "Appear on the Home page for 24 hours",
+    },
+    "golden_booster": {
+        "name": "Golden Booster",
+        "price": 49.99,
+        "duration_hours": 24 * 7,  # 1 week
+        "position": "top",  # Under Personality of the Day, above everything
+        "description": "Appear at the top of the Home page for 1 week",
+    },
 }
 
-@api_router.post("/credits/purchase")
-async def purchase_credits(purchase: CreditPurchase):
-    """Purchase a booster pack (MVP - no real payment simulation)"""
-    try:
-        # Validate pack
-        if purchase.pack not in CREDIT_PACKS:
-            raise HTTPException(status_code=400, detail="Invalid pack")
-        
-        pack_info = CREDIT_PACKS[purchase.pack]
-        
-        # Create transaction record
-        transaction = {
-            "user_id": purchase.user_id,
-            "type": "purchase",
-            "pack": purchase.pack,
-            "price": pack_info["price"],
-            "description": f"Purchased 1 {pack_info['name']}",
-            "timestamp": datetime.utcnow(),
-            "status": "completed"
-        }
-        
-        await db.credit_transactions.insert_one(transaction)
-        
-        # Update user booster count
-        user_credits = await db.user_credits.find_one({"user_id": purchase.user_id})
-        
-        booster_field = "boosters" if purchase.pack == "booster" else "super_boosters"
-        
-        if user_credits:
-            current_boosters = user_credits.get("boosters", 0)
-            current_super = user_credits.get("super_boosters", 0)
-            
-            if purchase.pack == "booster":
-                current_boosters += 1
-            else:
-                current_super += 1
-            
-            await db.user_credits.update_one(
-                {"user_id": purchase.user_id},
-                {"$set": {
-                    "boosters": current_boosters,
-                    "super_boosters": current_super,
-                    "is_premium": True,
-                    "updated_at": datetime.utcnow()
-                }}
-            )
-            new_boosters = current_boosters
-            new_super = current_super
-        else:
-            new_boosters = 1 if purchase.pack == "booster" else 0
-            new_super = 1 if purchase.pack == "super_booster" else 0
-            await db.user_credits.insert_one({
-                "user_id": purchase.user_id,
-                "boosters": new_boosters,
-                "super_boosters": new_super,
-                "balance": 0,  # Keep for backwards compatibility
-                "is_premium": True,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            })
-        
-        return {
-            "success": True,
-            "boosters": new_boosters,
-            "super_boosters": new_super,
-            "new_balance": new_boosters + new_super,  # backwards compatibility
-            "message": f"Successfully purchased 1 {pack_info['name']}!"
-        }
-        
-    except Exception as e:
-        logger.error(f"Credit purchase error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@api_router.get("/credits/balance/{user_id}")
-async def get_credit_balance(user_id: str):
-    """Get user's booster balance"""
-    user_credits = await db.user_credits.find_one({"user_id": user_id})
-    
-    if not user_credits:
-        return {
-            "boosters": 0,
-            "super_boosters": 0,
-            "balance": 0,  # backwards compatibility
-            "is_premium": False
-        }
-    
-    return {
-        "boosters": user_credits.get("boosters", 0),
-        "super_boosters": user_credits.get("super_boosters", 0),
-        "balance": user_credits.get("boosters", 0) + user_credits.get("super_boosters", 0),  # backwards compatibility
-        "is_premium": user_credits.get("is_premium", False)
-    }
-
-
-class UseBoosterRequest(BaseModel):
-    user_id: str
-    person_id: str
-    person_name: str
-    vote: int
-    booster_type: str  # 'booster' or 'super_booster'
-    votes: int  # 100 or 1000
-
-
-@api_router.post("/credits/use-booster")
-async def use_booster(req: UseBoosterRequest):
-    """Use a booster on a personality (applies all votes at once)"""
-    try:
-        # Validate booster type
-        if req.booster_type not in ["booster", "super_booster"]:
-            raise HTTPException(status_code=400, detail="Invalid booster type")
-        
-        votes_to_apply = 100 if req.booster_type == "booster" else 1000
-        booster_field = "boosters" if req.booster_type == "booster" else "super_boosters"
-        
-        # Check user has the booster
-        user_credits = await db.user_credits.find_one({"user_id": req.user_id})
-        
-        if not user_credits or user_credits.get(booster_field, 0) < 1:
-            raise HTTPException(status_code=400, detail=f"No {req.booster_type.replace('_', ' ')} available")
-        
-        # Get person
-        try:
-            oid = ObjectId(req.person_id)
-        except:
-            raise HTTPException(status_code=400, detail="Invalid person ID")
-        
-        person_doc = await db.persons.find_one({"_id": oid})
-        if not person_doc:
-            raise HTTPException(status_code=404, detail="Person not found")
-        
-        # Apply votes
-        if req.vote == 1:
-            inc_doc = {"likes": votes_to_apply, "total_votes": votes_to_apply}
-        else:
-            inc_doc = {"dislikes": votes_to_apply, "total_votes": votes_to_apply}
-        
-        # Calculate new score
-        current_likes = person_doc.get("likes", 0) + (votes_to_apply if req.vote == 1 else 0)
-        current_dislikes = person_doc.get("dislikes", 0) + (votes_to_apply if req.vote == -1 else 0)
-        total = current_likes + current_dislikes
-        new_score = (current_likes / total * 100) if total > 0 else 50.0
-        new_score = round(new_score / 25) * 25  # Round to nearest 25
-        new_score = max(0, min(100, new_score))
-        
-        await db.persons.update_one(
-            {"_id": oid},
-            {"$inc": inc_doc, "$set": {"score": new_score, "updated_at": now_utc()}}
-        )
-        
-        # Deduct booster from user
-        await db.user_credits.update_one(
-            {"user_id": req.user_id},
-            {"$inc": {booster_field: -1}, "$set": {"updated_at": datetime.utcnow()}}
-        )
-        
-        # Log transaction
-        await db.credit_transactions.insert_one({
-            "user_id": req.user_id,
-            "type": "use",
-            "pack": req.booster_type,
-            "person_id": str(oid),
-            "person_name": req.person_name,
-            "votes_applied": votes_to_apply,
-            "vote_direction": req.vote,
-            "description": f"Used {req.booster_type.replace('_', ' ')} on {req.person_name} (+{votes_to_apply} {'likes' if req.vote == 1 else 'dislikes'})",
-            "timestamp": datetime.utcnow(),
-        })
-        
-        # Get updated balance
-        updated_credits = await db.user_credits.find_one({"user_id": req.user_id})
-        
-        return {
-            "success": True,
-            "votes_applied": votes_to_apply,
-            "new_score": new_score,
-            "boosters": updated_credits.get("boosters", 0),
-            "super_boosters": updated_credits.get("super_boosters", 0),
-            "message": f"Applied {votes_to_apply} {'likes' if req.vote == 1 else 'dislikes'} to {req.person_name}!"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Use booster error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@api_router.post("/credits/use")
-async def use_credit(vote: PremiumVote, user_id: str = Header(...)):
-    """Use a premium credit for a x100 vote"""
-    try:
-        # Check user balance
-        user_credits = await db.user_credits.find_one({"user_id": user_id})
-        
-        if not user_credits or user_credits.get("balance", 0) < 1:
-            raise HTTPException(status_code=400, detail="Insufficient credits")
-        
-        # Get person
-        person_doc = await db.people.find_one({"_id": ObjectId(vote.person_id)})
-        if not person_doc:
-            raise HTTPException(status_code=404, detail="Person not found")
-        
-        # Apply x100 vote
-        multiplied_vote = vote.vote * vote.multiplier
-        
-        # Update person stats
-        current_likes = person_doc.get("likes", 0)
-        current_dislikes = person_doc.get("dislikes", 0)
-        
-        if vote.vote > 0:
-            current_likes += vote.multiplier
-        else:
-            current_dislikes += vote.multiplier
-        
-        total = current_likes + current_dislikes
-        raw_score = (current_likes / total * 100) if total > 0 else 50.0
-        rounded = round(raw_score / 25) * 25
-        
-        await db.people.update_one(
-            {"_id": ObjectId(vote.person_id)},
-            {
-                "$set": {
-                    "likes": current_likes,
-                    "dislikes": current_dislikes,
-                    "total_votes": total,
-                    "score": float(rounded),
-                    "last_updated": datetime.utcnow()
-                }
-            }
-        )
-        
-        # Record tick (x100 votes)
-        for _ in range(vote.multiplier):
-            await db.ticks.insert_one({
-                "person_id": vote.person_id,
-                "vote": vote.vote,
-                "score": float(rounded),
-                "created_at": datetime.utcnow()
-            })
-        
-        # Deduct credit
-        new_balance = user_credits["balance"] - 1
-        await db.user_credits.update_one(
-            {"user_id": user_id},
-            {"$set": {"balance": new_balance, "updated_at": datetime.utcnow()}}
-        )
-        
-        # Record transaction
-        await db.credit_transactions.insert_one({
-            "user_id": user_id,
-            "type": "use",
-            "amount": -1,
-            "description": f"Premium vote x{vote.multiplier} for {vote.person_name}",
-            "person_id": vote.person_id,
-            "timestamp": datetime.utcnow(),
-            "status": "completed"
-        })
-        
-        return {
-            "success": True,
-            "new_balance": new_balance,
-            "votes_applied": vote.multiplier,
-            "new_score": float(rounded)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Credit use error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@api_router.get("/credits/history/{user_id}")
-async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)):
-    """Get user's credit transaction history"""
-    transactions = await db.credit_transactions.find(
-        {"user_id": user_id}
-    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
-    
-    # Convert ObjectId to string
-    for t in transactions:
-        t["_id"] = str(t["_id"])
-    
-    return {"transactions": transactions}
+class SocialLinks(BaseModel):
+    instagram: Optional[str] = None
+    twitter: Optional[str] = None
+    facebook: Optional[str] = None
 
 class BoostMyselfRequest(BaseModel):
     user_id: str
     name: str
-    category: Optional[Category] = "other"
+    email: Optional[str] = None
+    tier: Literal["booster", "super_booster", "golden_booster"] = "booster"
+    social_links: Optional[SocialLinks] = None
+    category: Optional[str] = "other"
+
+class ExtendBoostRequest(BaseModel):
+    user_id: str
+    boost_id: str
+    tier: Literal["booster", "super_booster", "golden_booster"]
+
+@api_router.get("/booster-tiers")
+async def get_booster_tiers():
+    """Get available booster tiers and their pricing"""
+    return {
+        "tiers": [
+            {
+                "id": tid,
+                "name": t["name"],
+                "price": t["price"],
+                "duration_hours": t["duration_hours"],
+                "position": t["position"],
+                "description": t["description"],
+            }
+            for tid, t in BOOSTER_TIERS.items()
+        ]
+    }
+
+
+@api_router.get("/credits/balance/{user_id}")
+async def get_credit_balance(user_id: str):
+    """Get user's active boosts"""
+    now = now_utc()
+    active_boosts = await db.active_boosts.find({
+        "user_id": user_id,
+        "end_time": {"$gt": now},
+    }).to_list(100)
+
+    return {
+        "active_boosts": len(active_boosts),
+        "boosters": 0,
+        "super_boosters": 0,
+        "balance": 0,
+        "is_premium": len(active_boosts) > 0,
+    }
+
+
+@api_router.get("/credits/history/{user_id}")
+async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)):
+    """Get user's boost transaction history"""
+    transactions = await db.credit_transactions.find(
+        {"user_id": user_id}
+    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
+
+    for t in transactions:
+        t["_id"] = str(t["_id"])
+
+    return {"transactions": transactions}
+
 
 @api_router.post("/boost-myself")
 async def boost_myself(request: BoostMyselfRequest):
-    """Create a new personality for yourself and apply 1 booster (100 votes) - costs 1 credit"""
+    """Purchase a visibility boost and appear on the Home page as an Outsider"""
     try:
-        # Check user balance
-        user_credits = await db.user_credits.find_one({"user_id": request.user_id})
-        
-        if not user_credits or user_credits.get("balance", 0) < 1:
-            raise HTTPException(status_code=400, detail="Insufficient credits. You need at least 1 credit to boost yourself.")
-        
+        # Validate tier
+        if request.tier not in BOOSTER_TIERS:
+            raise HTTPException(status_code=400, detail="Invalid booster tier")
+
+        tier_info = BOOSTER_TIERS[request.tier]
+
         # Normalize and validate name
         name = request.name.strip().title()
         if not name or len(name) < 2:
             raise HTTPException(status_code=400, detail="Please enter a valid name (at least 2 characters)")
-        
-        # Check if person already exists
+
         slug = slugify(name)
-        existing = await db.persons.find_one({"slug": slug})
-        
-        if existing:
-            raise HTTPException(status_code=400, detail=f"{name} already exists in the database")
-        
-        # Create the new person with boosted stats (100 likes from the booster)
         now = now_utc()
-        person_doc = {
-            "name": name,
-            "slug": slug,
-            "category": request.category or "other",
-            "approved": True,
-            "created_at": now,
-            "updated_at": now,
-            "score": 100.0,  # 100% likes = 100 score
-            "likes": 100,  # Booster applies 100 likes
-            "dislikes": 0,
-            "total_votes": 100,
-            "source": "self_boosted",  # Mark as self-boosted user
-        }
-        
-        result = await db.persons.insert_one(person_doc)
-        person_id = result.inserted_id
-        
-        # Create initial tick with boosted score
-        await db.person_ticks.insert_one({
+
+        # Check if this person already exists as an outsider
+        existing = await db.persons.find_one({"slug": slug, "source": "self_boosted"})
+
+        if existing:
+            person_id = existing["_id"]
+            # Update social links if provided
+            update_fields = {"updated_at": now}
+            if request.social_links:
+                update_fields["social_links"] = {
+                    "instagram": request.social_links.instagram,
+                    "twitter": request.social_links.twitter,
+                    "facebook": request.social_links.facebook,
+                }
+            if request.email:
+                update_fields["email"] = request.email
+            await db.persons.update_one({"_id": person_id}, {"$set": update_fields})
+        else:
+            # Check if a celebrity with this name exists
+            celebrity = await db.persons.find_one({"slug": slug, "source": {"$ne": "self_boosted"}})
+            if celebrity:
+                raise HTTPException(status_code=400, detail=f"{name} is already a public personality in our database.")
+
+            # Create new outsider person
+            social = {}
+            if request.social_links:
+                social = {
+                    "instagram": request.social_links.instagram,
+                    "twitter": request.social_links.twitter,
+                    "facebook": request.social_links.facebook,
+                }
+
+            person_doc = {
+                "name": name,
+                "slug": slug,
+                "category": "other",
+                "approved": True,
+                "created_at": now,
+                "updated_at": now,
+                "score": 50.0,
+                "likes": 0,
+                "dislikes": 0,
+                "total_votes": 0,
+                "source": "self_boosted",
+                "social_links": social,
+                "email": request.email or "",
+            }
+
+            result = await db.persons.insert_one(person_doc)
+            person_id = result.inserted_id
+
+        # Check if there's already an active boost for this person
+        existing_boost = await db.active_boosts.find_one({
             "person_id": person_id,
-            "score": 100.0,
-            "created_at": now
+            "end_time": {"$gt": now},
         })
-        
-        # Deduct 1 credit from user balance
-        new_balance = user_credits["balance"] - 1
-        await db.user_credits.update_one(
-            {"user_id": request.user_id},
-            {"$set": {"balance": new_balance, "updated_at": now_utc()}}
-        )
-        
+
+        if existing_boost:
+            # Extend the existing boost from its current end_time
+            new_end = existing_boost["end_time"] + timedelta(hours=tier_info["duration_hours"])
+            # Upgrade position if new tier is golden
+            new_position = tier_info["position"]
+            if existing_boost.get("position") == "top" and new_position != "top":
+                new_position = "top"  # Keep golden position
+
+            await db.active_boosts.update_one(
+                {"_id": existing_boost["_id"]},
+                {"$set": {
+                    "end_time": new_end,
+                    "tier": request.tier,
+                    "position": new_position,
+                    "updated_at": now,
+                }}
+            )
+            end_time = new_end
+        else:
+            # Create new active boost
+            end_time = now + timedelta(hours=tier_info["duration_hours"])
+            boost_doc = {
+                "person_id": person_id,
+                "person_name": name,
+                "user_id": request.user_id,
+                "email": request.email or "",
+                "tier": request.tier,
+                "position": tier_info["position"],
+                "start_time": now,
+                "end_time": end_time,
+                "reminder_sent": False,
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.active_boosts.insert_one(boost_doc)
+
         # Record transaction
         await db.credit_transactions.insert_one({
             "user_id": request.user_id,
-            "type": "use",
-            "amount": -1,
-            "description": f"Boosted myself as '{name}' with 100 votes",
-            "person_id": str(person_id),
-            "timestamp": now_utc(),
-            "status": "completed"
+            "type": "purchase",
+            "pack": request.tier,
+            "price": tier_info["price"],
+            "person_name": name,
+            "description": f"{tier_info['name']} for '{name}' - {tier_info['description']}",
+            "timestamp": now,
+            "status": "completed",
         })
-        
+
+        # Send confirmation email if email provided
+        if request.email:
+            try:
+                duration_text = "1 hour" if tier_info["duration_hours"] == 1 else \
+                    "24 hours" if tier_info["duration_hours"] == 24 else "1 week"
+                html = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
+                    <h1 style="color: #FFD700; text-align: center;">🚀 Boost Confirmed!</h1>
+                    <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #2E6148;">
+                        <h2 style="color: #EAEAEA; margin-top: 0;">Hello {name}!</h2>
+                        <p style="color: #C9D8D2;">Your <strong style="color: #FFD700;">{tier_info['name']}</strong> is now active.</p>
+                        <ul style="color: #C9D8D2; line-height: 2;">
+                            <li>Duration: <strong>{duration_text}</strong></li>
+                            <li>Expires: <strong>{end_time.strftime('%B %d, %Y at %H:%M UTC')}</strong></li>
+                            <li>Position: <strong>{'Top of Home page' if tier_info['position'] == 'top' else 'Home page'}</strong></li>
+                        </ul>
+                    </div>
+                    <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Thank you for using Popular!</p>
+                </div>
+                """
+                await email_service.send_email(request.email, f"🚀 Your {tier_info['name']} is active!", html)
+            except Exception as email_err:
+                logger.warning(f"Failed to send confirmation email: {email_err}")
+
         return {
             "success": True,
             "person_id": str(person_id),
             "person_name": name,
-            "new_balance": new_balance,
-            "message": f"🎉 Success! You've been added to Popular as '{name}' with 100 votes!",
-            "initial_score": 100.0,
-            "votes_applied": 100
+            "tier": request.tier,
+            "tier_name": tier_info["name"],
+            "price": tier_info["price"],
+            "end_time": end_time.isoformat(),
+            "duration_hours": tier_info["duration_hours"],
+            "position": tier_info["position"],
+            "message": f"🎉 {tier_info['name']} activated! '{name}' will appear on the Home page.",
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Boost myself error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/boost-myself/extend")
+async def extend_boost(request: ExtendBoostRequest):
+    """Extend an existing boost"""
+    try:
+        if request.tier not in BOOSTER_TIERS:
+            raise HTTPException(status_code=400, detail="Invalid booster tier")
+
+        tier_info = BOOSTER_TIERS[request.tier]
+        now = now_utc()
+
+        try:
+            boost_oid = ObjectId(request.boost_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid boost ID")
+
+        boost = await db.active_boosts.find_one({"_id": boost_oid, "user_id": request.user_id})
+        if not boost:
+            raise HTTPException(status_code=404, detail="Boost not found")
+
+        # Extend from current end_time or now (whichever is later)
+        base_time = max(boost["end_time"], now)
+        new_end = base_time + timedelta(hours=tier_info["duration_hours"])
+
+        new_position = tier_info["position"]
+        if boost.get("position") == "top" or new_position == "top":
+            new_position = "top"
+
+        await db.active_boosts.update_one(
+            {"_id": boost_oid},
+            {"$set": {
+                "end_time": new_end,
+                "tier": request.tier,
+                "position": new_position,
+                "reminder_sent": False,
+                "updated_at": now,
+            }}
+        )
+
+        # Record transaction
+        await db.credit_transactions.insert_one({
+            "user_id": request.user_id,
+            "type": "purchase",
+            "pack": request.tier,
+            "price": tier_info["price"],
+            "person_name": boost["person_name"],
+            "description": f"Extended {tier_info['name']} for '{boost['person_name']}'",
+            "timestamp": now,
+            "status": "completed",
+        })
+
+        # Send renewal email
+        if boost.get("email"):
+            try:
+                duration_text = "1 hour" if tier_info["duration_hours"] == 1 else \
+                    "24 hours" if tier_info["duration_hours"] == 24 else "1 week"
+                html = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
+                    <h1 style="color: #FFD700; text-align: center;">🔄 Boost Extended!</h1>
+                    <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #2E6148;">
+                        <h2 style="color: #EAEAEA; margin-top: 0;">Hello {boost['person_name']}!</h2>
+                        <p style="color: #C9D8D2;">Your boost has been extended with a <strong style="color: #FFD700;">{tier_info['name']}</strong>.</p>
+                        <p style="color: #C9D8D2;">New expiration: <strong>{new_end.strftime('%B %d, %Y at %H:%M UTC')}</strong></p>
+                    </div>
+                </div>
+                """
+                await email_service.send_email(boost["email"], f"🔄 Your boost has been extended!", html)
+            except Exception as email_err:
+                logger.warning(f"Failed to send extension email: {email_err}")
+
+        return {
+            "success": True,
+            "new_end_time": new_end.isoformat(),
+            "tier": request.tier,
+            "message": f"Boost extended until {new_end.strftime('%B %d at %H:%M UTC')}!",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Extend boost error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

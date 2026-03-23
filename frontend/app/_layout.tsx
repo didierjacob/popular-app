@@ -60,9 +60,9 @@ export default function RootLayout() {
       <Tabs.Screen
         name="premium"
         options={{
-          title: "Premium",
+          title: "Boost",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="diamond-outline" size={size} color={color} />
+            <Ionicons name="rocket-outline" size={size} color={color} />
           ),
         }}
       />

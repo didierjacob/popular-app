@@ -11,10 +11,13 @@ import {
   RefreshControl,
   Animated,
   Easing,
+  FlatList,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle, Path, Defs, LinearGradient, Stop, Ellipse } from "react-native-svg";
+import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
+import { CreditsService, type OutsiderData } from "../services/creditsService";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -42,14 +45,6 @@ interface Person {
   total_votes: number;
 }
 
-interface Outsider {
-  id: string;
-  name: string;
-  category: string;
-  score: number;
-  total_votes: number;
-}
-
 interface Category {
   key: string;
   label: string;
@@ -63,16 +58,15 @@ const CATEGORIES: Category[] = [
   { key: "sport", label: "Sport", icon: "football" },
 ];
 
-// Small Gauge Icon for cards
+// ---- Gauge Components ----
+
 function GaugeIcon({ score, size = 32 }: { score: number; size?: number }) {
   const normalizedScore = Math.min(100, Math.max(0, score));
   const angle = -135 + (normalizedScore / 100) * 270;
   const angleRad = (angle * Math.PI) / 180;
-  
   const centerX = size / 2;
   const centerY = size / 2;
   const needleLength = size * 0.32;
-  
   const needleX = centerX + needleLength * Math.cos(angleRad);
   const needleY = centerY + needleLength * Math.sin(angleRad);
 
@@ -105,10 +99,9 @@ function GaugeIcon({ score, size = 32 }: { score: number; size?: number }) {
   );
 }
 
-// Big Oscillating Gauge for Personality of the Day
 function BigOscillatingGauge({ score, size = 100 }: { score: number; size?: number }) {
   const oscillation = useRef(new Animated.Value(0)).current;
-  
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -120,12 +113,10 @@ function BigOscillatingGauge({ score, size = 100 }: { score: number; size?: numb
 
   const normalizedScore = Math.min(100, Math.max(0, score));
   const baseAngle = -135 + (normalizedScore / 100) * 270;
-  
   const animatedAngle = oscillation.interpolate({
     inputRange: [-1, 1],
     outputRange: [baseAngle - 5, baseAngle + 5],
   });
-
   const centerX = size / 2;
   const centerY = size / 2;
   const needleLength = size * 0.35;
@@ -156,7 +147,6 @@ function BigOscillatingGauge({ score, size = 100 }: { score: number; size?: numb
         <Circle cx={centerX} cy={centerY} r={size * 0.10} fill="#4A6858" />
         <Circle cx={centerX} cy={centerY} r={size * 0.06} fill="#3A5848" />
       </Svg>
-      
       <Animated.View
         style={{
           position: 'absolute',
@@ -179,11 +169,122 @@ function BigOscillatingGauge({ score, size = 100 }: { score: number; size?: numb
   );
 }
 
+// ---- Social Links Row ----
+
+function SocialLinksRow({ links }: { links: any }) {
+  if (!links) return null;
+  const hasAny = links.instagram || links.twitter || links.facebook;
+  if (!hasAny) return null;
+
+  const openLink = (platform: string, value: string) => {
+    let url = '';
+    if (platform === 'instagram') {
+      const handle = value.replace('@', '');
+      url = `https://instagram.com/${handle}`;
+    } else if (platform === 'twitter') {
+      const handle = value.replace('@', '');
+      url = `https://x.com/${handle}`;
+    } else if (platform === 'facebook') {
+      url = value.startsWith('http') ? value : `https://facebook.com/${value}`;
+    }
+    if (url) Linking.openURL(url).catch(() => {});
+  };
+
+  return (
+    <View style={styles.socialLinksRow}>
+      {links.instagram && (
+        <TouchableOpacity onPress={() => openLink('instagram', links.instagram)} style={styles.socialLinkBtn}>
+          <Ionicons name="logo-instagram" size={16} color="#E1306C" />
+        </TouchableOpacity>
+      )}
+      {links.twitter && (
+        <TouchableOpacity onPress={() => openLink('twitter', links.twitter)} style={styles.socialLinkBtn}>
+          <Ionicons name="logo-twitter" size={16} color="#1DA1F2" />
+        </TouchableOpacity>
+      )}
+      {links.facebook && (
+        <TouchableOpacity onPress={() => openLink('facebook', links.facebook)} style={styles.socialLinkBtn}>
+          <Ionicons name="logo-facebook" size={16} color="#1877F2" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ---- Time Remaining Badge ----
+
+function TimeRemainingBadge({ hours }: { hours: number }) {
+  let label = '';
+  let color = PALETTE.green;
+
+  if (hours < 1) {
+    const mins = Math.max(1, Math.round(hours * 60));
+    label = `${mins}m left`;
+    color = PALETTE.accent2;
+  } else if (hours < 24) {
+    label = `${Math.round(hours)}h left`;
+    color = hours < 6 ? '#FFA500' : PALETTE.green;
+  } else {
+    const days = Math.round(hours / 24);
+    label = `${days}d left`;
+  }
+
+  return (
+    <View style={[styles.timeBadge, { backgroundColor: color + '20', borderColor: color }]}>
+      <Ionicons name="time" size={12} color={color} />
+      <Text style={[styles.timeBadgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+// ---- Outsider Card ----
+
+function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden: boolean }) {
+  const router = useRouter();
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.outsiderCard,
+        isGolden ? styles.goldenCard : styles.regularCard,
+        isGolden && { minWidth: 260 },
+      ]}
+      onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
+      activeOpacity={0.7}
+    >
+      <View style={styles.outsiderBadge}>
+        <Ionicons
+          name={isGolden ? "trophy" : "rocket"}
+          size={14}
+          color={isGolden ? PALETTE.gold : PALETTE.accent2}
+        />
+        <Text style={[styles.outsiderBadgeText, isGolden && { color: PALETTE.gold }]}>
+          {outsider.tier_name}
+        </Text>
+        <TimeRemainingBadge hours={outsider.hours_remaining} />
+      </View>
+
+      <Text style={[styles.outsiderName, isGolden && { color: PALETTE.gold }]}>
+        {outsider.name}
+      </Text>
+
+      <Text style={styles.outsiderMeta}>
+        {formatNumber(outsider.total_votes)} {outsider.total_votes <= 1 ? 'vote' : 'votes'}
+      </Text>
+
+      <SocialLinksRow links={outsider.social_links} />
+    </TouchableOpacity>
+  );
+}
+
+// ---- Main Component ----
+
 export default function HomeScreen() {
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
-  const [outsider, setOutsider] = useState<Outsider | null>(null);
+  const [goldenOutsiders, setGoldenOutsiders] = useState<OutsiderData[]>([]);
+  const [regularOutsiders, setRegularOutsiders] = useState<OutsiderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,36 +292,30 @@ export default function HomeScreen() {
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const loadPeople = async (silent = false) => {
+  const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       setError(null);
-      
-      const [peopleRes, outsidersRes] = await Promise.all([
+
+      const [peopleRes, outsidersData] = await Promise.all([
         fetch(API("/people?limit=10")),
-        fetch(API("/outsiders?limit=1"))
+        CreditsService.getOutsiders(),
       ]);
-      
+
       if (!peopleRes.ok) throw new Error(`HTTP ${peopleRes.status}`);
       const data = await peopleRes.json();
-      
-      // Sort people by total_votes (descending) for the Top Personalities list
+
       const sortedByVotes = [...data].sort((a: Person, b: Person) => b.total_votes - a.total_votes);
       setPeople(sortedByVotes);
-      
-      // Select personality of the day (highest score)
+
       if (data.length > 0) {
         const sorted = [...data].sort((a: Person, b: Person) => b.score - a.score);
         setPersonOfTheDay(sorted[0]);
       }
-      
-      // Load outsider
-      if (outsidersRes.ok) {
-        const outsiders = await outsidersRes.json();
-        if (outsiders.length > 0) {
-          setOutsider(outsiders[0]);
-        }
-      }
+
+      setGoldenOutsiders(outsidersData.golden || []);
+      setRegularOutsiders(outsidersData.regular || []);
+
     } catch (e: any) {
       if (!silent) setError(e.message);
     } finally {
@@ -229,14 +324,14 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    loadPeople();
-    const interval = setInterval(() => loadPeople(true), 5000);
+    loadData();
+    const interval = setInterval(() => loadData(true), 10000);
     return () => clearInterval(interval);
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadPeople(true);
+    await loadData(true);
     setRefreshing(false);
   };
 
@@ -253,8 +348,6 @@ export default function HomeScreen() {
 
   const handleSearch = async () => {
     if (!searchName.trim()) return;
-    
-    // Search for the person in the database
     try {
       const response = await fetch(API(`/search?query=${encodeURIComponent(searchName.trim())}`));
       if (response.ok) {
@@ -266,8 +359,6 @@ export default function HomeScreen() {
         }
       }
     } catch {}
-    
-    // If not found, show alert
     alert(`"${searchName}" not found. Try another name.`);
   };
 
@@ -277,11 +368,12 @@ export default function HomeScreen() {
         style={{ flex: 1 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
       >
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
             <Text style={styles.title}>Popular</Text>
           </TouchableOpacity>
-          <Text style={styles.subtitle}>Rate them. Buy credits to become popular</Text>
+          <Text style={styles.subtitle}>Rate & rank personalities</Text>
         </View>
 
         {/* Search Box */}
@@ -304,7 +396,7 @@ export default function HomeScreen() {
 
         {/* Personality of the Day */}
         {personOfTheDay && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.potdCard}
             onPress={() => router.push({ pathname: "/person", params: { id: personOfTheDay.id, name: personOfTheDay.name } })}
           >
@@ -327,32 +419,26 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Outsider Box */}
-        {outsider && (
-          <TouchableOpacity 
-            style={styles.outsiderCard}
-            onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
-          >
-            <View style={styles.outsiderBadge}>
-              <Ionicons name="rocket" size={16} color={PALETTE.accent2} />
-              <Text style={styles.outsiderBadgeText}>Outsider</Text>
+        {/* ===== GOLDEN OUTSIDERS (under Personality of the Day) ===== */}
+        {goldenOutsiders.length > 0 && (
+          <View style={styles.goldenSection}>
+            <View style={styles.goldenSectionHeader}>
+              <Ionicons name="trophy" size={18} color={PALETTE.gold} />
+              <Text style={styles.goldenSectionTitle}>Featured Outsiders</Text>
             </View>
-            <View style={styles.potdContent}>
-              <View style={styles.potdInfo}>
-                <Text style={styles.outsiderName}>{outsider.name}</Text>
-                <Text style={styles.outsiderMeta}>
-                  {capitalize(outsider.category)} • {formatNumber(outsider.total_votes)} votes
-                </Text>
-                <Text style={styles.outsiderVotes}>
-                  {formatNumber(outsider.total_votes)} {outsider.total_votes <= 1 ? 'vote' : 'votes'}
-                </Text>
-              </View>
-              <BigOscillatingGauge score={outsider.score} size={90} />
-            </View>
-          </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.goldenScrollContent}
+            >
+              {goldenOutsiders.map((outsider) => (
+                <OutsiderCard key={outsider.id} outsider={outsider} isGolden={true} />
+              ))}
+            </ScrollView>
+          </View>
         )}
 
-        {/* Categories - Compact */}
+        {/* Categories */}
         <View style={styles.categoriesContainer}>
           <Text style={styles.sectionTitle}>Categories</Text>
           <View style={styles.categoriesRow}>
@@ -372,7 +458,7 @@ export default function HomeScreen() {
         {/* Top Personalities */}
         <View style={styles.topSection}>
           <Text style={styles.sectionTitle}>Top Personalities</Text>
-          
+
           {loading && (
             <View style={styles.center}>
               <ActivityIndicator size="large" color={PALETTE.accent2} />
@@ -383,7 +469,7 @@ export default function HomeScreen() {
           {error && (
             <View style={styles.center}>
               <Text style={styles.errorText}>Error: {error}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => loadPeople()}>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
                 <Text style={styles.retryText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -410,6 +496,22 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ===== REGULAR OUTSIDERS (below Top Personalities) ===== */}
+        {regularOutsiders.length > 0 && (
+          <View style={styles.regularSection}>
+            <View style={styles.regularSectionHeader}>
+              <Ionicons name="rocket" size={18} color={PALETTE.accent2} />
+              <Text style={styles.regularSectionTitle}>Outsiders</Text>
+            </View>
+            {regularOutsiders.map((outsider) => (
+              <OutsiderCard key={outsider.id} outsider={outsider} isGolden={false} />
+            ))}
+          </View>
+        )}
+
+        {/* Bottom spacing */}
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -420,7 +522,7 @@ const styles = StyleSheet.create({
   header: { padding: 20, alignItems: "center" },
   title: { fontSize: 32, fontWeight: "bold", color: PALETTE.text },
   subtitle: { fontSize: 14, color: PALETTE.subtext, marginTop: 4 },
-  
+
   // Search Box
   searchCard: {
     backgroundColor: PALETTE.card,
@@ -451,7 +553,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   searchButtonText: { color: PALETTE.text, fontWeight: "700", fontSize: 16 },
-  
+
   // Personality of the Day
   potdCard: {
     backgroundColor: PALETTE.card,
@@ -462,40 +564,107 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: PALETTE.gold,
   },
-  potdBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 12,
-  },
+  potdBadge: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
   potdBadgeText: { color: PALETTE.gold, fontSize: 14, fontWeight: "700" },
   potdContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   potdInfo: { flex: 1 },
   potdName: { color: PALETTE.text, fontSize: 22, fontWeight: "700" },
   potdMeta: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
   potdVotes: { color: PALETTE.accent2, fontSize: 14, fontWeight: "600", marginTop: 4 },
-  
-  // Outsider Box
+
+  // ===== Golden Outsiders Section =====
+  goldenSection: { marginTop: 16 },
+  goldenSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  goldenSectionTitle: { color: PALETTE.gold, fontSize: 16, fontWeight: "700" },
+  goldenScrollContent: { paddingHorizontal: 16, gap: 12 },
+
+  // ===== Regular Outsiders Section =====
+  regularSection: { marginTop: 24, paddingHorizontal: 16 },
+  regularSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  regularSectionTitle: { color: PALETTE.accent2, fontSize: 16, fontWeight: "700" },
+
+  // ===== Outsider Card =====
   outsiderCard: {
     backgroundColor: PALETTE.card,
-    marginHorizontal: 16,
-    marginTop: 12,
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  goldenCard: {
     borderWidth: 2,
+    borderColor: PALETTE.gold,
+  },
+  regularCard: {
+    borderWidth: 1,
     borderColor: PALETTE.accent2,
   },
   outsiderBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  outsiderBadgeText: { color: PALETTE.accent2, fontSize: 14, fontWeight: "700" },
-  outsiderName: { color: PALETTE.accent2, fontSize: 20, fontWeight: "700" },
-  outsiderMeta: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
-  outsiderVotes: { color: PALETTE.accent2, fontSize: 14, fontWeight: "600", marginTop: 4 },
-  
+  outsiderBadgeText: {
+    color: PALETTE.accent2,
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
+  },
+  outsiderName: {
+    color: PALETTE.accent2,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  outsiderMeta: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  // Social Links
+  socialLinksRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  socialLinkBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: PALETTE.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+
+  // Time badge
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  timeBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+
+  // Categories & rest
   sectionTitle: { fontSize: 18, fontWeight: "700", color: PALETTE.text, marginBottom: 12, paddingHorizontal: 16 },
   categoriesContainer: { marginTop: 16 },
   categoriesRow: { flexDirection: "row", paddingHorizontal: 16, gap: 8 },
@@ -509,7 +678,7 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
   },
   categoryLabelSmall: { color: PALETTE.text, fontSize: 11, fontWeight: "600", marginTop: 4 },
-  topSection: { marginTop: 20, paddingBottom: 24 },
+  topSection: { marginTop: 20, paddingBottom: 8 },
   center: { padding: 40, alignItems: "center" },
   loadingText: { color: PALETTE.subtext, marginTop: 10 },
   errorText: { color: "#E04F5F", fontSize: 16 },
