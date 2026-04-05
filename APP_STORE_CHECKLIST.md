@@ -1,4 +1,4 @@
-# 📱 Checklist App Store & Google Play - Application "Popular"
+# 📱 Checklist App Store & Google Play - Application "Populr"
 
 **Date de vérification :** 24 Novembre 2024  
 **Version :** 1.0.0  
@@ -9,7 +9,7 @@
 ## ✅ 1. CONFIGURATION TECHNIQUE
 
 ### App.json (Configuration Expo)
-- [x] **Nom de l'app** : "Popular" ✅
+- [x] **Nom de l'app** : "Populr" ✅
 - [x] **Slug** : "popular" ✅
 - [x] **Version** : "1.0.0" ✅
 - [x] **Bundle ID iOS** : com.popular.app ✅
@@ -132,7 +132,7 @@
 - Système de signalement à considérer
 
 ### Store Listing
-- [x] Titre : "Popular" ✅
+- [x] Titre : "Populr" ✅
 - [ ] Description courte (80 caractères max) : À écrire
 - [ ] Description complète (4000 caractères max) : À écrire
 - [ ] Captures d'écran (min 2, max 8) : À créer
@@ -176,7 +176,7 @@
 2. Page person avec graphique et votes
 3. Page Premium avec packs
 4. Page "Mes votes" avec badges et stats
-5. Page Popular (instant polling)
+5. Page Populr (instant polling)
 
 ---
 
@@ -187,9 +187,9 @@
 
 ### Description Complète (Suggérée)
 
-**Popular - Le Stock Market for People**
+**Populr - Le Stock Market for People**
 
-Découvrez Popular, l'application qui transforme l'opinion publique en marché boursier des personnalités !
+Découvrez Populr, l'application qui transforme l'opinion publique en marché boursier des personnalités !
 
 **🎯 Concept unique**
 Votez pour vos personnalités préférées (politiques, célébrités, artistes, sportifs) et regardez leur "score" évoluer en temps réel comme une action en bourse.
@@ -228,7 +228,7 @@ Votez pour vos personnalités préférées (politiques, célébrités, artistes,
 • Curieux des tendances sociales
 • Analystes de l'opinion publique
 
-Téléchargez Popular et participez au premier marché boursier des personnalités !
+Téléchargez Populr et participez au premier marché boursier des personnalités !
 
 ### Mots-clés (Suggérés)
 vote, personnalité, célébrité, popularité, sondage, tendance, classement, politique, culture, opinion

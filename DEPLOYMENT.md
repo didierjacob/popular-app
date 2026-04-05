@@ -1,4 +1,4 @@
-# 🚀 Deployment Guide - Popular App
+# 🚀 Deployment Guide - Populr App
 
 ## Prerequisites
 - [x] MongoDB Atlas configured
@@ -36,7 +36,7 @@ SMTP_PORT = 587
 SMTP_USER = <YOUR_BREVO_LOGIN>
 SMTP_PASSWORD = <YOUR_BREVO_API_KEY>
 SMTP_FROM_EMAIL = <YOUR_FROM_EMAIL>
-SMTP_FROM_NAME = Popular App
+SMTP_FROM_NAME = Populr App
 REPORT_EMAIL = <YOUR_EMAIL>
 ```
 

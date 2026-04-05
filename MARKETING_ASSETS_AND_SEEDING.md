@@ -1,4 +1,4 @@
-# 📱 Popular App - Marketing Assets & Production Setup
+# 📱 Populr App - Marketing Assets & Production Setup
 
 ## 📸 Screenshots Marketing (Prêts !)
 
@@ -8,7 +8,7 @@ Les fichiers se trouvent dans `/app/screenshots/ios/` :
 - `person_zendaya.png` - Page personnalité (Zendaya) avec graphiques
 - `premium.png` - Page Boosters avec les offres
 - `popular.png` - Page "Instant polling" avec filtres
-- `list.png` - Top 100 Popular avec classement
+- `list.png` - Top 100 Populr avec classement
 
 ### Android (1080x1920)
 Les fichiers se trouvent dans `/app/screenshots/android/` :
@@ -16,7 +16,7 @@ Les fichiers se trouvent dans `/app/screenshots/android/` :
 - `person_zendaya.png` - Page personnalité
 - `premium.png` - Page Boosters
 - `popular.png` - Page Instant polling
-- `list.png` - Top 100 Popular
+- `list.png` - Top 100 Populr
 
 ### 🎨 Icône de l'app (1024x1024)
 - Fichier : `/app/frontend/assets/images/icon.png`

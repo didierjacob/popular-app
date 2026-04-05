@@ -24,7 +24,7 @@ Le système de rapport quotidien est **prêt à être configuré**. Il vous suff
 3. Descendez tout en bas jusqu'à **"Mots de passe des applications"**
 4. Cliquez dessus
 5. Sélectionnez **"Autre (nom personnalisé)"** dans le menu déroulant
-6. Tapez : **"Popular App Reports"**
+6. Tapez : **"Populr App Reports"**
 7. Cliquez sur **"Générer"**
 8. **IMPORTANT** : Copiez le mot de passe affiché (16 caractères)
    - Format : `xxxx xxxx xxxx xxxx`
@@ -45,7 +45,7 @@ SMTP_PORT="587"
 SMTP_USER="votre.email@gmail.com"              # ← Votre email Gmail
 SMTP_PASSWORD="xxxx xxxx xxxx xxxx"            # ← Votre App Password (16 caractères)
 SMTP_FROM_EMAIL="votre.email@gmail.com"        # ← Même email
-SMTP_FROM_NAME="Popular App"
+SMTP_FROM_NAME="Populr App"
 ```
 
 ### Exemple complet :
@@ -56,7 +56,7 @@ SMTP_PORT="587"
 SMTP_USER="reports.popular@gmail.com"
 SMTP_PASSWORD="abcd efgh ijkl mnop"
 SMTP_FROM_EMAIL="reports.popular@gmail.com"
-SMTP_FROM_NAME="Popular App"
+SMTP_FROM_NAME="Populr App"
 ```
 
 ---
@@ -133,7 +133,7 @@ Créer `/etc/systemd/system/popular-daily-report.service` :
 
 ```ini
 [Unit]
-Description=Popular Daily Report
+Description=Populr Daily Report
 
 [Service]
 Type=oneshot
@@ -144,7 +144,7 @@ Créer `/etc/systemd/system/popular-daily-report.timer` :
 
 ```ini
 [Unit]
-Description=Popular Daily Report Timer
+Description=Populr Daily Report Timer
 
 [Timer]
 OnCalendar=daily
