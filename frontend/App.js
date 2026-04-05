@@ -6,7 +6,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>🎉 Popular App</Text>
+        <Text style={styles.title}>🎉 Populr App</Text>
         <Text style={styles.subtitle}>Test réussi !</Text>
         <Text style={styles.info}>Si vous voyez ceci, l'app fonctionne.</Text>
       </View>

@@ -367,7 +367,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
-            <Text style={styles.title}>Popular</Text>
+            <Text style={styles.title}>Populr</Text>
           </TouchableOpacity>
           <Text style={styles.subtitle}>Rate & rank personalities</Text>
         </View>

@@ -1,5 +1,5 @@
 """
-Automated Scheduler for Popular App
+Automated Scheduler for Populr App
 Handles daily tasks like Google Trends refresh and boost expiration reminders
 """
 
@@ -93,7 +93,7 @@ async def check_expiring_boosts(db):
                             <p style="color: #C9D8D2;">Your visibility boost expires in approximately <strong style="color: #FFA500;">{remaining_mins} minutes</strong>.</p>
                             <p style="color: #C9D8D2;">Want to stay visible? Purchase a new booster in the app to extend your presence on the Home page!</p>
                         </div>
-                        <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Popular App - Rate & rank personalities</p>
+                        <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Populr App - Rate & rank personalities</p>
                     </div>
                     """
                     await _email_service.send_email(email, f"⏰ Your boost for '{person_name}' expires soon!", html)

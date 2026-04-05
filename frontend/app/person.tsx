@@ -269,7 +269,7 @@ export default function Person() {
   };
 
   // Share functions
-  const shareMessage = `Check out ${name} on Popular! Current score: ${Math.round(person?.score || 0)} with ${formatNumber(person?.total_votes || 0)} votes! 📊`;
+  const shareMessage = `Check out ${name} on Populr! Current score: ${Math.round(person?.score || 0)} with ${formatNumber(person?.total_votes || 0)} votes! 📊`;
 
   const shareToFacebook = async () => {
     const url = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;

@@ -109,7 +109,7 @@ export default function List() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       <View style={styles.header}>
-        <Text style={styles.title}>Top 100 Popular</Text>
+        <Text style={styles.title}>Top 100 Populr</Text>
       </View>
       <FlatList
         data={people}
