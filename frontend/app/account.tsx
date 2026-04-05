@@ -28,7 +28,7 @@ const PALETTE = {
   green: "#2ECC71",
 };
 
-const SUPPORT_EMAIL = "contactpopular@proton.me";
+const SUPPORT_EMAIL = "contactpopulr@proton.me";
 const ACCOUNT_KEY = "popular_account_info";
 
 interface AccountInfo {
