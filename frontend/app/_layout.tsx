@@ -33,7 +33,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="popular"
         options={{
-          title: "Populr",
+          title: "Popularoo",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trending-up-outline" size={size} color={color} />
           ),

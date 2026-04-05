@@ -84,11 +84,11 @@ npx eas build --platform all --profile production
 ### Informations de l'app
 | Champ | Valeur |
 |-------|--------|
-| **Nom** | Populr |
+| **Nom** | Popularoo |
 | **Sous-titre** | Rate & rank personalities |
 | **Catégorie** | Entertainment / Social |
 | **Prix** | Gratuit (avec achats in-app) |
-| **Contact email** | contactpopulr@proton.me |
+| **Contact email** | popularoo@proton.me |
 | **URL politique de confidentialité** | *(à créer sur votre site)* |
 
 ### Description courte (80 caractères)
@@ -98,7 +98,7 @@ Vote for your favorite personalities and see who's the most popular!
 
 ### Description longue
 ```
-Populr is the ultimate personality ranking app! Rate and rank public figures from politics, culture, sports, and business.
+Popularoo is the ultimate personality ranking app! Rate and rank public figures from politics, culture, sports, and business.
 
 🗳️ VOTE — Like or dislike personalities every 24 hours
 📊 TRACK — Follow real-time popularity scores and trends
@@ -160,7 +160,7 @@ npx eas submit --platform android --profile production
 2. **Politique de confidentialité** : Obligatoire. Créez une page simple expliquant :
    - L'app utilise un ID anonyme (pas de compte requis)
    - Les données personnelles sont optionnelles
-   - Contact : contactpopulr@proton.me
+   - Contact : popularoo@proton.me
 
 3. **Encryption** : Déjà configuré dans `app.json` (`ITSAppUsesNonExemptEncryption: false`)
 

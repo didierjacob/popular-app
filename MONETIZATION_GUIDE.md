@@ -1,4 +1,4 @@
-# 💰 Guide de Monétisation - Application "Populr"
+# 💰 Guide de Monétisation - Application "Popularoo"
 
 ## Vue d'ensemble
 
@@ -27,7 +27,7 @@ L'application utilise un système de **crédits premium** qui permet aux utilisa
 ## 📱 Guide Utilisateur
 
 ### 1. Accéder à la boutique
-1. Ouvrir l'application "Populr"
+1. Ouvrir l'application "Popularoo"
 2. Cliquer sur l'onglet **"Premium"** (icône diamant) en bas de l'écran
 3. Voir votre solde actuel de crédits
 
@@ -343,4 +343,4 @@ Pour toute question technique :
 
 **Version du document : 1.0**  
 **Date : Novembre 2024**  
-**Application : Populr - "Stock Market for People"**
+**Application : Popularoo - "Stock Market for People"**

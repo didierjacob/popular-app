@@ -16,7 +16,7 @@ class EmailService:
         self.smtp_user = os.getenv("SMTP_USER", "")
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
         self.from_email = os.getenv("SMTP_FROM_EMAIL", self.smtp_user)
-        self.from_name = os.getenv("SMTP_FROM_NAME", "Populr App")
+        self.from_name = os.getenv("SMTP_FROM_NAME", "Popularoo App")
         
     async def send_email(self, to_email: str, subject: str, html_content: str):
         """Envoie un email via SMTP"""
@@ -65,7 +65,7 @@ class EmailService:
             html_content = template.render(**stats)
             
             # Envoyer l'email
-            subject = f"📊 Rapport Quotidien Populr - {stats['date']}"
+            subject = f"📊 Rapport Quotidien Popularoo - {stats['date']}"
             await self.send_email(to_email, subject, html_content)
             
             return True

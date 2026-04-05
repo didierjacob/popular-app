@@ -28,7 +28,7 @@ const PALETTE = {
   green: "#2ECC71",
 };
 
-const SUPPORT_EMAIL = "contactpopulr@proton.me";
+const SUPPORT_EMAIL = "popularoo@proton.me";
 const ACCOUNT_KEY = "popular_account_info";
 
 interface AccountInfo {
@@ -111,9 +111,9 @@ export default function AccountScreen() {
   };
 
   const contactSupport = () => {
-    const subject = encodeURIComponent("Populr App - Support Request");
+    const subject = encodeURIComponent("Popularoo App - Support Request");
     const body = encodeURIComponent(
-      `Hello,\n\nI need help with:\n\n---\nApp: Populr v1.0.0\nName: ${accountInfo.name || "N/A"}\nEmail: ${accountInfo.email || "N/A"}\n`
+      `Hello,\n\nI need help with:\n\n---\nApp: Popularoo v1.0.0\nName: ${accountInfo.name || "N/A"}\nEmail: ${accountInfo.email || "N/A"}\n`
     );
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
   };
@@ -234,8 +234,8 @@ export default function AccountScreen() {
   if (screen === "help") {
     const FAQ = [
       {
-        q: "What is Populr?",
-        a: "Populr is an app where you can rate and rank public personalities. Discover trending figures, vote for your favorites, and see who's the most popular!",
+        q: "What is Popularoo?",
+        a: "Popularoo is an app where you can rate and rank public personalities. Discover trending figures, vote for your favorites, and see who's the most popular!",
       },
       {
         q: "How do Boosters work?",
@@ -466,9 +466,9 @@ export default function AccountScreen() {
         {/* App Info */}
         <View style={[styles.section, { marginBottom: 40 }]}>
           <View style={styles.appInfo}>
-            <Text style={styles.appVersion}>Populr v1.0.0</Text>
+            <Text style={styles.appVersion}>Popularoo v1.0.0</Text>
             <Text style={styles.appCopyright}>
-              © 2026 Populr App. All rights reserved.
+              © 2026 Popularoo App. All rights reserved.
             </Text>
           </View>
         </View>

@@ -35,7 +35,7 @@ api_router = APIRouter(prefix="/api")
 @app.on_event("startup")
 async def startup_event():
     """Initialize scheduler on application startup"""
-    logger.info("🚀 Starting Populr API...")
+    logger.info("🚀 Starting Popularoo API...")
     
     # Initialize and start the scheduler
     init_scheduler(db, trends_service, email_service)
@@ -48,7 +48,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Shutdown scheduler gracefully"""
-    logger.info("🛑 Shutting down Populr API...")
+    logger.info("🛑 Shutting down Popularoo API...")
     shutdown_scheduler()
     logger.info("✅ Scheduler shut down successfully")
 
@@ -321,7 +321,7 @@ async def on_startup():
 # -------------------- Routes --------------------
 @api_router.get("/")
 async def root():
-    return {"message": "Populr API running"}
+    return {"message": "Popularoo API running"}
 
 
 @api_router.post("/status", response_model=StatusCheck)
@@ -832,7 +832,7 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
             "srlimit": 5,
         }
         headers = {
-            "User-Agent": "PopulrApp/1.0 (https://populr.org; contact@populr.org)"
+            "User-Agent": "PopularooApp/1.0 (https://popularoo.com; contact@popularoo.com)"
         }
         
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1371,7 +1371,7 @@ async def boost_myself(request: BoostMyselfRequest):
                             <li>Position: <strong>{'Top of Home page' if tier_info['position'] == 'top' else 'Home page'}</strong></li>
                         </ul>
                     </div>
-                    <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Thank you for using Populr!</p>
+                    <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Thank you for using Popularoo!</p>
                 </div>
                 """
                 await email_service.send_email(request.email, f"🚀 Your {tier_info['name']} is active!", html)
