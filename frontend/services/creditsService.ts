@@ -124,6 +124,8 @@ export class CreditsService {
     tier: string = 'booster',
     socialLinks?: SocialLinks,
     email?: string,
+    receipt?: string,
+    platform?: string,
   ): Promise<any> {
     try {
       const userId = await getUserId();
@@ -136,6 +138,8 @@ export class CreditsService {
           tier,
           social_links: socialLinks || {},
           email: email || '',
+          receipt: receipt || '',
+          platform: platform || '',
         }),
       });
       if (!response.ok) {

@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
+import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
+import type { Product, ProductPurchase } from 'react-native-iap';
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -57,10 +59,95 @@ export default function Premium() {
   const [purchasing, setPurchasing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [storeProducts, setStoreProducts] = useState<Product[]>([]);
+  const [iapReady, setIapReady] = useState(false);
 
   useEffect(() => {
     loadHistory();
+    initIAP();
+
+    return () => {
+      iapService.removeListeners();
+    };
   }, []);
+
+  const initIAP = async () => {
+    try {
+      const connected = await iapService.init();
+      if (connected) {
+        const products = await iapService.getStoreProducts();
+        setStoreProducts(products);
+        setIapReady(true);
+        console.log('[Premium] IAP ready, products:', products.length);
+      }
+    } catch (error) {
+      console.error('[Premium] IAP init failed:', error);
+    }
+
+    // Setup purchase listeners
+    iapService.setupListeners(
+      async (purchase: ProductPurchase) => {
+        console.log('[Premium] Purchase success:', purchase.productId);
+        try {
+          // Get the tier from the product ID
+          const tierId = iapService.getTierIdForProduct(purchase.productId);
+          if (!tierId) {
+            console.error('[Premium] Unknown product:', purchase.productId);
+            return;
+          }
+
+          // Get receipt for validation
+          const receipt = Platform.OS === 'ios'
+            ? purchase.transactionReceipt
+            : purchase.purchaseToken;
+
+          // Send to backend to validate and activate boost
+          const socialLinks: any = {};
+          if (instagram.trim()) socialLinks.instagram = instagram.trim();
+          if (twitter.trim()) socialLinks.twitter = twitter.trim();
+          if (facebook.trim()) socialLinks.facebook = facebook.trim();
+
+          const result = await CreditsService.boostMyself(
+            name.trim(),
+            tierId,
+            Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
+            email.trim() || undefined,
+            receipt || undefined,
+            Platform.OS,
+          );
+
+          // Finish the transaction (consumable)
+          await iapService.finishPurchase(purchase, true);
+
+          Alert.alert(
+            '🎉 Boost Activated!',
+            `${result.message}\n\nExpires: ${new Date(result.end_time).toLocaleString()}`,
+          );
+
+          // Reset form
+          setName('');
+          setEmail('');
+          setInstagram('');
+          setTwitter('');
+          setFacebook('');
+          setSelectedTier(null);
+          await loadHistory();
+        } catch (error: any) {
+          console.error('[Premium] Post-purchase error:', error);
+          Alert.alert('Error', error.message || 'Failed to activate boost');
+        } finally {
+          setPurchasing(false);
+        }
+      },
+      (error: any) => {
+        console.error('[Premium] Purchase error:', error);
+        if (error.code !== 'E_USER_CANCELLED') {
+          Alert.alert('Purchase Failed', error.message || 'An error occurred during purchase');
+        }
+        setPurchasing(false);
+      },
+    );
+  };
 
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -88,50 +175,31 @@ export default function Premium() {
     if (!tier) return;
 
     const durationLabel = getDurationLabel(tier.duration_hours);
+    const productId = iapService.getProductIdForTier(selectedTier);
+
+    // Find the store product to show the real price
+    const storeProduct = storeProducts.find(p => p.productId === productId);
+    const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
     Alert.alert(
       'Confirm Boost',
-      `Activate ${tier.name} for €${tier.price.toFixed(2)}?\n\n` +
+      `Activate ${tier.name} for ${displayPrice}?\n\n` +
       `• "${name.trim()}" will appear on the Home page\n` +
       `• Duration: ${durationLabel}\n` +
-      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}\n\n` +
-      `(Simulation - No real payment)`,
+      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: `Buy €${tier.price.toFixed(2)}`,
+          text: `Buy ${displayPrice}`,
           onPress: async () => {
             Keyboard.dismiss();
             setPurchasing(true);
             try {
-              const socialLinks: any = {};
-              if (instagram.trim()) socialLinks.instagram = instagram.trim();
-              if (twitter.trim()) socialLinks.twitter = twitter.trim();
-              if (facebook.trim()) socialLinks.facebook = facebook.trim();
-
-              const result = await CreditsService.boostMyself(
-                name.trim(),
-                selectedTier,
-                Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
-                email.trim() || undefined,
-              );
-
-              Alert.alert(
-                '🎉 Boost Activated!',
-                `${result.message}\n\nExpires: ${new Date(result.end_time).toLocaleString()}`,
-              );
-
-              // Reset form
-              setName('');
-              setEmail('');
-              setInstagram('');
-              setTwitter('');
-              setFacebook('');
-              setSelectedTier(null);
-              await loadHistory();
+              await iapService.purchase(productId);
+              // The purchase listener in initIAP will handle the rest
             } catch (error: any) {
+              console.error('[Premium] Purchase initiation error:', error);
               Alert.alert('Error', error.message || 'Purchase failed');
-            } finally {
               setPurchasing(false);
             }
           },

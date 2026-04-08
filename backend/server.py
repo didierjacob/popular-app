@@ -1177,6 +1177,8 @@ class BoostMyselfRequest(BaseModel):
     tier: Literal["booster", "super_booster", "golden_booster"] = "booster"
     social_links: Optional[SocialLinks] = None
     category: Optional[str] = "other"
+    receipt: Optional[str] = None
+    platform: Optional[str] = None
 
 class ExtendBoostRequest(BaseModel):
     user_id: str
@@ -1352,6 +1354,8 @@ async def boost_myself(request: BoostMyselfRequest):
             "description": f"{tier_info['name']} for '{name}' - {tier_info['description']}",
             "timestamp": now,
             "status": "completed",
+            "receipt": request.receipt or "",
+            "platform": request.platform or "",
         })
 
         # Send confirmation email if email provided
