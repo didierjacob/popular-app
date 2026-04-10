@@ -1238,6 +1238,13 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
 async def boost_myself(request: BoostMyselfRequest):
     """Purchase a visibility boost and appear on the Home page as an Outsider"""
     try:
+        # Require a valid receipt from Apple/Google for payment verification
+        if not request.receipt or len(request.receipt) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment receipt required. Please complete the purchase through the App Store or Google Play."
+            )
+
         # Validate tier
         if request.tier not in BOOSTER_TIERS:
             raise HTTPException(status_code=400, detail="Invalid booster tier")

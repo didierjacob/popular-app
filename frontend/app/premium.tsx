@@ -61,6 +61,7 @@ export default function Premium() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [storeProducts, setStoreProducts] = useState<Product[]>([]);
   const [iapReady, setIapReady] = useState(false);
+  const [iapLoading, setIapLoading] = useState(true);
 
   useEffect(() => {
     loadHistory();
@@ -72,16 +73,27 @@ export default function Premium() {
   }, []);
 
   const initIAP = async () => {
+    setIapLoading(true);
     try {
       const connected = await iapService.init();
       if (connected) {
         const products = await iapService.getStoreProducts();
         setStoreProducts(products);
-        setIapReady(true);
-        console.log('[Premium] IAP ready, products:', products.length);
+        if (products.length > 0) {
+          setIapReady(true);
+          console.log('[Premium] IAP ready, products:', products.length);
+        } else {
+          console.warn('[Premium] No IAP products found in store');
+          setIapReady(false);
+        }
+      } else {
+        setIapReady(false);
       }
     } catch (error) {
       console.error('[Premium] IAP init failed:', error);
+      setIapReady(false);
+    } finally {
+      setIapLoading(false);
     }
 
     // Setup purchase listeners
@@ -89,19 +101,23 @@ export default function Premium() {
       async (purchase: ProductPurchase) => {
         console.log('[Premium] Purchase success:', purchase.productId);
         try {
-          // Get the tier from the product ID
           const tierId = iapService.getTierIdForProduct(purchase.productId);
           if (!tierId) {
             console.error('[Premium] Unknown product:', purchase.productId);
             return;
           }
 
-          // Get receipt for validation
+          // Get receipt for server-side validation
           const receipt = Platform.OS === 'ios'
             ? purchase.transactionReceipt
             : purchase.purchaseToken;
 
-          // Send to backend to validate and activate boost
+          if (!receipt) {
+            Alert.alert('Error', 'No payment receipt received. Purchase was not completed.');
+            setPurchasing(false);
+            return;
+          }
+
           const socialLinks: any = {};
           if (instagram.trim()) socialLinks.instagram = instagram.trim();
           if (twitter.trim()) socialLinks.twitter = twitter.trim();
@@ -112,11 +128,11 @@ export default function Premium() {
             tierId,
             Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
             email.trim() || undefined,
-            receipt || undefined,
+            receipt,
             Platform.OS,
           );
 
-          // Finish the transaction (consumable)
+          // Finish the transaction (consumable) — required by Apple
           await iapService.finishPurchase(purchase, true);
 
           Alert.alert(
@@ -124,7 +140,6 @@ export default function Premium() {
             `${result.message}\n\nExpires: ${new Date(result.end_time).toLocaleString()}`,
           );
 
-          // Reset form
           setName('');
           setEmail('');
           setInstagram('');
@@ -170,6 +185,10 @@ export default function Premium() {
       Alert.alert('Name required', 'Please enter your name to appear on the Home page.');
       return;
     }
+    if (!iapReady) {
+      Alert.alert('Store Unavailable', 'In-App Purchases are not available right now. Please try again later.');
+      return;
+    }
 
     const tier = BOOSTER_TIERS.find(t => t.id === selectedTier);
     if (!tier) return;
@@ -177,16 +196,17 @@ export default function Premium() {
     const durationLabel = getDurationLabel(tier.duration_hours);
     const productId = iapService.getProductIdForTier(selectedTier);
 
-    // Find the store product to show the real price
+    // Use the real store price
     const storeProduct = storeProducts.find(p => p.productId === productId);
     const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
     Alert.alert(
-      'Confirm Boost',
-      `Activate ${tier.name} for ${displayPrice}?\n\n` +
+      'Confirm Purchase',
+      `Purchase ${tier.name} for ${displayPrice}?\n\n` +
       `• "${name.trim()}" will appear on the Home page\n` +
       `• Duration: ${durationLabel}\n` +
-      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}`,
+      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}\n\n` +
+      `Payment will be processed through ${Platform.OS === 'ios' ? 'Apple' : 'Google'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -199,7 +219,9 @@ export default function Premium() {
               // The purchase listener in initIAP will handle the rest
             } catch (error: any) {
               console.error('[Premium] Purchase initiation error:', error);
-              Alert.alert('Error', error.message || 'Purchase failed');
+              if (error?.code !== 'E_USER_CANCELLED') {
+                Alert.alert('Purchase Error', error.message || 'Could not initiate purchase. Please try again.');
+              }
               setPurchasing(false);
             }
           },
@@ -224,7 +246,8 @@ export default function Premium() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+          <View style={styles.contentWrapper}>
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="rocket" size={32} color={PALETTE.gold} />
@@ -377,25 +400,44 @@ export default function Premium() {
               </View>
 
               {/* Purchase Button */}
-              <TouchableOpacity
-                style={[
-                  styles.purchaseButton,
-                  { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
-                  purchasing && { opacity: 0.6 },
-                ]}
-                onPress={handlePurchase}
-                disabled={purchasing}
-              >
-                {purchasing ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <>
-                    <Ionicons name="flash" size={20} color="#000" />
-                    <Text style={styles.purchaseButtonText}>
-                      Activate Boost - €{BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}
-                    </Text>
-                  </>
-                )}
+              {iapLoading ? (
+                <View style={styles.iapLoadingContainer}>
+                  <ActivityIndicator size="small" color={PALETTE.gold} />
+                  <Text style={styles.iapLoadingText}>Loading payment options...</Text>
+                </View>
+              ) : !iapReady ? (
+                <View style={styles.iapUnavailableContainer}>
+                  <Ionicons name="alert-circle" size={24} color={PALETTE.accent2} />
+                  <Text style={styles.iapUnavailableText}>
+                    In-App Purchases are currently unavailable. Please try again later.
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.purchaseButton,
+                    { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
+                    purchasing && { opacity: 0.6 },
+                  ]}
+                  onPress={handlePurchase}
+                  disabled={purchasing || !iapReady}
+                >
+                  {purchasing ? (
+                    <ActivityIndicator color="#000" />
+                  ) : (
+                    <>
+                      <Ionicons name="flash" size={20} color="#000" />
+                      <Text style={styles.purchaseButtonText}>
+                        Purchase — {(() => {
+                          const productId = iapService.getProductIdForTier(selectedTier);
+                          const storeProduct = storeProducts.find(p => p.productId === productId);
+                          return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
+                        })()}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
               </TouchableOpacity>
             </View>
           )}
@@ -437,6 +479,7 @@ export default function Premium() {
           )}
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -445,6 +488,14 @@ export default function Premium() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PALETTE.bg },
+  scrollContent: {
+    alignItems: 'center',
+  },
+  contentWrapper: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -603,6 +654,43 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 18,
     fontWeight: '700',
+  },
+
+  // IAP Status
+  iapLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 16,
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  iapLoadingText: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+  },
+  iapUnavailableContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.accent2,
+  },
+  iapUnavailableText: {
+    color: PALETTE.accent2,
+    fontSize: 14,
+    flex: 1,
   },
 
   // History
