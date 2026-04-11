@@ -34,7 +34,7 @@
         "backgroundColor": "#0F2F22"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": []
+      "permissions": ["com.android.vending.BILLING"]
     },
     "web": {
       "bundler": "metro",
