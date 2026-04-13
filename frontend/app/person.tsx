@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, Animated, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Easing, Share, Alert } from "react-native";
+import { ActivityIndicator, Animated, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Easing, Share, Alert, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LineChart } from "react-native-gifted-charts";
@@ -145,6 +145,8 @@ export default function Person() {
   const confettiRef = useRef<any>(null);
   const likeScaleAnim = useRef(new Animated.Value(1)).current;
   const dislikeScaleAnim = useRef(new Animated.Value(1)).current;
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setInitialLoading(true);
@@ -315,7 +317,8 @@ export default function Person() {
           <ActivityIndicator color={PALETTE.accent2} />
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}> 
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={isTablet ? { alignItems: 'center' } : {}} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}> 
+          <View style={isTablet ? { maxWidth: 600, width: '100%' } : {}}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.push('/')} style={styles.homeBtn}>
               <Ionicons name="home-outline" size={20} color={PALETTE.text} />
@@ -451,6 +454,7 @@ export default function Person() {
                 <Text style={styles.shareText}>More</Text>
               </TouchableOpacity>
             </View>
+          </View>
           </View>
         </ScrollView>
       )}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView, FlatList } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, ScrollView, FlatList, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -33,6 +33,8 @@ export default function MyVotes() {
   const [votes, setVotes] = useState<VoteHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const { badges, streakData, totalVotes, voteStats, refreshEngagementData } = useUserEngagement();
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
 
   const loadVotes = useCallback(async () => {
     try {
@@ -121,6 +123,7 @@ export default function MyVotes() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
       <View style={styles.header}>
         <Text style={styles.title}>My Votes</Text>
         {votes.length > 0 && (
@@ -264,6 +267,7 @@ export default function MyVotes() {
           </View>
         </ScrollView>
       )}
+      </View>
     </SafeAreaView>
   );
 }

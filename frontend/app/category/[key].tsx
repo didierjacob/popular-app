@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -42,6 +42,8 @@ export default function CategoryList() {
   const [items, setItems] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
 
   const title = useMemo(() => CATEGORY_LABELS[catKey] || capitalize(catKey), [catKey]);
 
@@ -84,6 +86,7 @@ export default function CategoryList() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
@@ -102,6 +105,7 @@ export default function CategoryList() {
           contentContainerStyle={{ paddingBottom: 24 }}
         />
       )}
+      </View>
     </SafeAreaView>
   );
 }

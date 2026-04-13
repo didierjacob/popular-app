@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
@@ -62,6 +63,7 @@ export default function Premium() {
   const [storeProducts, setStoreProducts] = useState<Product[]>([]);
   const [iapReady, setIapReady] = useState(false);
   const [iapLoading, setIapLoading] = useState(true);
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     loadHistory();
@@ -238,6 +240,30 @@ export default function Premium() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const handleRestorePurchases = async () => {
+    setRestoring(true);
+    try {
+      const restored = await iapService.restorePurchases();
+      if (restored.length > 0) {
+        Alert.alert(
+          'Purchases Restored',
+          `${restored.length} purchase(s) have been restored and finalized.`,
+        );
+        await loadHistory();
+      } else {
+        Alert.alert(
+          'No Purchases Found',
+          'No previous purchases were found to restore.',
+        );
+      }
+    } catch (error: any) {
+      console.error('[Premium] Restore error:', error);
+      Alert.alert('Restore Failed', error.message || 'Could not restore purchases. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
   };
 
   return (
@@ -438,7 +464,6 @@ export default function Premium() {
                   )}
                 </TouchableOpacity>
               )}
-              </TouchableOpacity>
             </View>
           )}
 
@@ -477,6 +502,35 @@ export default function Premium() {
               ))}
             </View>
           )}
+
+          <View style={{ height: 40 }} />
+
+          {/* Restore Purchases Button */}
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestorePurchases}
+            disabled={restoring}
+          >
+            {restoring ? (
+              <ActivityIndicator size="small" color={PALETTE.accent2} />
+            ) : (
+              <>
+                <Ionicons name="refresh-outline" size={18} color={PALETTE.accent2} />
+                <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Legal Links - Required by Apple */}
+          <View style={styles.legalSection}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://popularoo.com/terms')}>
+              <Text style={styles.legalLink}>Terms of Use</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSeparator}>|</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://popularoo.com/privacy')}>
+              <Text style={styles.legalLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ height: 40 }} />
           </View>
@@ -715,4 +769,37 @@ const styles = StyleSheet.create({
   transactionDesc: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
   transactionDate: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
   transactionAmount: { fontSize: 16, fontWeight: '700' },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    borderRadius: 12,
+  },
+  restoreButtonText: {
+    color: PALETTE.accent2,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  legalSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingHorizontal: 16,
+  },
+  legalLink: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+  },
 });

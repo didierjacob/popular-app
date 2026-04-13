@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList } from "react-native";
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -45,6 +45,8 @@ export default function List() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
 
   const load = useCallback(async () => {
     try {
@@ -108,18 +110,20 @@ export default function List() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Top 100 Popularoo</Text>
+      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Top 100 Popularoo</Text>
+        </View>
+        <FlatList
+          data={people}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />
+          }
+          contentContainerStyle={{ paddingBottom: 24 }}
+        />
       </View>
-      <FlatList
-        data={people}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />
-        }
-        contentContainerStyle={{ paddingBottom: 24 }}
-      />
     </SafeAreaView>
   );
 }

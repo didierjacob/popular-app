@@ -3,6 +3,7 @@ import {
   initConnection,
   endConnection,
   getProducts,
+  getAvailablePurchases,
   requestPurchase,
   finishTransaction,
   purchaseUpdatedListener,
@@ -110,6 +111,28 @@ class IAPService {
       console.log('[IAP] Connection ended');
     } catch (error) {
       console.error('[IAP] Failed to end connection:', error);
+    }
+  }
+
+  async restorePurchases(): Promise<ProductPurchase[]> {
+    if (!this.connected) {
+      await this.init();
+    }
+    try {
+      const purchases = await getAvailablePurchases();
+      console.log('[IAP] Restored purchases:', purchases.length);
+      // Finish any pending consumable transactions
+      for (const purchase of purchases) {
+        try {
+          await finishTransaction({ purchase, isConsumable: true });
+        } catch (e) {
+          console.warn('[IAP] Could not finish restored purchase:', e);
+        }
+      }
+      return purchases;
+    } catch (error) {
+      console.error('[IAP] Failed to restore purchases:', error);
+      throw error;
     }
   }
 

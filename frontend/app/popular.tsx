@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, Animated, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, FlatList } from "react-native";
+import { ActivityIndicator, Animated, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -74,6 +74,8 @@ export default function Popular() {
   const prevScoresRef = useRef<Record<string, number>>({});
   const [dirs, setDirs] = useState<Record<string, Direction>>({});
   const [filter, setFilter] = useState<FilterCat>("all");
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
 
   // persist last selected category
   const loadSavedFilter = useCallback(async () => {
@@ -144,6 +146,7 @@ export default function Popular() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={PALETTE.accent2} /></View>
       ) : (
@@ -161,6 +164,7 @@ export default function Popular() {
           />
         </>
       )}
+      </View>
     </SafeAreaView>
   );
 }

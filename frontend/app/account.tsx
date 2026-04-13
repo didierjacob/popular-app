@@ -11,6 +11,7 @@ import {
   Linking,
   ActivityIndicator,
   FlatList,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -55,6 +56,9 @@ export default function AccountScreen() {
   const [screen, setScreen] = useState<Screen>("main");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
+  const tabletWrapper = isTablet ? { flex: 1 as const, maxWidth: 600, width: '100%' as const, alignSelf: 'center' as const } : { flex: 1 as const };
 
   useEffect(() => {
     loadAccountInfo();
@@ -134,6 +138,7 @@ export default function AccountScreen() {
     const isInvoice = screen === "invoices";
     return (
       <SafeAreaView style={styles.container}>
+        <View style={tabletWrapper}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={() => setScreen("main")} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
@@ -226,6 +231,7 @@ export default function AccountScreen() {
             <View style={{ height: 40 }} />
           </ScrollView>
         )}
+        </View>
       </SafeAreaView>
     );
   }
@@ -265,6 +271,7 @@ export default function AccountScreen() {
 
     return (
       <SafeAreaView style={styles.container}>
+        <View style={tabletWrapper}>
         <View style={styles.subHeader}>
           <TouchableOpacity onPress={() => setScreen("main")} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
@@ -291,6 +298,7 @@ export default function AccountScreen() {
           </View>
           <View style={{ height: 40 }} />
         </ScrollView>
+        </View>
       </SafeAreaView>
     );
   }
@@ -298,7 +306,8 @@ export default function AccountScreen() {
   // ---- Main Account Screen ----
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={isTablet ? { alignItems: 'center' } : {}}>
+        <View style={isTablet ? { maxWidth: 600, width: '100%' } : {}}>
         <View style={styles.header}>
           <Ionicons name="person-circle-outline" size={80} color={PALETTE.accent2} />
           <Text style={styles.title}>My Account</Text>
@@ -471,6 +480,7 @@ export default function AccountScreen() {
               © 2026 Popularoo App. All rights reserved.
             </Text>
           </View>
+        </View>
         </View>
       </ScrollView>
     </SafeAreaView>
