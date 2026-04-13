@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
   RefreshControl,
   Animated,
   Easing,
@@ -358,12 +359,18 @@ export default function HomeScreen() {
     alert(`"${searchName}" not found. Try another name.`);
   };
 
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
+  const contentStyle = isTablet ? { maxWidth: 600, alignSelf: 'center' as const, width: '100%' as const } : {};
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={isTablet ? { alignItems: 'center' } : {}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
       >
+        <View style={contentStyle}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
@@ -508,6 +515,7 @@ export default function HomeScreen() {
 
         {/* Bottom spacing */}
         <View style={{ height: 24 }} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
