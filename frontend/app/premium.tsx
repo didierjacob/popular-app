@@ -292,10 +292,37 @@ export default function Premium() {
           {/* Tier Selection */}
           <Text style={styles.sectionTitle}>Choose Your Booster</Text>
 
+          {/* Payment notice */}
+          <View style={styles.paymentNotice}>
+            <Ionicons name="shield-checkmark" size={16} color={PALETTE.green} />
+            <Text style={styles.paymentNoticeText}>
+              Secure payment via {Platform.OS === 'ios' ? 'Apple' : Platform.OS === 'android' ? 'Google Play' : 'App Store'}
+            </Text>
+          </View>
+
+          {iapLoading && (
+            <View style={styles.iapLoadingContainer}>
+              <ActivityIndicator size="small" color={PALETTE.gold} />
+              <Text style={styles.iapLoadingText}>Connecting to {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}...</Text>
+            </View>
+          )}
+
+          {!iapLoading && !iapReady && (
+            <View style={styles.iapUnavailableContainer}>
+              <Ionicons name="alert-circle" size={24} color={PALETTE.accent2} />
+              <Text style={styles.iapUnavailableText}>
+                In-App Purchases are currently unavailable. Please check your connection and try again.
+              </Text>
+            </View>
+          )}
+
           {BOOSTER_TIERS.map((tier) => {
             const isSelected = selectedTier === tier.id;
             const color = TIER_COLORS[tier.id] || PALETTE.gold;
             const iconName = TIER_ICONS[tier.id] || "flash";
+            const productId = iapService.getProductIdForTier(tier.id);
+            const storeProduct = storeProducts.find((p: any) => p.productId === productId);
+            const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
             return (
               <TouchableOpacity
@@ -303,9 +330,11 @@ export default function Premium() {
                 style={[
                   styles.tierCard,
                   isSelected && { borderColor: color, borderWidth: 2 },
+                  (!iapReady && !iapLoading) && { opacity: 0.5 },
                 ]}
                 onPress={() => setSelectedTier(tier.id)}
                 activeOpacity={0.7}
+                disabled={!iapReady && !iapLoading}
               >
                 {tier.id === 'golden_booster' && (
                   <View style={[styles.bestBadge, { backgroundColor: color }]}>
@@ -326,7 +355,7 @@ export default function Premium() {
                     </View>
                   </View>
                   <View style={styles.tierPriceBox}>
-                    <Text style={styles.tierPrice}>€{tier.price.toFixed(2)}</Text>
+                    <Text style={styles.tierPrice}>{displayPrice}</Text>
                   </View>
                 </View>
 
@@ -426,44 +455,34 @@ export default function Premium() {
               </View>
 
               {/* Purchase Button */}
-              {iapLoading ? (
-                <View style={styles.iapLoadingContainer}>
-                  <ActivityIndicator size="small" color={PALETTE.gold} />
-                  <Text style={styles.iapLoadingText}>Loading payment options...</Text>
-                </View>
-              ) : !iapReady ? (
-                <View style={styles.iapUnavailableContainer}>
-                  <Ionicons name="alert-circle" size={24} color={PALETTE.accent2} />
-                  <Text style={styles.iapUnavailableText}>
-                    In-App Purchases are currently unavailable. Please try again later.
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.purchaseButton,
-                    { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
-                    purchasing && { opacity: 0.6 },
-                  ]}
-                  onPress={handlePurchase}
-                  disabled={purchasing || !iapReady}
-                >
-                  {purchasing ? (
-                    <ActivityIndicator color="#000" />
-                  ) : (
-                    <>
-                      <Ionicons name="flash" size={20} color="#000" />
-                      <Text style={styles.purchaseButtonText}>
-                        Purchase — {(() => {
-                          const productId = iapService.getProductIdForTier(selectedTier);
-                          const storeProduct = storeProducts.find(p => p.productId === productId);
-                          return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
-                        })()}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={[
+                  styles.purchaseButton,
+                  { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
+                  (purchasing || !iapReady) && { opacity: 0.6 },
+                ]}
+                onPress={handlePurchase}
+                disabled={purchasing || !iapReady}
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <>
+                    <Ionicons name="flash" size={20} color="#000" />
+                    <Text style={styles.purchaseButtonText}>
+                      {!iapReady ? 'Store unavailable' : `Purchase — ${(() => {
+                        const productId = iapService.getProductIdForTier(selectedTier);
+                        const storeProduct = storeProducts.find((p: any) => p.productId === productId);
+                        return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
+                      })()}`}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.purchaseDisclaimer}>
+                Payment will be charged to your {Platform.OS === 'ios' ? 'Apple ID' : 'Google account'} upon confirmation.
+              </Text>
             </View>
           )}
 
@@ -801,5 +820,29 @@ const styles = StyleSheet.create({
   legalSeparator: {
     color: PALETTE.subtext,
     fontSize: 13,
+  },
+  paymentNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: PALETTE.green + '15',
+    borderRadius: 8,
+  },
+  paymentNoticeText: {
+    color: PALETTE.green,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  purchaseDisclaimer: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 16,
+    lineHeight: 16,
   },
 });
