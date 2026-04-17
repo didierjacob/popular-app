@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.didierjacob.popularapp",
-      "versionCode": 1,
+      "versionCode": 10,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0F2F22"
