@@ -33,7 +33,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0F2F22"
       },
-      "edgeToEdgeEnabled": true,
       "permissions": ["com.android.vending.BILLING"]
     },
     "web": {
