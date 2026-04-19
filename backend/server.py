@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Header, Query
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -2545,6 +2547,41 @@ async def init_votes():
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# Serve Instagram images
+import zipfile
+from io import BytesIO
+from starlette.responses import StreamingResponse
+
+INSTAGRAM_DIR = os.path.join(os.path.dirname(__file__), "static", "instagram")
+
+@app.get("/api/instagram/download")
+async def download_instagram_zip():
+    """Download all Instagram images as a ZIP file"""
+    if not os.path.exists(INSTAGRAM_DIR):
+        raise HTTPException(status_code=404, detail="No Instagram images found")
+    
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for fname in sorted(os.listdir(INSTAGRAM_DIR)):
+            if fname.endswith('.png'):
+                fpath = os.path.join(INSTAGRAM_DIR, fname)
+                zf.write(fpath, fname)
+    
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=popularoo_instagram.zip"}
+    )
+
+@app.get("/api/instagram/{filename}")
+async def get_instagram_image(filename: str):
+    """Serve individual Instagram image"""
+    fpath = os.path.join(INSTAGRAM_DIR, filename)
+    if not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(fpath, media_type="image/png")
 
 app.add_middleware(
     CORSMiddleware,
