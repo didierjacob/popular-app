@@ -14,10 +14,25 @@ import {
   Keyboard,
   Linking,
 } from 'react-native';
+import * as Localization from 'expo-localization';
 import { Ionicons } from '@expo/vector-icons';
 import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
 import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import type { Product, ProductPurchase } from 'react-native-iap';
+
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+function getLegalUrl(page: 'terms' | 'privacy' | 'legal-notice'): string {
+  const locale = Localization.getLocales()?.[0]?.languageCode || 'en';
+  const isFrench = locale === 'fr';
+  const frMap: Record<string, string> = {
+    'terms': 'terms-fr',
+    'privacy': 'privacy-fr',
+    'legal-notice': 'mentions-legales',
+  };
+  const slug = isFrench ? frMap[page] : page;
+  return `${API_BASE}/api/legal/${slug}`;
+}
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -542,11 +557,11 @@ export default function Premium() {
 
           {/* Legal Links - Required by Apple */}
           <View style={styles.legalSection}>
-            <TouchableOpacity onPress={() => Linking.openURL('https://popularoo.com/terms')}>
+            <TouchableOpacity onPress={() => Linking.openURL(getLegalUrl('terms'))}>
               <Text style={styles.legalLink}>Terms of Use</Text>
             </TouchableOpacity>
             <Text style={styles.legalSeparator}>|</Text>
-            <TouchableOpacity onPress={() => Linking.openURL('https://popularoo.com/privacy')}>
+            <TouchableOpacity onPress={() => Linking.openURL(getLegalUrl('privacy'))}>
               <Text style={styles.legalLink}>Privacy Policy</Text>
             </TouchableOpacity>
           </View>

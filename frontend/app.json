@@ -33,7 +33,9 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0F2F22"
       },
-      "permissions": ["com.android.vending.BILLING"]
+      "permissions": [
+        "com.android.vending.BILLING"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -51,7 +53,8 @@
           "backgroundColor": "#0F2F22"
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

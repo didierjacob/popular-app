@@ -2589,6 +2589,7 @@ LEGAL_DIR = os.path.join(os.path.dirname(__file__), "static", "legal")
 LEGAL_PAGES = {
     "privacy": "privacy.html",
     "privacy-fr": "privacy-fr.html",
+    "terms": "terms.html",
     "terms-fr": "terms-fr.html",
     "legal-notice": "legal-notice.html",
     "mentions-legales": "mentions-legales.html",
