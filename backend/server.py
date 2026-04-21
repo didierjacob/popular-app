@@ -2583,6 +2583,28 @@ async def get_instagram_image(filename: str):
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(fpath, media_type="image/png")
 
+# ─── Legal Pages ───────────────────────────────────────────────
+LEGAL_DIR = os.path.join(os.path.dirname(__file__), "static", "legal")
+
+LEGAL_PAGES = {
+    "privacy": "privacy.html",
+    "privacy-fr": "privacy-fr.html",
+    "terms-fr": "terms-fr.html",
+    "legal-notice": "legal-notice.html",
+    "mentions-legales": "mentions-legales.html",
+}
+
+@app.get("/api/legal/{page_name}")
+async def serve_legal_page(page_name: str):
+    """Serve legal HTML pages (privacy, terms, legal notices)"""
+    filename = LEGAL_PAGES.get(page_name)
+    if not filename:
+        raise HTTPException(status_code=404, detail=f"Legal page '{page_name}' not found")
+    fpath = os.path.join(LEGAL_DIR, filename)
+    if not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="Page file not found")
+    return FileResponse(fpath, media_type="text/html")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
