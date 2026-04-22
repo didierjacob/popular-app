@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, type OutsiderData } from "../services/creditsService";
 
 const PALETTE = {
@@ -25,11 +27,36 @@ const PALETTE = {
   accent2: "#E04F5F",
   border: "#2E6148",
   gold: "#FFD700",
+  orange: "#FFA500",
 };
+
+const USER_ID_KEY = "popular_user_id";
 
 const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
+
+function formatTimeRemaining(hours: number): string {
+  if (hours <= 0) return "Expired";
+  if (hours < 1) {
+    const mins = Math.round(hours * 60);
+    return `${mins}m left`;
+  }
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+  }
+  const days = Math.floor(hours / 24);
+  const remainHours = Math.round(hours - days * 24);
+  return remainHours > 0 ? `${days}d ${remainHours}h left` : `${days}d left`;
+}
+
+function getTimeBadgeColor(hours: number): string {
+  if (hours <= 1) return PALETTE.accent2; // Red - expiring very soon
+  if (hours <= 6) return PALETTE.orange;  // Orange - expiring soon
+  return PALETTE.green;                    // Green - plenty of time
+}
 
 function SocialLinksRow({ links }: { links: any }) {
   if (!links) return null;
@@ -83,14 +110,20 @@ export default function Outsiders() {
   const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
+
+  useEffect(() => {
+    AsyncStorage.getItem(USER_ID_KEY).then((id) => {
+      if (id) setCurrentUserId(id);
+    });
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
       const data = await CreditsService.getOutsiders();
-      // Merge golden + regular, sort by total_votes descending
       const all = [...(data.golden || []), ...(data.regular || [])];
       all.sort((a, b) => b.total_votes - a.total_votes);
       setOutsiders(all);
@@ -113,6 +146,10 @@ export default function Outsiders() {
     load(true);
   }, [load]);
 
+  const handleRenew = (item: OutsiderData) => {
+    router.push("/premium");
+  };
+
   const renderHeader = () => (
     <TouchableOpacity
       style={styles.promoBanner}
@@ -124,7 +161,9 @@ export default function Outsiders() {
       </View>
       <View style={styles.promoText}>
         <Text style={styles.promoTitle}>Want to appear here?</Text>
-        <Text style={styles.promoSub}>Get a Booster and join the ranking!</Text>
+        <Text style={styles.promoSub}>
+          Get a Booster and join the ranking!
+        </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={PALETTE.gold} />
     </TouchableOpacity>
@@ -147,10 +186,12 @@ export default function Outsiders() {
       ? PALETTE.accent
       : PALETTE.subtext;
     const isGolden = item.position === "top";
+    const isOwn = item.user_id === currentUserId;
+    const timeBadgeColor = getTimeBadgeColor(item.hours_remaining);
 
     return (
       <TouchableOpacity
-        style={[styles.row, isGolden && styles.goldenRow]}
+        style={[styles.row, isGolden && styles.goldenRow, isOwn && styles.ownRow]}
         onPress={() =>
           router.push({
             pathname: "/person",
@@ -171,12 +212,38 @@ export default function Outsiders() {
             {isGolden && (
               <Ionicons name="trophy" size={14} color={PALETTE.gold} />
             )}
+            {isOwn && (
+              <View style={styles.youBadge}>
+                <Text style={styles.youBadgeText}>YOU</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
             {item.tier_name} •{" "}
             {formatNumber(item.total_votes)}{" "}
             {item.total_votes <= 1 ? "vote" : "votes"}
           </Text>
+          {/* Time remaining badge */}
+          <View style={styles.timeRow}>
+            <View style={[styles.timeBadge, { backgroundColor: timeBadgeColor + "20", borderColor: timeBadgeColor + "40" }]}>
+              <Ionicons name="time-outline" size={12} color={timeBadgeColor} />
+              <Text style={[styles.timeBadgeText, { color: timeBadgeColor }]}>
+                {formatTimeRemaining(item.hours_remaining)}
+              </Text>
+            </View>
+            {isOwn && item.hours_remaining <= 24 && (
+              <TouchableOpacity
+                style={styles.renewBtn}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleRenew(item);
+                }}
+              >
+                <Ionicons name="refresh" size={13} color="#FFF" />
+                <Text style={styles.renewBtnText}>Renew</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <SocialLinksRow links={item.social_links} />
         </View>
         <View style={styles.arrowBox}>
@@ -315,6 +382,11 @@ const styles = StyleSheet.create({
   goldenRow: {
     backgroundColor: PALETTE.gold + "08",
   },
+  ownRow: {
+    backgroundColor: PALETTE.green + "10",
+    borderLeftWidth: 3,
+    borderLeftColor: PALETTE.green,
+  },
   rank: {
     width: 40,
     height: 40,
@@ -343,6 +415,53 @@ const styles = StyleSheet.create({
     color: PALETTE.subtext,
     marginTop: 4,
     fontSize: 12,
+  },
+  // YOU badge
+  youBadge: {
+    backgroundColor: PALETTE.green,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  youBadgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  // Time remaining
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  timeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  // Renew button
+  renewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: PALETTE.accent2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  renewBtnText: {
+    color: "#FFF",
+    fontSize: 11,
+    fontWeight: "700",
   },
   arrowBox: {
     width: 40,

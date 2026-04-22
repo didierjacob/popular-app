@@ -40,6 +40,7 @@ export interface SocialLinks {
 export interface OutsiderData {
   id: string;
   boost_id: string;
+  user_id: string;
   name: string;
   category: string;
   score: number;

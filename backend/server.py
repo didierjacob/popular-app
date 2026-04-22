@@ -1097,6 +1097,7 @@ async def get_outsiders(limit: int = Query(default=20, le=50)):
             outsider_data = {
                 "id": str(person["_id"]),
                 "boost_id": str(boost["_id"]),
+                "user_id": boost.get("user_id", ""),
                 "name": person.get("name", ""),
                 "category": person.get("category", "other"),
                 "score": person.get("score", 50.0),
