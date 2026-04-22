@@ -12,7 +12,6 @@ import {
   RefreshControl,
   Animated,
   Easing,
-  FlatList,
   Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -281,13 +280,14 @@ export default function HomeScreen() {
   const [people, setPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
   const [goldenOutsiders, setGoldenOutsiders] = useState<OutsiderData[]>([]);
-  const [regularOutsiders, setRegularOutsiders] = useState<OutsiderData[]>([]);
+  const [currentOutsiderIndex, setCurrentOutsiderIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchName, setSearchName] = useState("");
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async (silent = false) => {
     try {
@@ -311,7 +311,6 @@ export default function HomeScreen() {
       }
 
       setGoldenOutsiders(outsidersData.golden || []);
-      setRegularOutsiders(outsidersData.regular || []);
 
     } catch (e: any) {
       if (!silent) setError(e.message);
@@ -322,9 +321,31 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => loadData(true), 10000);
+    const interval = setInterval(() => loadData(true), 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // Rotate outsider of the day every 10 seconds
+  useEffect(() => {
+    if (goldenOutsiders.length <= 1) return;
+    const rotateInterval = setInterval(() => {
+      // Fade out
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setCurrentOutsiderIndex(prev => (prev + 1) % goldenOutsiders.length);
+        // Fade in
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 10000);
+    return () => clearInterval(rotateInterval);
+  }, [goldenOutsiders.length]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -422,23 +443,38 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ===== GOLDEN OUTSIDERS (under Personality of the Day) ===== */}
+        {/* ===== OUTSIDER OF THE DAY (Golden Boosters only, rotates every 10s) ===== */}
         {goldenOutsiders.length > 0 && (
-          <View style={styles.goldenSection}>
-            <View style={styles.goldenSectionHeader}>
-              <Ionicons name="trophy" size={18} color={PALETTE.gold} />
-              <Text style={styles.goldenSectionTitle}>Featured Outsiders</Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.goldenScrollContent}
+          <Animated.View style={[styles.outsiderOfTheDaySection, { opacity: fadeAnim }]}>
+            <TouchableOpacity
+              style={styles.outsiderOfTheDayCard}
+              onPress={() => {
+                const outsider = goldenOutsiders[currentOutsiderIndex];
+                if (outsider) router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } });
+              }}
+              activeOpacity={0.7}
             >
-              {goldenOutsiders.map((outsider) => (
-                <OutsiderCard key={outsider.id} outsider={outsider} isGolden={true} />
-              ))}
-            </ScrollView>
-          </View>
+              <View style={styles.outsiderOfTheDayBadge}>
+                <Ionicons name="trophy" size={16} color={PALETTE.gold} />
+                <Text style={styles.outsiderOfTheDayBadgeText}>Outsider of the Day</Text>
+                {goldenOutsiders.length > 1 && (
+                  <Text style={styles.outsiderOfTheDayCounter}>
+                    {currentOutsiderIndex + 1}/{goldenOutsiders.length}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.outsiderOfTheDayName}>
+                {goldenOutsiders[currentOutsiderIndex]?.name}
+              </Text>
+              <View style={styles.outsiderOfTheDayMeta}>
+                <Text style={styles.outsiderOfTheDayVotes}>
+                  {formatNumber(goldenOutsiders[currentOutsiderIndex]?.total_votes || 0)} votes
+                </Text>
+                <TimeRemainingBadge hours={goldenOutsiders[currentOutsiderIndex]?.hours_remaining || 0} />
+              </View>
+              <SocialLinksRow links={goldenOutsiders[currentOutsiderIndex]?.social_links} />
+            </TouchableOpacity>
+          </Animated.View>
         )}
 
         {/* Categories */}
@@ -449,7 +485,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={cat.key}
                 style={styles.categoryCardSmall}
-                onPress={() => router.push({ pathname: "/category/[key]", params: { key: cat.key } })}
+                onPress={() => router.push({ pathname: "/list", params: { category: cat.key } })}
               >
                 <Ionicons name={cat.icon as any} size={20} color={PALETTE.accent2} />
                 <Text style={styles.categoryLabelSmall}>{cat.label}</Text>
@@ -499,19 +535,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* ===== REGULAR OUTSIDERS (below Top Personalities) ===== */}
-        {regularOutsiders.length > 0 && (
-          <View style={styles.regularSection}>
-            <View style={styles.regularSectionHeader}>
-              <Ionicons name="rocket" size={18} color={PALETTE.accent2} />
-              <Text style={styles.regularSectionTitle}>Outsiders</Text>
-            </View>
-            {regularOutsiders.map((outsider) => (
-              <OutsiderCard key={outsider.id} outsider={outsider} isGolden={false} />
-            ))}
-          </View>
-        )}
 
         {/* Bottom spacing */}
         <View style={{ height: 24 }} />
@@ -576,64 +599,48 @@ const styles = StyleSheet.create({
   potdMeta: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
   potdVotes: { color: PALETTE.accent2, fontSize: 14, fontWeight: "600", marginTop: 4 },
 
-  // ===== Golden Outsiders Section =====
-  goldenSection: { marginTop: 16 },
-  goldenSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  goldenSectionTitle: { color: PALETTE.gold, fontSize: 16, fontWeight: "700" },
-  goldenScrollContent: { paddingHorizontal: 16, gap: 12 },
-
-  // ===== Regular Outsiders Section =====
-  regularSection: { marginTop: 24, paddingHorizontal: 16 },
-  regularSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  regularSectionTitle: { color: PALETTE.accent2, fontSize: 16, fontWeight: "700" },
-
-  // ===== Outsider Card =====
-  outsiderCard: {
+  // ===== Outsider of the Day =====
+  outsiderOfTheDaySection: { marginTop: 16 },
+  outsiderOfTheDayCard: {
     backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-  },
-  goldenCard: {
+    padding: 16,
     borderWidth: 2,
     borderColor: PALETTE.gold,
   },
-  regularCard: {
-    borderWidth: 1,
-    borderColor: PALETTE.accent2,
-  },
-  outsiderBadge: {
+  outsiderOfTheDayBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  outsiderBadgeText: {
-    color: PALETTE.accent2,
-    fontSize: 12,
+  outsiderOfTheDayBadgeText: {
+    color: PALETTE.gold,
+    fontSize: 14,
     fontWeight: "700",
     flex: 1,
   },
-  outsiderName: {
-    color: PALETTE.accent2,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  outsiderMeta: {
+  outsiderOfTheDayCounter: {
     color: PALETTE.subtext,
-    fontSize: 13,
-    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  outsiderOfTheDayName: {
+    color: PALETTE.gold,
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  outsiderOfTheDayMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  outsiderOfTheDayVotes: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   // Social Links

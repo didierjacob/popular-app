@@ -33,10 +33,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="popular"
         options={{
-          title: "Popularoo",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trending-up-outline" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -45,6 +42,15 @@ export default function RootLayout() {
           title: "List",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="outsiders"
+        options={{
+          title: "Outsiders",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
           ),
         }}
       />

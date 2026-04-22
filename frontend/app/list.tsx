@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions } from "react-native";
-import { useRouter } from "expo-router";
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions, ScrollView } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 const PALETTE = {
@@ -40,13 +40,30 @@ interface Person {
   total_votes: number;
 }
 
+const CATEGORIES = [
+  { key: "all", label: "All" },
+  { key: "politics", label: "Politics" },
+  { key: "culture", label: "Culture" },
+  { key: "business", label: "Business" },
+  { key: "sport", label: "Sport" },
+];
+
 export default function List() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ category?: string }>();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(params.category || "all");
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
+
+  // Update selected category if params change
+  useEffect(() => {
+    if (params.category) {
+      setSelectedCategory(params.category);
+    }
+  }, [params.category]);
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +87,11 @@ export default function List() {
     setRefreshing(true);
     load();
   }, [load]);
+
+  const filteredPeople = useMemo(() => {
+    if (selectedCategory === "all") return people;
+    return people.filter(p => (p.category || "other").toLowerCase() === selectedCategory.toLowerCase());
+  }, [people, selectedCategory]);
 
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
     // Determine arrow direction based on score
@@ -100,6 +122,29 @@ export default function List() {
     );
   };
 
+  const renderFilters = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.filterRow}
+    >
+      {CATEGORIES.map((cat) => {
+        const isActive = selectedCategory === cat.key;
+        return (
+          <TouchableOpacity
+            key={cat.key}
+            style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+            onPress={() => setSelectedCategory(cat.key)}
+          >
+            <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -114,8 +159,9 @@ export default function List() {
         <View style={styles.header}>
           <Text style={styles.title}>Top 100 Popularoo</Text>
         </View>
+        {renderFilters()}
         <FlatList
-          data={people}
+          data={filteredPeople}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           refreshControl={
@@ -195,5 +241,32 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Category filters
+  filterRow: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: PALETTE.card,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  filterBtnActive: {
+    backgroundColor: PALETTE.accent2,
+    borderColor: PALETTE.accent2,
+  },
+  filterText: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  filterTextActive: {
+    color: "#FFF",
   },
 });
