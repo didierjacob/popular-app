@@ -159,11 +159,11 @@ export default function List() {
         <View style={styles.header}>
           <Text style={styles.title}>Top 100 Popularoo</Text>
         </View>
-        {renderFilters()}
         <FlatList
           data={filteredPeople}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          ListHeaderComponent={renderFilters}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />
           }
