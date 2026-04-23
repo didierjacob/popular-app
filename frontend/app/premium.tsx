@@ -337,7 +337,9 @@ export default function Premium() {
             const iconName = TIER_ICONS[tier.id] || "flash";
             const productId = iapService.getProductIdForTier(tier.id);
             const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-            const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
+            // Only show real store price, never fallback
+            const displayPrice = storeProduct?.localizedPrice || (iapLoading ? '...' : 'N/A');
+            const canSelect = iapReady || iapLoading;
 
             return (
               <TouchableOpacity
@@ -345,11 +347,11 @@ export default function Premium() {
                 style={[
                   styles.tierCard,
                   isSelected && { borderColor: color, borderWidth: 2 },
-                  (!iapReady && !iapLoading) && { opacity: 0.5 },
+                  !canSelect && { opacity: 0.4 },
                 ]}
-                onPress={() => setSelectedTier(tier.id)}
+                onPress={() => canSelect && setSelectedTier(tier.id)}
                 activeOpacity={0.7}
-                disabled={!iapReady && !iapLoading}
+                disabled={!canSelect}
               >
                 {tier.id === 'golden_booster' && (
                   <View style={[styles.bestBadge, { backgroundColor: color }]}>
@@ -474,7 +476,7 @@ export default function Premium() {
                 style={[
                   styles.purchaseButton,
                   { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
-                  (purchasing || !iapReady) && { opacity: 0.6 },
+                  (purchasing || !iapReady) && { opacity: 0.4 },
                 ]}
                 onPress={handlePurchase}
                 disabled={purchasing || !iapReady}
@@ -483,12 +485,12 @@ export default function Premium() {
                   <ActivityIndicator color="#000" />
                 ) : (
                   <>
-                    <Ionicons name="flash" size={20} color="#000" />
+                    <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#000" />
                     <Text style={styles.purchaseButtonText}>
-                      {!iapReady ? 'Store unavailable' : `Purchase — ${(() => {
+                      {!iapReady ? 'Store not available' : `Buy via ${Platform.OS === 'ios' ? 'Apple' : 'Google'} — ${(() => {
                         const productId = iapService.getProductIdForTier(selectedTier);
                         const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-                        return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
+                        return storeProduct?.localizedPrice || '...';
                       })()}`}
                     </Text>
                   </>
@@ -496,7 +498,11 @@ export default function Premium() {
               </TouchableOpacity>
 
               <Text style={styles.purchaseDisclaimer}>
-                Payment will be charged to your {Platform.OS === 'ios' ? 'Apple ID' : 'Google account'} upon confirmation.
+                {Platform.OS === 'ios'
+                  ? 'Payment will be charged to your Apple ID account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Apple.'
+                  : Platform.OS === 'android'
+                  ? 'Payment will be charged to your Google account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Google Play.'
+                  : 'Payment processed securely through the App Store or Google Play. One-time purchase, non-recurring.'}
               </Text>
             </View>
           )}
