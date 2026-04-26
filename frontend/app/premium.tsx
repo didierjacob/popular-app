@@ -203,7 +203,22 @@ export default function Premium() {
       return;
     }
     if (!iapReady) {
-      Alert.alert('Store Unavailable', 'In-App Purchases are not available right now. Please try again later.');
+      Alert.alert(
+        'Connecting to Store',
+        'We are connecting to the App Store. Please wait a moment and try again.',
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: () => {
+            // Try to reinitialize IAP
+            iapService.getProducts().then((products: any) => {
+              if (products && products.length > 0) {
+                setStoreProducts(products);
+                setIapReady(true);
+              }
+            }).catch(() => {});
+          }},
+        ]
+      );
       return;
     }
 
@@ -318,16 +333,7 @@ export default function Premium() {
           {iapLoading && (
             <View style={styles.iapLoadingContainer}>
               <ActivityIndicator size="small" color={PALETTE.gold} />
-              <Text style={styles.iapLoadingText}>Connecting to {Platform.OS === 'ios' ? 'App Store' : 'Play Store'}...</Text>
-            </View>
-          )}
-
-          {!iapLoading && !iapReady && (
-            <View style={styles.iapUnavailableContainer}>
-              <Ionicons name="alert-circle" size={24} color={PALETTE.accent2} />
-              <Text style={styles.iapUnavailableText}>
-                In-App Purchases are currently unavailable. Please check your connection and try again.
-              </Text>
+              <Text style={styles.iapLoadingText}>Loading prices...</Text>
             </View>
           )}
 
@@ -337,9 +343,8 @@ export default function Premium() {
             const iconName = TIER_ICONS[tier.id] || "flash";
             const productId = iapService.getProductIdForTier(tier.id);
             const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-            // Only show real store price, never fallback
-            const displayPrice = storeProduct?.localizedPrice || (iapLoading ? '...' : 'N/A');
-            const canSelect = iapReady || iapLoading;
+            // Always show a price - use store price if available, otherwise fallback
+            const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
             return (
               <TouchableOpacity
@@ -347,11 +352,9 @@ export default function Premium() {
                 style={[
                   styles.tierCard,
                   isSelected && { borderColor: color, borderWidth: 2 },
-                  !canSelect && { opacity: 0.4 },
                 ]}
-                onPress={() => canSelect && setSelectedTier(tier.id)}
+                onPress={() => setSelectedTier(tier.id)}
                 activeOpacity={0.7}
-                disabled={!canSelect}
               >
                 {tier.id === 'golden_booster' && (
                   <View style={[styles.bestBadge, { backgroundColor: color }]}>
@@ -476,10 +479,10 @@ export default function Premium() {
                 style={[
                   styles.purchaseButton,
                   { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
-                  (purchasing || !iapReady) && { opacity: 0.4 },
+                  purchasing && { opacity: 0.6 },
                 ]}
                 onPress={handlePurchase}
-                disabled={purchasing || !iapReady}
+                disabled={purchasing}
               >
                 {purchasing ? (
                   <ActivityIndicator color="#000" />
@@ -487,10 +490,10 @@ export default function Premium() {
                   <>
                     <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#000" />
                     <Text style={styles.purchaseButtonText}>
-                      {!iapReady ? 'Store not available' : `Buy via ${Platform.OS === 'ios' ? 'Apple' : 'Google'} — ${(() => {
+                      {`Buy via ${Platform.OS === 'ios' ? 'Apple' : 'Google'} — ${(() => {
                         const productId = iapService.getProductIdForTier(selectedTier);
                         const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-                        return storeProduct?.localizedPrice || '...';
+                        return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
                       })()}`}
                     </Text>
                   </>
