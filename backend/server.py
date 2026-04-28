@@ -2640,6 +2640,20 @@ async def serve_legal_page(page_name: str):
         raise HTTPException(status_code=404, detail="Page file not found")
     return FileResponse(fpath, media_type="text/html")
 
+
+# ─── Static Assets (screenshots, etc.) ───────────────────────────────
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "static")
+
+@app.get("/api/static/{filename}")
+async def serve_static_asset(filename: str):
+    """Serve static image/asset files"""
+    fpath = os.path.join(ASSETS_DIR, filename)
+    if not os.path.exists(fpath):
+        raise HTTPException(status_code=404, detail="File not found")
+    media_type = "image/png" if filename.endswith(".png") else "application/octet-stream"
+    return FileResponse(fpath, media_type=media_type, filename=filename)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
