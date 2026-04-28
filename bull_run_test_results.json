@@ -1,0 +1,115 @@
+{
+  "summary": {
+    "tests_passed": 14,
+    "total_tests": 15,
+    "success_rate": "93.3%",
+    "timestamp": "2026-04-28T15:30:49.595801"
+  },
+  "detailed_results": [
+    {
+      "test": "1. Existing API (/api/people)",
+      "success": true,
+      "details": "Retrieved 5 people",
+      "timestamp": "2026-04-28T15:30:48.751071",
+      "response_data": null
+    },
+    {
+      "test": "2. Raw Score Migration",
+      "success": true,
+      "details": "Person data structure includes required fields for raw_score calculation",
+      "timestamp": "2026-04-28T15:30:48.814967",
+      "response_data": null
+    },
+    {
+      "test": "3. Create Golden Booster Outsider",
+      "success": true,
+      "details": "Created outsider with person_id: 69f0d2a895f9aa55db20069f, tier: golden_booster",
+      "timestamp": "2026-04-28T15:30:48.906421",
+      "response_data": null
+    },
+    {
+      "test": "4. Bull Run Activation",
+      "success": true,
+      "details": "Bull Run created, ID: 69f0d2a895f9aa55db2006a2",
+      "timestamp": "2026-04-28T15:30:48.958623",
+      "response_data": null
+    },
+    {
+      "test": "5. Bull Run Status",
+      "success": true,
+      "details": "Active Bull Run found, rank: none, wins: 0",
+      "timestamp": "2026-04-28T15:30:49.011010",
+      "response_data": null
+    },
+    {
+      "test": "6. Bull Run Ladder",
+      "success": true,
+      "details": "Ladder retrieved: 3 targets above, 0 beaten below",
+      "timestamp": "2026-04-28T15:30:49.078334",
+      "response_data": null
+    },
+    {
+      "test": "7. Rally Cry Creation",
+      "success": true,
+      "details": "Rally Cry created, ID: 69f0d2a995f9aa55db2006a3, target: Test Celebrity 5ddd0a4f",
+      "timestamp": "2026-04-28T15:30:49.130668",
+      "response_data": null
+    },
+    {
+      "test": "8. Active Rally Cries",
+      "success": true,
+      "details": "Found 1 active Rally Cries including ours",
+      "timestamp": "2026-04-28T15:30:49.186288",
+      "response_data": null
+    },
+    {
+      "test": "9. Rally Cry Vote",
+      "success": true,
+      "details": "Vote successful: \ud83c\udf89 Vote counted for Test Bull Runner!",
+      "timestamp": "2026-04-28T15:30:49.277355",
+      "response_data": null
+    },
+    {
+      "test": "10. Rally Cry Vote Cooldown",
+      "success": true,
+      "details": "Cooldown working: \u2713 You already supported Test Bull Runner today",
+      "timestamp": "2026-04-28T15:30:49.332506",
+      "response_data": null
+    },
+    {
+      "test": "11. Notification Preferences Update",
+      "success": true,
+      "details": "Preferences updated successfully",
+      "timestamp": "2026-04-28T15:30:49.388699",
+      "response_data": null
+    },
+    {
+      "test": "12. Get Notification Preferences",
+      "success": true,
+      "details": "Preferences retrieved correctly",
+      "timestamp": "2026-04-28T15:30:49.435720",
+      "response_data": null
+    },
+    {
+      "test": "13. Bull Run Non-existent User",
+      "success": true,
+      "details": "Correctly returned active: false for non-existent user",
+      "timestamp": "2026-04-28T15:30:49.485561",
+      "response_data": null
+    },
+    {
+      "test": "14. Rally Cry Limits",
+      "success": false,
+      "details": "Could not get targets for limit test",
+      "timestamp": "2026-04-28T15:30:49.542731",
+      "response_data": null
+    },
+    {
+      "test": "15. Bull Run Without Golden Booster",
+      "success": true,
+      "details": "Correctly rejected activation without Golden Booster",
+      "timestamp": "2026-04-28T15:30:49.595670",
+      "response_data": null
+    }
+  ]
+}

@@ -16,6 +16,15 @@ scheduler = None
 _email_service = None
 
 
+async def run_bull_run_job(db):
+    """Wrapper to call the Bull Run background job"""
+    try:
+        from bull_run import bull_run_background_job
+        await bull_run_background_job(db)
+    except Exception as e:
+        logger.error(f"❌ Bull Run job wrapper error: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -49,10 +58,22 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Check Expiring Boosts',
         replace_existing=True
     )
+
+    # Bull Run background job every 5 minutes
+    # (win confirmation, Legend recalculation, new win detection)
+    scheduler.add_job(
+        run_bull_run_job,
+        IntervalTrigger(minutes=5),
+        args=[db],
+        id='bull_run_background_job',
+        name='Bull Run Win Check & Legend Recalculation',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     logger.info("Next Google Trends refresh scheduled at 3:00 AM UTC")
     logger.info("Boost expiration checker runs every 15 minutes")
+    logger.info("Bull Run job runs every 5 minutes")
     
     return scheduler
 

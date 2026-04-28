@@ -15,6 +15,7 @@ from bson import ObjectId
 import re
 from trends_service import trends_service
 from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
+from bull_run import bull_run_router, init_bull_run, bull_run_background_job
 
 
 ROOT_DIR = Path(__file__).parent
@@ -271,6 +272,7 @@ async def ensure_indexes():
     # persons
     await db.persons.create_index("slug", unique=True)
     await db.persons.create_index([("approved", 1), ("total_votes", -1), ("score", -1)])
+    await db.persons.create_index([("approved", 1), ("raw_score", -1)])  # For Bull Run ladder
     await db.persons.create_index([("name", "text")])
     # votes (one per device/person)
     await db.votes.create_index([("person_id", 1), ("device_id", 1)], unique=True)
@@ -280,6 +282,16 @@ async def ensure_indexes():
     await db.person_ticks.create_index([("person_id", 1), ("created_at", 1)])
     # searches for suggestions
     await db.searches.create_index([("created_at", 1), ("query", 1)])
+    # Bull Run indexes
+    await db.bull_runs.create_index([("user_id", 1), ("is_active", 1)])
+    await db.bull_runs.create_index([("user_id", 1), ("expires_at", -1)])
+    await db.bull_run_wins.create_index([("bull_run_id", 1), ("confirmed", 1)])
+    await db.bull_run_wins.create_index([("bull_run_id", 1), ("celebrity_id", 1)])
+    # Rally Cry indexes
+    await db.rally_cries.create_index([("user_id", 1), ("created_at", -1)])
+    await db.rally_cries.create_index([("expires_at", 1), ("target_beaten", 1)])
+    # User settings
+    await db.user_settings.create_index("user_id", unique=True)
 
 
 async def seed_people():
@@ -318,6 +330,28 @@ async def seed_people():
 async def on_startup():
     await ensure_indexes()
     await seed_people()
+    await migrate_raw_scores()
+    # Initialize Bull Run module with db reference
+    init_bull_run(db)
+
+
+async def migrate_raw_scores():
+    """Migration: Calculate raw_score for all existing persons that don't have it"""
+    count = await db.persons.count_documents({"raw_score": {"$exists": False}})
+    if count == 0:
+        return
+    
+    logger.info(f"🔄 Migrating raw_score for {count} persons...")
+    cursor = db.persons.find({"raw_score": {"$exists": False}})
+    async for person in cursor:
+        likes = person.get("likes", 0)
+        total_votes = person.get("total_votes", 0)
+        raw_score = (likes / total_votes * 100) if total_votes > 0 else 0.0
+        await db.persons.update_one(
+            {"_id": person["_id"]},
+            {"$set": {"raw_score": raw_score}}
+        )
+    logger.info(f"✅ raw_score migration complete for {count} persons")
 
 
 # -------------------- Routes --------------------
@@ -522,26 +556,23 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     new_dislikes = int(person.get("dislikes", 0)) + inc_doc.get("dislikes", 0)
     new_total_votes = int(person.get("total_votes", 0)) + inc_doc.get("total_votes", 0)
     
-    # Calculate score based on like ratio, rounded to nearest 25
+    # Calculate raw_score (precise, for Bull Run comparisons)
     if new_total_votes > 0:
-        # Calculate percentage of likes (0 to 1)
-        like_ratio = new_likes / new_total_votes
-        
-        # Convert to 0-100 scale
-        raw_score = like_ratio * 100
-        
-        # Round to nearest 25 (0, 25, 50, 75, 100)
+        raw_score = (new_likes / new_total_votes) * 100
+    else:
+        raw_score = 0.0
+    
+    # Calculate public score (rounded to nearest 25)
+    if new_total_votes > 0:
         new_score = round(raw_score / 25) * 25
-        
-        # Ensure score stays within bounds
         new_score = max(0, min(100, new_score))
     else:
-        new_score = 50  # Neutral starting score
+        new_score = 0  # No votes = 0
     
-    # Update person aggregates with calculated score
+    # Update person aggregates with both scores
     await db.persons.update_one(
         {"_id": oid},
-        {"$inc": inc_doc, "$set": {"score": new_score, "updated_at": now_utc()}}
+        {"$inc": inc_doc, "$set": {"score": new_score, "raw_score": raw_score, "updated_at": now_utc()}}
     )
     
     # Fetch updated totals for tick
@@ -2548,6 +2579,8 @@ async def init_votes():
 
 # Include the router in the main app
 app.include_router(api_router)
+# Include Bull Run / Rally Cry router
+app.include_router(bull_run_router)
 
 # Serve Instagram images
 import zipfile
