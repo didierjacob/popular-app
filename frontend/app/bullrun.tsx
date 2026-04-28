@@ -96,9 +96,9 @@ function TimerBadge({ days, hours }) {
 function RankBadge({ rank }) {
   const config = RANK_CONFIG[rank] || RANK_CONFIG.none;
   return (
-    <View style={[styles.rankBadge, { borderColor: config.color }]}>
+    <View style={styles.rankBadge}>
       <Text style={styles.rankEmoji}>{config.emoji}</Text>
-      <Text style={[styles.rankName, { color: config.color }]}>{config.name}</Text>
+      <Text style={[styles.rankName, { color: PALETTE.gold }]}>{config.name}</Text>
     </View>
   );
 }
@@ -155,10 +155,10 @@ function LadderItem({ person, index, isTarget }) {
 function UserCard({ user, rank }) {
   const config = RANK_CONFIG[rank] || RANK_CONFIG.none;
   return (
-    <View style={[styles.userCard, { borderColor: config.color }]}>
+    <View style={styles.userCard}>
       <View style={styles.userCardTop}>
         <Text style={{ fontSize: 18 }}>{config.emoji}</Text>
-        <Text style={[styles.userCardRank, { color: config.color }]}>{config.name}</Text>
+        <Text style={[styles.userCardRank, { color: PALETTE.gold }]}>{config.name}</Text>
       </View>
       <Text style={styles.userCardName} numberOfLines={1} ellipsizeMode="tail">{user.name}</Text>
       <View style={styles.userCardStats}>
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 6,
     borderWidth: 1, borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6,
-    backgroundColor: PALETTE.card,
+    backgroundColor: PALETTE.card, borderColor: PALETTE.gold,
   },
   rankEmoji: { fontSize: 16 },
   rankName: { fontSize: 13, fontWeight: "700" },
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: PALETTE.card,
     paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 10, borderWidth: 1, borderColor: PALETTE.border,
+    borderRadius: 10, borderWidth: 1, borderColor: PALETTE.gold,
   },
   timerText: { fontSize: 12, fontWeight: "600", color: PALETTE.green },
 
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1, alignItems: "center",
     backgroundColor: PALETTE.card, borderRadius: 12,
-    paddingVertical: 12, borderWidth: 1, borderColor: PALETTE.border,
+    paddingVertical: 12, borderWidth: 1, borderColor: PALETTE.gold,
   },
   statNum: { fontSize: 22, fontWeight: "700", color: PALETTE.green },
   statLabel: { fontSize: 12, color: PALETTE.subtext, marginTop: 3, fontWeight: "500" },
@@ -521,6 +521,7 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.card, borderRadius: 14,
     padding: 16, marginVertical: 10,
     borderWidth: 2, alignItems: "center",
+    borderColor: PALETTE.gold,
   },
   userCardTop: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   userCardRank: { fontSize: 13, fontWeight: "700" },
