@@ -105,6 +105,12 @@ export default function RootLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="bullrun"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
