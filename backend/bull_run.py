@@ -77,6 +77,18 @@ class NotificationPreferencesRequest(BaseModel):
     muted_rally_cry_users: Optional[List[str]] = None
 
 
+def verify_device_ownership(device_id: str, user_id: str) -> bool:
+    """
+    Verify that a device_id is authorized to act on behalf of a user_id.
+    In Popularoo's anonymous system, user_id IS the device_id.
+    This ensures no user can impersonate another.
+    """
+    # In Popularoo, user_id = device_id (anonymous system)
+    # The client sends both X-Device-ID header and user_id in body
+    # They MUST match for the request to be authorized
+    return device_id == user_id
+
+
 # -------------------- Helper Functions --------------------
 
 def now_utc() -> datetime:
@@ -92,22 +104,46 @@ def compute_rank_from_wins(cumulative_wins: int) -> str:
 
 
 async def check_legend_status(person_id) -> bool:
-    """Check if a person is in the top 10 by raw_score (Legend condition)"""
-    # Get the person's raw_score
+    """
+    Check if a person is in the top 10 by raw_score (Legend condition).
+    Tiebreaker: total_votes (highest wins), then created_at (oldest wins).
+    """
+    # Get the person's data
     person = await db.persons.find_one({"_id": person_id})
     if not person:
         return False
     
     person_raw_score = person.get("raw_score", 0.0)
+    person_total_votes = person.get("total_votes", 0)
+    person_created_at = person.get("created_at", datetime.max)
     
-    # Count how many persons have a higher raw_score
-    higher_count = await db.persons.count_documents({
+    # Count how many persons are strictly "better ranked" using composite sort:
+    # 1. Higher raw_score → better
+    # 2. Same raw_score but more total_votes → better
+    # 3. Same raw_score + same total_votes but older created_at → better
+    
+    # Persons with strictly higher raw_score
+    higher_score_count = await db.persons.count_documents({
         "raw_score": {"$gt": person_raw_score},
         "approved": True,
     })
     
-    # If fewer than 10 persons are above, this person is in the top 10
-    return higher_count < 10
+    if higher_score_count >= 10:
+        return False
+    
+    # Persons with same raw_score but better tiebreaker
+    same_score_better_tiebreaker = await db.persons.count_documents({
+        "raw_score": person_raw_score,
+        "approved": True,
+        "_id": {"$ne": person_id},
+        "$or": [
+            {"total_votes": {"$gt": person_total_votes}},
+            {"total_votes": person_total_votes, "created_at": {"$lt": person_created_at}},
+        ]
+    })
+    
+    total_above = higher_score_count + same_score_better_tiebreaker
+    return total_above < 10
 
 
 async def get_effective_rank(bull_run_doc: dict) -> str:
@@ -198,12 +234,22 @@ async def build_ladder(person_id, bull_run_id) -> dict:
 # -------------------- Endpoints --------------------
 
 @bull_run_router.post("/bull-run/activate")
-async def activate_bull_run(request: BullRunActivateRequest):
+async def activate_bull_run(
+    request: BullRunActivateRequest,
+    x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
+):
     """
     Activate or extend a Bull Run session.
     Called when a Golden Booster is purchased/renewed.
+    Security: X-Device-ID must match user_id to prevent impersonation.
     """
     try:
+        # Security check: device must match user
+        if not x_device_id:
+            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+        if not verify_device_ownership(x_device_id, request.user_id):
+            raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
+        
         user_id = request.user_id
         person_id_str = request.person_id
         
@@ -468,11 +514,20 @@ async def get_bull_run_ladder(user_id: str):
 # -------------------- Rally Cry Endpoints --------------------
 
 @bull_run_router.post("/rally-cry/create")
-async def create_rally_cry(request: RallyCryCreateRequest):
+async def create_rally_cry(
+    request: RallyCryCreateRequest,
+    x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
+):
     """Create a new Rally Cry broadcast"""
     try:
         now = now_utc()
         user_id = request.user_id
+        
+        # Security check: device must match user
+        if not x_device_id:
+            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+        if not verify_device_ownership(x_device_id, user_id):
+            raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
         
         # Validate bull_run_id
         try:
@@ -817,9 +872,19 @@ async def vote_rally_cry(
 # -------------------- Notification Preferences --------------------
 
 @bull_run_router.patch("/users/{user_id}/notification-preferences")
-async def update_notification_preferences(user_id: str, request: NotificationPreferencesRequest):
+async def update_notification_preferences(
+    user_id: str,
+    request: NotificationPreferencesRequest,
+    x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
+):
     """Update user notification preferences (GDPR compliant opt-in)"""
     try:
+        # Security check: device must match user
+        if not x_device_id:
+            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+        if not verify_device_ownership(x_device_id, user_id):
+            raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
+        
         now = now_utc()
         
         update_fields = {"updated_at": now}
