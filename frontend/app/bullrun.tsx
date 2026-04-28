@@ -437,13 +437,13 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
   headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  headerTitle: { color: PALETTE.text, fontSize: 20, fontWeight: "700" },
+  headerTitle: { color: PALETTE.text, fontSize: 24, fontWeight: "700" },
   liveBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: PALETTE.green + "15",
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10,
   },
-  liveText: { fontSize: 10, fontWeight: "700", color: PALETTE.green, letterSpacing: 0.5 },
+  liveText: { fontSize: 10, fontWeight: "700", color: PALETTE.green },
   pulsingDot: { width: 6, height: 6, borderRadius: 3 },
 
   // Scroll
@@ -487,11 +487,11 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.card, borderRadius: 12,
     paddingVertical: 12, borderWidth: 1, borderColor: PALETTE.border,
   },
-  statNum: { fontSize: 18, fontWeight: "800", color: PALETTE.green },
-  statLabel: { fontSize: 10, color: PALETTE.subtext, marginTop: 3, fontWeight: "500" },
+  statNum: { fontSize: 22, fontWeight: "700", color: PALETTE.green },
+  statLabel: { fontSize: 12, color: PALETTE.subtext, marginTop: 3, fontWeight: "500" },
 
   // Section title
-  sectionTitle: { color: PALETTE.text, fontSize: 16, fontWeight: "700", marginBottom: 12 },
+  sectionTitle: { color: PALETTE.text, fontSize: 20, fontWeight: "700", marginBottom: 12 },
 
   // Ladder rows — inspired by outsiders list rows
   ladderRow: {
@@ -510,11 +510,11 @@ const styles = StyleSheet.create({
   ladderIconTarget: { backgroundColor: PALETTE.accent + "20", borderColor: PALETTE.accent2 + "40" },
   ladderIconBeaten: { backgroundColor: PALETTE.green + "20", borderColor: PALETTE.green + "40" },
   ladderInfo: { flex: 1 },
-  ladderName: { color: PALETTE.text, fontSize: 15, fontWeight: "600" },
-  ladderGap: { fontSize: 11, fontWeight: "500", marginTop: 2 },
+  ladderName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
+  ladderGap: { fontSize: 12, fontWeight: "500", marginTop: 2 },
   ladderScoreBox: { alignItems: "center" },
-  ladderScore: { color: PALETTE.text, fontSize: 16, fontWeight: "800" },
-  ladderScoreUnit: { color: PALETTE.subtext, fontSize: 9, fontWeight: "600" },
+  ladderScore: { color: PALETTE.text, fontSize: 18, fontWeight: "700" },
+  ladderScoreUnit: { color: PALETTE.subtext, fontSize: 10, fontWeight: "500" },
 
   // User card — center of ladder
   userCard: {
@@ -523,12 +523,12 @@ const styles = StyleSheet.create({
     borderWidth: 2, alignItems: "center",
   },
   userCardTop: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  userCardRank: { fontSize: 12, fontWeight: "700" },
-  userCardName: { color: PALETTE.text, fontSize: 17, fontWeight: "800", marginBottom: 10, textAlign: "center" },
+  userCardRank: { fontSize: 13, fontWeight: "700" },
+  userCardName: { color: PALETTE.text, fontSize: 20, fontWeight: "700", marginBottom: 10, textAlign: "center" },
   userCardStats: { flexDirection: "row", alignItems: "center", gap: 20 },
   userCardStat: { alignItems: "center" },
-  userCardStatNum: { color: PALETTE.text, fontSize: 20, fontWeight: "800" },
-  userCardStatLabel: { color: PALETTE.subtext, fontSize: 10, fontWeight: "500", marginTop: 2 },
+  userCardStatNum: { color: PALETTE.text, fontSize: 24, fontWeight: "700" },
+  userCardStatLabel: { color: PALETTE.subtext, fontSize: 12, fontWeight: "500", marginTop: 2 },
   userCardDivider: { width: 1, height: 28, backgroundColor: PALETTE.border },
 
   // Rally Cry CTA — same style as accent buttons in the app
