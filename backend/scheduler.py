@@ -145,7 +145,6 @@ async def check_expiring_boosts(db):
                 continue
 
             person_name = boost.get("person_name", "Unknown")
-            tier = boost.get("tier", "booster")
             end_time = boost.get("end_time", now)
             remaining_mins = max(0, int((end_time - now).total_seconds() / 60))
 
