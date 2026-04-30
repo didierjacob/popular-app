@@ -125,18 +125,21 @@ def compute_seed_weight():
 def compute_effective_score(person):
     """
     Calculate the effective score considering seed decay.
-    effective_likes = likes - (seed_votes_likes * seed_weight)
-    effective_dislikes = dislikes - (seed_votes_dislikes * seed_weight)
+    seed_weight goes from 1.0 (before decay) to 0.0 (full decay).
+    Before decay: effective = total likes (seed votes fully counted)
+    After full decay: effective = only real votes (seed votes removed)
+    Formula: effective_likes = likes - seed_votes_likes * (1 - seed_weight)
     """
     seed_weight = compute_seed_weight()
+    decay_factor = 1.0 - seed_weight  # 0 before decay, 1 after full decay
 
     likes = person.get("likes", 0)
     dislikes = person.get("dislikes", 0)
     seed_likes = person.get("seed_votes_likes", 0)
     seed_dislikes = person.get("seed_votes_dislikes", 0)
 
-    effective_likes = max(0, likes - (seed_likes * seed_weight))
-    effective_dislikes = max(0, dislikes - (seed_dislikes * seed_weight))
+    effective_likes = max(0, likes - int(seed_likes * decay_factor))
+    effective_dislikes = max(0, dislikes - int(seed_dislikes * decay_factor))
     effective_total = effective_likes + effective_dislikes
 
     if effective_total > 0:
@@ -147,7 +150,7 @@ def compute_effective_score(person):
     score = round(raw_score / 25) * 25
     score = max(0, min(100, score))
 
-    return raw_score, score
+    return raw_score, score, effective_likes, effective_dislikes, effective_total
 
 
 # -------------------- Pydantic Models --------------------
@@ -461,15 +464,17 @@ async def get_status_checks():
 
 
 def person_to_out(doc: Dict[str, Any]) -> PersonOut:
+    # Apply seed decay for displayed score
+    _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
     return PersonOut(
         id=str(doc["_id"]),
         name=doc.get("name"),
         category=doc.get("category", "other"),
         approved=bool(doc.get("approved", True)),
-        score=float(doc.get("score", 100.0)),
-        likes=int(doc.get("likes", 0)),
-        dislikes=int(doc.get("dislikes", 0)),
-        total_votes=int(doc.get("total_votes", 0)),
+        score=float(eff_score),
+        likes=int(eff_likes),
+        dislikes=int(eff_dislikes),
+        total_votes=int(eff_total),
         last_updated=doc.get("updated_at"),
         source=doc.get("source", "seed"),
     )
@@ -593,12 +598,13 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         if time_since_last_vote < timedelta(hours=24):
             # Less than 24h - cannot vote again
             next_vote_time = (last_vote_time + timedelta(hours=24)).isoformat() + "Z" if last_vote_time else None
+            _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(person)
             return VoteOut(
                 id=str(person["_id"]),
-                score=float(person.get("score", 100.0)),
-                likes=int(person.get("likes", 0)),
-                dislikes=int(person.get("dislikes", 0)),
-                total_votes=int(person.get("total_votes", 0)),
+                score=float(eff_score),
+                likes=int(eff_likes),
+                dislikes=int(eff_dislikes),
+                total_votes=int(eff_total),
                 voted_value=old_val,
                 already_voted=True,
                 next_vote_time=next_vote_time,
@@ -669,14 +675,15 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     })
     await write_vote_event(oid, x_device_id, int(delta))
 
-    # fetch updated person
+    # fetch updated person and apply seed decay
     updated = await db.persons.find_one({"_id": oid})
+    _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(updated)
     return VoteOut(
         id=str(updated["_id"]),
-        score=float(updated.get("score", 100.0)),
-        likes=int(updated.get("likes", 0)),
-        dislikes=int(updated.get("dislikes", 0)),
-        total_votes=int(updated.get("total_votes", 0)),
+        score=float(eff_score),
+        likes=int(eff_likes),
+        dislikes=int(eff_dislikes),
+        total_votes=int(eff_total),
         voted_value=new_val,
     )
 
@@ -1080,19 +1087,20 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
                     
                     logger.info(f"Added new personality from Wikipedia: {wiki_person['name']}")
         
-        return [
-            {
+        out = []
+        for doc in results:
+            _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
+            out.append({
                 "id": str(doc["_id"]),
                 "name": doc.get("name"),
                 "category": doc.get("category", "other"),
-                "score": doc.get("score", 50.0),
-                "total_votes": doc.get("total_votes", 0),
-                "likes": doc.get("likes", 0),
-                "dislikes": doc.get("dislikes", 0),
+                "score": eff_score,
+                "total_votes": eff_total,
+                "likes": eff_likes,
+                "dislikes": eff_dislikes,
                 "source": doc.get("source", "unknown"),
-            }
-            for doc in results
-        ]
+            })
+        return out
     except Exception as e:
         logger.error(f"Search error: {e}")
         return []
