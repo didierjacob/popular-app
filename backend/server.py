@@ -99,6 +99,57 @@ def parse_window(window: str) -> timedelta:
         raise ValueError(f"Unsupported time unit: {unit}")
 
 
+# -------------------- Seed Decay Configuration --------------------
+# The decay starts 90 days after this date (configurable)
+import os as _os
+DECAY_START_DATE_STR = _os.environ.get("DECAY_START_DATE", "2026-07-28")  # ~90 days from now
+try:
+    DECAY_START_DATE = datetime.strptime(DECAY_START_DATE_STR, "%Y-%m-%d")
+except ValueError:
+    DECAY_START_DATE = datetime(2026, 7, 28)
+
+
+def compute_seed_weight():
+    """
+    Progressive seed decay: seed_weight goes from 1.0 to 0.0 over ~20 weeks.
+    Before DECAY_START_DATE: seed_weight = 1.0 (no decay)
+    After: loses 5% per week until 0.
+    """
+    now = now_utc()
+    if now < DECAY_START_DATE:
+        return 1.0
+    weeks_since = max(0, (now - DECAY_START_DATE).days // 7)
+    return max(0.0, 1.0 - 0.05 * weeks_since)
+
+
+def compute_effective_score(person):
+    """
+    Calculate the effective score considering seed decay.
+    effective_likes = likes - (seed_votes_likes * seed_weight)
+    effective_dislikes = dislikes - (seed_votes_dislikes * seed_weight)
+    """
+    seed_weight = compute_seed_weight()
+
+    likes = person.get("likes", 0)
+    dislikes = person.get("dislikes", 0)
+    seed_likes = person.get("seed_votes_likes", 0)
+    seed_dislikes = person.get("seed_votes_dislikes", 0)
+
+    effective_likes = max(0, likes - (seed_likes * seed_weight))
+    effective_dislikes = max(0, dislikes - (seed_dislikes * seed_weight))
+    effective_total = effective_likes + effective_dislikes
+
+    if effective_total > 0:
+        raw_score = (effective_likes / effective_total) * 100
+    else:
+        raw_score = 0.0
+
+    score = round(raw_score / 25) * 25
+    score = max(0, min(100, score))
+
+    return raw_score, score
+
+
 # -------------------- Pydantic Models --------------------
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -331,6 +382,7 @@ async def on_startup():
     await ensure_indexes()
     await seed_people()
     await migrate_raw_scores()
+    await migrate_seed_votes()
     # Initialize Bull Run module with db reference
     init_bull_run(db)
 
@@ -352,6 +404,36 @@ async def migrate_raw_scores():
             {"$set": {"raw_score": raw_score}}
         )
     logger.info(f"✅ raw_score migration complete for {count} persons")
+
+
+async def migrate_seed_votes():
+    """
+    Migration: For seeded persons (source=seed) that don't have seed_votes_likes,
+    snapshot their current likes/dislikes as seed votes.
+    For non-seeded persons, set seed_votes to 0.
+    """
+    count = await db.persons.count_documents({"seed_votes_likes": {"$exists": False}})
+    if count == 0:
+        return
+
+    logger.info(f"🌱 Migrating seed_votes for {count} persons...")
+    cursor = db.persons.find({"seed_votes_likes": {"$exists": False}})
+    async for person in cursor:
+        source = person.get("source", "seed")
+        if source == "seed" and person.get("total_votes", 0) > 100:
+            # This person was seeded with initial votes — snapshot them
+            seed_likes = person.get("likes", 0)
+            seed_dislikes = person.get("dislikes", 0)
+        else:
+            # Not seeded (outsiders, user_added, wikipedia, trending) = 0 seed
+            seed_likes = 0
+            seed_dislikes = 0
+
+        await db.persons.update_one(
+            {"_id": person["_id"]},
+            {"$set": {"seed_votes_likes": seed_likes, "seed_votes_dislikes": seed_dislikes}}
+        )
+    logger.info(f"✅ seed_votes migration complete for {count} persons")
 
 
 # -------------------- Routes --------------------

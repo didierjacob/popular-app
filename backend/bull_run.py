@@ -1,29 +1,26 @@
 """
-Bull Run & Rally Cry Module for Popularoo
-==========================================
+Bull Run & Rally Cry Module for Popularoo — Momentum Edition
+=============================================================
 Premium features exclusive to Golden Booster users.
-- Bull Run: 7-day competitive game mode (climb the celebrity ladder)
+- Bull Run: 7-day momentum-based competitive game (net votes gained)
 - Rally Cry: Social broadcast to get community votes
+- Victory = user_momentum_net > 0 AND > celebrity_momentum_net for 30 min
 """
 
 from fastapi import APIRouter, HTTPException, Header, Query
-from pydantic import BaseModel, Field
-from typing import List, Optional, Literal, Dict, Any
+from pydantic import BaseModel
+from typing import List, Optional, Literal
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Router with /api prefix
 bull_run_router = APIRouter(prefix="/api")
-
-# Will be set by server.py on startup
 db = None
 
 
 def init_bull_run(database):
-    """Initialize the module with the database reference"""
     global db
     db = database
 
@@ -56,7 +53,7 @@ WIN_CONFIRMATION_MINUTES = 30
 
 class BullRunActivateRequest(BaseModel):
     user_id: str
-    person_id: str  # The outsider's person_id
+    person_id: str
 
 
 class RallyCryCreateRequest(BaseModel):
@@ -68,7 +65,7 @@ class RallyCryCreateRequest(BaseModel):
 
 
 class RallyCryVoteRequest(BaseModel):
-    value: Literal[1] = 1  # Rally Cry votes are always positive (likes)
+    value: Literal[1] = 1
 
 
 class NotificationPreferencesRequest(BaseModel):
@@ -77,157 +74,185 @@ class NotificationPreferencesRequest(BaseModel):
     muted_rally_cry_users: Optional[List[str]] = None
 
 
-def verify_device_ownership(device_id: str, user_id: str) -> bool:
-    """
-    Verify that a device_id is authorized to act on behalf of a user_id.
-    In Popularoo's anonymous system, user_id IS the device_id.
-    This ensures no user can impersonate another.
-    """
-    # In Popularoo, user_id = device_id (anonymous system)
-    # The client sends both X-Device-ID header and user_id in body
-    # They MUST match for the request to be authorized
+def verify_device_ownership(device_id, user_id):
     return device_id == user_id
 
 
-# -------------------- Helper Functions --------------------
+# -------------------- Helpers --------------------
 
-def now_utc() -> datetime:
+def now_utc():
     return datetime.utcnow()
 
 
-def compute_rank_from_wins(cumulative_wins: int) -> str:
-    """Compute rank based on cumulative wins (excluding Legend which is dynamic)"""
+def compute_rank_from_wins(cumulative_wins):
     for threshold, rank_id, _ in RANK_THRESHOLDS:
         if cumulative_wins >= threshold:
             return rank_id
     return "none"
 
 
-async def check_legend_status(person_id) -> bool:
+def get_next_rank_info(cumulative_wins):
+    for threshold, rank_id, display_name in reversed(RANK_THRESHOLDS):
+        if cumulative_wins < threshold:
+            return {
+                "rank": rank_id,
+                "display": display_name,
+                "wins_needed": threshold - cumulative_wins,
+                "threshold": threshold,
+            }
+    return {
+        "rank": "legend",
+        "display": "🌟 Legend",
+        "wins_needed": None,
+        "condition": "Reach top 10 weekly momentum",
+    }
+
+
+def calc_momentum(person_now, snapshot_at_t0):
     """
-    Check if a person is in the top 10 by raw_score (Legend condition).
-    Tiebreaker: total_votes (highest wins), then created_at (oldest wins).
+    Calculate momentum_net for a person.
+    momentum_net = (likes_now - likes_at_t0) - (dislikes_now - dislikes_at_t0)
     """
-    # Get the person's data
-    person = await db.persons.find_one({"_id": person_id})
+    likes_now = person_now.get("likes", 0)
+    dislikes_now = person_now.get("dislikes", 0)
+    likes_t0 = snapshot_at_t0.get("likes", 0)
+    dislikes_t0 = snapshot_at_t0.get("dislikes", 0)
+
+    momentum_likes = likes_now - likes_t0
+    momentum_dislikes = dislikes_now - dislikes_t0
+    momentum_net = momentum_likes - momentum_dislikes
+
+    return {
+        "momentum_likes": momentum_likes,
+        "momentum_dislikes": momentum_dislikes,
+        "momentum_net": momentum_net,
+    }
+
+
+async def take_full_snapshot():
+    """Snapshot likes/dislikes for ALL approved persons at activation time."""
+    snapshot = {}
+    cursor = db.persons.find({"approved": True}, {"likes": 1, "dislikes": 1})
+    async for p in cursor:
+        snapshot[str(p["_id"])] = {
+            "likes": p.get("likes", 0),
+            "dislikes": p.get("dislikes", 0),
+        }
+    return snapshot
+
+
+async def get_person_momentum(person_id_str, snapshot_at_t0):
+    """Get the momentum for a specific person using the Bull Run snapshot."""
+    person = await db.persons.find_one({"_id": ObjectId(person_id_str)})
     if not person:
-        return False
-    
-    person_raw_score = person.get("raw_score", 0.0)
-    person_total_votes = person.get("total_votes", 0)
-    person_created_at = person.get("created_at", datetime.max)
-    
-    # Count how many persons are strictly "better ranked" using composite sort:
-    # 1. Higher raw_score → better
-    # 2. Same raw_score but more total_votes → better
-    # 3. Same raw_score + same total_votes but older created_at → better
-    
-    # Persons with strictly higher raw_score
-    higher_score_count = await db.persons.count_documents({
-        "raw_score": {"$gt": person_raw_score},
-        "approved": True,
-    })
-    
-    if higher_score_count >= 10:
-        return False
-    
-    # Persons with same raw_score but better tiebreaker
-    same_score_better_tiebreaker = await db.persons.count_documents({
-        "raw_score": person_raw_score,
-        "approved": True,
-        "_id": {"$ne": person_id},
-        "$or": [
-            {"total_votes": {"$gt": person_total_votes}},
-            {"total_votes": person_total_votes, "created_at": {"$lt": person_created_at}},
-        ]
-    })
-    
-    total_above = higher_score_count + same_score_better_tiebreaker
-    return total_above < 10
+        return None, None
+
+    t0 = snapshot_at_t0.get(person_id_str, {"likes": 0, "dislikes": 0})
+    mom = calc_momentum(person, t0)
+    return person, mom
 
 
-async def get_effective_rank(bull_run_doc: dict) -> str:
-    """Get the effective rank considering both wins-based and Legend status"""
-    person_id = bull_run_doc.get("person_id")
-    
-    # Check Legend first (overrides everything)
-    if person_id:
-        is_legend = await check_legend_status(person_id)
-        if is_legend:
-            return "legend"
-    
-    # Fall back to wins-based rank
-    cumulative_wins = bull_run_doc.get("cumulative_wins", 0)
-    return compute_rank_from_wins(cumulative_wins)
-
-
-async def build_ladder(person_id, bull_run_id) -> dict:
+async def check_legend_status_momentum(person_id_str, bull_run_started_at):
     """
-    Build the Bull Run ladder:
-    - 3 closest celebrities ABOVE the user (targets)
-    - 3 most recently beaten BELOW (confirmed wins)
+    Check if a person is in the top 10 by weekly momentum_net.
+    Uses a 7-day rolling window from now.
     """
-    person = await db.persons.find_one({"_id": person_id})
-    if not person:
+    now = now_utc()
+    window_start = now - timedelta(days=7)
+
+    # We need a "global" snapshot for the 7-day window.
+    # For simplicity, we approximate: get all vote_events in the last 7 days
+    # and sum the delta per person.
+    pipeline = [
+        {"$match": {"created_at": {"$gte": window_start}}},
+        {"$group": {
+            "_id": "$person_id",
+            "net_delta": {"$sum": "$delta"},
+        }},
+        {"$sort": {"net_delta": -1}},
+        {"$limit": 10},
+    ]
+
+    top_10_ids = []
+    async for doc in db.vote_events.aggregate(pipeline):
+        if doc["net_delta"] > 0:
+            top_10_ids.append(str(doc["_id"]))
+
+    return person_id_str in [str(pid) for pid in top_10_ids]
+
+
+async def build_ladder(person_id_str, bull_run):
+    """
+    Build the momentum-based ladder:
+    - 3 closest persons ABOVE by momentum_net (targets)
+    - 3 most recently out-rallied BELOW (confirmed wins)
+    """
+    snapshot = bull_run.get("snapshot_at_t0", {})
+
+    # User momentum
+    user_person, user_mom = await get_person_momentum(person_id_str, snapshot)
+    if not user_person:
         return {"above": [], "below": [], "user": None}
-    
-    user_raw_score = person.get("raw_score", 0.0)
-    
-    # Get 3 closest celebrities ABOVE (targets)
-    # Must be non-outsider persons with raw_score > user's raw_score
-    above_cursor = db.persons.find({
-        "raw_score": {"$gt": user_raw_score},
-        "source": {"$ne": "self_boosted"},
-        "approved": True,
-    }).sort("raw_score", 1).limit(3)  # Sort ascending to get closest first
-    
-    above_docs = await above_cursor.to_list(length=3)
-    
-    above = []
-    for doc in above_docs:
-        above.append({
-            "id": str(doc["_id"]),
-            "name": doc.get("name", ""),
-            "category": doc.get("category", "other"),
-            "raw_score": doc.get("raw_score", 0.0),
-            "score": doc.get("score", 0),
-            "total_votes": doc.get("total_votes", 0),
-            "gap": round(doc.get("raw_score", 0.0) - user_raw_score, 2),
-            "status": "target",
+
+    user_momentum_net = user_mom["momentum_net"]
+
+    # Get ALL approved non-outsider persons' momentum
+    candidates = []
+    cursor = db.persons.find({"source": {"$ne": "self_boosted"}, "approved": True})
+    async for p in cursor:
+        pid = str(p["_id"])
+        t0 = snapshot.get(pid, {"likes": 0, "dislikes": 0})
+        mom = calc_momentum(p, t0)
+        candidates.append({
+            "id": pid,
+            "name": p.get("name", ""),
+            "category": p.get("category", "other"),
+            "total_votes": p.get("total_votes", 0),
+            "momentum_net": mom["momentum_net"],
+            "momentum_likes": mom["momentum_likes"],
         })
-    
-    # Get 3 most recently beaten celebrities (confirmed wins from this bull_run)
+
+    # Targets above: momentum_net > user's, sorted closest first
+    above_all = [c for c in candidates if c["momentum_net"] > user_momentum_net]
+    above_all.sort(key=lambda x: x["momentum_net"])
+    above = above_all[:3]
+
+    for a in above:
+        a["gap"] = a["momentum_net"] - user_momentum_net
+        a["status"] = "target"
+
+    # Beaten below: confirmed wins, most recent first
     recent_wins_cursor = db.bull_run_wins.find({
-        "bull_run_id": bull_run_id,
+        "bull_run_id": bull_run["_id"],
         "confirmed": True,
     }).sort("confirmed_at", -1).limit(3)
-    
-    recent_wins = await recent_wins_cursor.to_list(length=3)
-    
+
     below = []
-    for win in recent_wins:
-        celebrity = await db.persons.find_one({"_id": win["celebrity_id"]})
-        if celebrity:
+    async for win in recent_wins_cursor:
+        celeb = await db.persons.find_one({"_id": win["celebrity_id"]})
+        if celeb:
+            cid = str(celeb["_id"])
+            t0 = snapshot.get(cid, {"likes": 0, "dislikes": 0})
+            mom = calc_momentum(celeb, t0)
             below.append({
-                "id": str(celebrity["_id"]),
-                "name": celebrity.get("name", ""),
-                "category": celebrity.get("category", "other"),
-                "raw_score": celebrity.get("raw_score", 0.0),
-                "score": celebrity.get("score", 0),
-                "total_votes": celebrity.get("total_votes", 0),
-                "gap": round(user_raw_score - celebrity.get("raw_score", 0.0), 2),
-                "status": "beaten",
-                "won_at": win.get("confirmed_at", win.get("won_at")).isoformat() + "Z" if win.get("confirmed_at") or win.get("won_at") else None,
+                "id": cid,
+                "name": celeb.get("name", ""),
+                "category": celeb.get("category", "other"),
+                "total_votes": celeb.get("total_votes", 0),
+                "momentum_net": mom["momentum_net"],
+                "gap": user_momentum_net - mom["momentum_net"],
+                "status": "out-rallied",
+                "won_at": (win.get("confirmed_at") or win.get("won_at", "")).isoformat() + "Z" if win.get("confirmed_at") or win.get("won_at") else None,
             })
-    
+
     user_data = {
-        "id": str(person["_id"]),
-        "name": person.get("name", ""),
-        "raw_score": user_raw_score,
-        "score": person.get("score", 0),
-        "total_votes": person.get("total_votes", 0),
+        "id": str(user_person["_id"]),
+        "name": user_person.get("name", ""),
+        "total_votes": user_person.get("total_votes", 0),
+        "momentum_net": user_momentum_net,
+        "momentum_likes": user_mom["momentum_likes"],
     }
-    
+
     return {"above": above, "below": below, "user": user_data}
 
 
@@ -238,130 +263,92 @@ async def activate_bull_run(
     request: BullRunActivateRequest,
     x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
 ):
-    """
-    Activate or extend a Bull Run session.
-    Called when a Golden Booster is purchased/renewed.
-    Security: X-Device-ID must match user_id to prevent impersonation.
-    """
+    """Activate or extend a Bull Run. Takes a full snapshot at T0."""
     try:
-        # Security check: device must match user
         if not x_device_id:
-            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+            raise HTTPException(status_code=401, detail="X-Device-ID header required")
         if not verify_device_ownership(x_device_id, request.user_id):
             raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
-        
+
         user_id = request.user_id
-        person_id_str = request.person_id
-        
         try:
-            person_oid = ObjectId(person_id_str)
+            person_oid = ObjectId(request.person_id)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid person_id")
-        
-        # Verify the person exists and is an outsider
+
         person = await db.persons.find_one({"_id": person_oid})
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
         if person.get("source") != "self_boosted":
-            raise HTTPException(status_code=400, detail="Bull Run is only available for outsiders (self-boosted profiles)")
-        
-        # Verify user has an active Golden Booster for this person
+            raise HTTPException(status_code=400, detail="Bull Run is only for outsiders")
+
         now = now_utc()
+
         active_golden = await db.active_boosts.find_one({
-            "user_id": user_id,
-            "person_id": person_oid,
-            "tier": "golden_booster",
-            "end_time": {"$gt": now},
+            "user_id": user_id, "person_id": person_oid,
+            "tier": "golden_booster", "end_time": {"$gt": now},
         })
-        
         if not active_golden:
-            raise HTTPException(
-                status_code=403,
-                detail="Active Golden Booster required. Purchase a Golden Booster to access Bull Run."
-            )
-        
-        # Check if there's already an active Bull Run for this user
-        existing_bull_run = await db.bull_runs.find_one({
-            "user_id": user_id,
-            "is_active": True,
-            "expires_at": {"$gt": now},
+            raise HTTPException(status_code=403, detail="Active Golden Booster required")
+
+        # Check existing active Bull Run
+        existing = await db.bull_runs.find_one({
+            "user_id": user_id, "is_active": True, "expires_at": {"$gt": now},
         })
-        
-        if existing_bull_run:
-            # Case A: Renewal before expiration — extend
-            new_expires = existing_bull_run["expires_at"] + timedelta(days=7)
+
+        if existing:
+            # Case A: Renewal — extend, keep snapshot, keep wins
+            new_expires = existing["expires_at"] + timedelta(days=7)
             await db.bull_runs.update_one(
-                {"_id": existing_bull_run["_id"]},
+                {"_id": existing["_id"]},
                 {"$set": {"expires_at": new_expires, "updated_at": now}}
             )
-            
-            rank = await get_effective_rank(existing_bull_run)
-            
             return {
-                "success": True,
-                "action": "extended",
-                "bull_run_id": str(existing_bull_run["_id"]),
+                "success": True, "action": "extended",
+                "bull_run_id": str(existing["_id"]),
                 "expires_at": new_expires.isoformat() + "Z",
-                "current_rank": rank,
-                "wins_count": existing_bull_run.get("wins_count", 0),
-                "cumulative_wins": existing_bull_run.get("cumulative_wins", 0),
-                "message": "Bull Run extended! Your winning streak continues.",
+                "wins_count": existing.get("wins_count", 0),
+                "cumulative_wins": existing.get("cumulative_wins", 0),
+                "message": "Bull Run extended! Your momentum continues.",
             }
         else:
-            # Check for previous Bull Run (Case B: gap then new Golden)
-            previous_bull_run = await db.bull_runs.find_one(
-                {"user_id": user_id},
-                sort=[("expires_at", -1)]
+            # Case B: New (or gap re-activation)
+            previous = await db.bull_runs.find_one(
+                {"user_id": user_id}, sort=[("expires_at", -1)]
             )
-            
-            # Inherit cumulative_wins from previous Bull Run (if any)
-            inherited_cumulative = 0
-            if previous_bull_run:
-                inherited_cumulative = previous_bull_run.get("cumulative_wins", 0)
-            
-            # Determine starting rank from cumulative wins
-            starting_rank = compute_rank_from_wins(inherited_cumulative)
-            
-            # Create new Bull Run
-            expires_at = now + timedelta(days=7)
+            inherited_cumulative = previous.get("cumulative_wins", 0) if previous else 0
+
+            # Take full snapshot of all persons' likes/dislikes at T0
+            snapshot = await take_full_snapshot()
+
             bull_run_doc = {
                 "user_id": user_id,
                 "person_id": person_oid,
                 "boost_id": active_golden["_id"],
                 "started_at": now,
-                "expires_at": expires_at,
-                "current_rank": starting_rank,
+                "expires_at": now + timedelta(days=7),
+                "current_rank": compute_rank_from_wins(inherited_cumulative),
                 "wins_count": 0,
                 "cumulative_wins": inherited_cumulative,
+                "snapshot_at_t0": snapshot,
                 "is_active": True,
                 "created_at": now,
                 "updated_at": now,
             }
-            
+
             result = await db.bull_runs.insert_one(bull_run_doc)
-            bull_run_id = result.inserted_id
-            
-            # Check Legend status right away
-            rank = starting_rank
-            if await check_legend_status(person_oid):
-                rank = "legend"
-                await db.bull_runs.update_one(
-                    {"_id": bull_run_id},
-                    {"$set": {"current_rank": "legend"}}
-                )
-            
+
             return {
-                "success": True,
-                "action": "created",
-                "bull_run_id": str(bull_run_id),
+                "success": True, "action": "created",
+                "bull_run_id": str(result.inserted_id),
                 "started_at": now.isoformat() + "Z",
-                "expires_at": expires_at.isoformat() + "Z",
-                "current_rank": rank,
+                "expires_at": (now + timedelta(days=7)).isoformat() + "Z",
+                "current_rank": bull_run_doc["current_rank"],
                 "wins_count": 0,
                 "cumulative_wins": inherited_cumulative,
-                "message": "Bull Run activated! Start climbing the ladder.",
+                "message": "Bull Run activated! Start building momentum.",
             }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -371,72 +358,60 @@ async def activate_bull_run(
 
 @bull_run_router.get("/bull-run/{user_id}")
 async def get_bull_run_status(user_id: str):
-    """Get the current Bull Run status for a user"""
+    """Get current Bull Run status with momentum data."""
     try:
         now = now_utc()
-        
-        # Find active Bull Run
+
         bull_run = await db.bull_runs.find_one({
-            "user_id": user_id,
-            "is_active": True,
-            "expires_at": {"$gt": now},
+            "user_id": user_id, "is_active": True, "expires_at": {"$gt": now},
         })
-        
+
         if not bull_run:
-            # Check if user ever had a Bull Run
-            last_bull_run = await db.bull_runs.find_one(
-                {"user_id": user_id},
-                sort=[("expires_at", -1)]
+            last = await db.bull_runs.find_one(
+                {"user_id": user_id}, sort=[("expires_at", -1)]
             )
-            
             return {
                 "active": False,
-                "has_history": last_bull_run is not None,
-                "last_rank": last_bull_run.get("current_rank", "none") if last_bull_run else "none",
-                "cumulative_wins": last_bull_run.get("cumulative_wins", 0) if last_bull_run else 0,
-                "message": "No active Bull Run. Purchase a Golden Booster to start!",
+                "has_history": last is not None,
+                "last_rank": last.get("current_rank", "none") if last else "none",
+                "cumulative_wins": last.get("cumulative_wins", 0) if last else 0,
             }
-        
-        # Get effective rank (includes Legend check)
-        rank = await get_effective_rank(bull_run)
-        
-        # Calculate time remaining
+
+        person_id_str = str(bull_run["person_id"])
+        snapshot = bull_run.get("snapshot_at_t0", {})
+        user_person, user_mom = await get_person_momentum(person_id_str, snapshot)
+
         time_remaining = (bull_run["expires_at"] - now).total_seconds()
-        days_remaining = int(time_remaining // 86400)
-        hours_remaining = int((time_remaining % 86400) // 3600)
-        
-        # Get pending wins (not yet confirmed)
+        rank = bull_run.get("current_rank", "none")
+
         pending_wins = await db.bull_run_wins.count_documents({
-            "bull_run_id": bull_run["_id"],
-            "confirmed": False,
+            "bull_run_id": bull_run["_id"], "confirmed": False,
         })
-        
-        # Get confirmed wins this period
+
         confirmed_wins = await db.bull_run_wins.find({
-            "bull_run_id": bull_run["_id"],
-            "confirmed": True,
+            "bull_run_id": bull_run["_id"], "confirmed": True,
         }).sort("confirmed_at", -1).to_list(length=50)
-        
-        beaten_celebrities = []
+
+        out_rallied = []
         for win in confirmed_wins:
-            celebrity = await db.persons.find_one({"_id": win["celebrity_id"]})
-            if celebrity:
-                beaten_celebrities.append({
-                    "id": str(celebrity["_id"]),
-                    "name": celebrity.get("name", ""),
-                    "category": celebrity.get("category", "other"),
-                    "won_at": win.get("confirmed_at", win.get("won_at")).isoformat() + "Z",
+            celeb = await db.persons.find_one({"_id": win["celebrity_id"]})
+            if celeb:
+                out_rallied.append({
+                    "id": str(celeb["_id"]),
+                    "name": celeb.get("name", ""),
+                    "category": celeb.get("category", "other"),
+                    "won_at": (win.get("confirmed_at") or win.get("won_at")).isoformat() + "Z",
                 })
-        
+
         return {
             "active": True,
             "bull_run_id": str(bull_run["_id"]),
-            "person_id": str(bull_run["person_id"]),
+            "person_id": person_id_str,
             "started_at": bull_run["started_at"].isoformat() + "Z",
             "expires_at": bull_run["expires_at"].isoformat() + "Z",
             "time_remaining": {
-                "days": days_remaining,
-                "hours": hours_remaining,
+                "days": int(time_remaining // 86400),
+                "hours": int((time_remaining % 86400) // 3600),
                 "total_seconds": int(time_remaining),
             },
             "current_rank": rank,
@@ -444,269 +419,180 @@ async def get_bull_run_status(user_id: str):
             "wins_count": bull_run.get("wins_count", 0),
             "cumulative_wins": bull_run.get("cumulative_wins", 0),
             "pending_wins": pending_wins,
-            "beaten_celebrities": beaten_celebrities,
+            "out_rallied_celebrities": out_rallied,
+            "momentum": user_mom if user_mom else {"momentum_net": 0, "momentum_likes": 0, "momentum_dislikes": 0},
             "next_rank": get_next_rank_info(bull_run.get("cumulative_wins", 0)),
         }
-    
+
     except Exception as e:
         logger.error(f"Bull Run status error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def get_next_rank_info(cumulative_wins: int) -> Optional[dict]:
-    """Get info about the next rank to achieve"""
-    for threshold, rank_id, display_name in RANK_THRESHOLDS:
-        if cumulative_wins < threshold:
-            continue
-        # User has already reached this rank, skip
-    
-    # Find the next rank the user hasn't reached
-    for threshold, rank_id, display_name in reversed(RANK_THRESHOLDS):
-        if cumulative_wins < threshold:
-            return {
-                "rank": rank_id,
-                "display": display_name,
-                "wins_needed": threshold - cumulative_wins,
-                "threshold": threshold,
-            }
-    
-    # User has reached Icon — next is Legend (dynamic)
-    return {
-        "rank": "legend",
-        "display": "🌟 Legend",
-        "wins_needed": None,
-        "threshold": None,
-        "condition": "Reach top 10 in Popularoo global rankings",
-    }
-
-
 @bull_run_router.get("/bull-run/{user_id}/ladder")
 async def get_bull_run_ladder(user_id: str):
-    """Get the Bull Run ladder: 3 targets above + 3 beaten below"""
+    """Get the momentum-based ladder."""
     try:
         now = now_utc()
-        
-        # Find active Bull Run
         bull_run = await db.bull_runs.find_one({
-            "user_id": user_id,
-            "is_active": True,
-            "expires_at": {"$gt": now},
+            "user_id": user_id, "is_active": True, "expires_at": {"$gt": now},
         })
-        
         if not bull_run:
-            raise HTTPException(status_code=404, detail="No active Bull Run found")
-        
-        ladder = await build_ladder(bull_run["person_id"], bull_run["_id"])
-        
+            raise HTTPException(status_code=404, detail="No active Bull Run")
+
+        ladder = await build_ladder(str(bull_run["person_id"]), bull_run)
+
         return {
             "bull_run_id": str(bull_run["_id"]),
             "ladder": ladder,
-            "current_rank": await get_effective_rank(bull_run),
+            "current_rank": bull_run.get("current_rank", "none"),
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Bull Run ladder error: {e}")
+        logger.error(f"Ladder error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# -------------------- Rally Cry Endpoints --------------------
+# -------------------- Rally Cry --------------------
 
 @bull_run_router.post("/rally-cry/create")
 async def create_rally_cry(
     request: RallyCryCreateRequest,
     x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
 ):
-    """Create a new Rally Cry broadcast"""
+    """Create a Rally Cry broadcast."""
     try:
         now = now_utc()
         user_id = request.user_id
-        
-        # Security check: device must match user
+
         if not x_device_id:
-            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+            raise HTTPException(status_code=401, detail="X-Device-ID header required")
         if not verify_device_ownership(x_device_id, user_id):
-            raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
-        
-        # Validate bull_run_id
+            raise HTTPException(status_code=403, detail="Unauthorized")
+
         try:
             bull_run_oid = ObjectId(request.bull_run_id)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid bull_run_id")
-        
-        # Check Bull Run is active
+
         bull_run = await db.bull_runs.find_one({
-            "_id": bull_run_oid,
-            "user_id": user_id,
-            "is_active": True,
-            "expires_at": {"$gt": now},
+            "_id": bull_run_oid, "user_id": user_id,
+            "is_active": True, "expires_at": {"$gt": now},
         })
-        
         if not bull_run:
-            raise HTTPException(status_code=404, detail="No active Bull Run found")
-        
-        # Check not in final hour of Bull Run
-        time_to_expiry = (bull_run["expires_at"] - now).total_seconds()
-        if time_to_expiry < 3600:  # Less than 1 hour remaining
-            raise HTTPException(
-                status_code=400,
-                detail="Rally Cry is disabled in the last hour of your Bull Run week."
-            )
-        
-        # Check daily limit (max 3 per day)
+            raise HTTPException(status_code=404, detail="No active Bull Run")
+
+        # Disabled in final hour
+        if (bull_run["expires_at"] - now).total_seconds() < 3600:
+            raise HTTPException(status_code=400, detail="Rally Cry disabled in the last hour")
+
+        # Daily limit
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_count = await db.rally_cries.count_documents({
-            "user_id": user_id,
-            "created_at": {"$gte": today_start},
+            "user_id": user_id, "created_at": {"$gte": today_start},
         })
-        
         if today_count >= RALLY_CRY_MAX_PER_DAY:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Maximum {RALLY_CRY_MAX_PER_DAY} Rally Cries per day reached. Try again tomorrow!"
-            )
-        
-        # Check cooldown (30 min since last Rally Cry)
-        last_rally_cry = await db.rally_cries.find_one(
-            {"user_id": user_id},
-            sort=[("created_at", -1)]
+            raise HTTPException(status_code=429, detail=f"Max {RALLY_CRY_MAX_PER_DAY} Rally Cries/day")
+
+        # Cooldown
+        last_cry = await db.rally_cries.find_one(
+            {"user_id": user_id}, sort=[("created_at", -1)]
         )
-        
-        if last_rally_cry:
-            time_since_last = (now - last_rally_cry["created_at"]).total_seconds()
-            if time_since_last < RALLY_CRY_COOLDOWN_MINUTES * 60:
-                remaining_mins = int((RALLY_CRY_COOLDOWN_MINUTES * 60 - time_since_last) / 60)
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Cooldown active. Wait {remaining_mins} more minutes before your next Rally Cry."
-                )
-        
-        # Validate target celebrity
+        if last_cry:
+            secs_since = (now - last_cry["created_at"]).total_seconds()
+            if secs_since < RALLY_CRY_COOLDOWN_MINUTES * 60:
+                remaining = int((RALLY_CRY_COOLDOWN_MINUTES * 60 - secs_since) / 60)
+                raise HTTPException(status_code=429, detail=f"Wait {remaining} more minutes")
+
         try:
             target_oid = ObjectId(request.target_celebrity_id)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid target_celebrity_id")
-        
+
         target = await db.persons.find_one({"_id": target_oid})
         if not target:
-            raise HTTPException(status_code=404, detail="Target celebrity not found")
-        
-        # Validate target is actually above the user
-        user_person = await db.persons.find_one({"_id": bull_run["person_id"]})
-        if not user_person:
-            raise HTTPException(status_code=404, detail="User's profile not found")
-        
-        if target.get("raw_score", 0) <= user_person.get("raw_score", 0):
-            raise HTTPException(
-                status_code=400,
-                detail="Target must have a higher score than you. You've already beaten this celebrity!"
-            )
-        
-        # Validate message length
-        message = (request.message or "").strip()
-        if len(message) > 100:
-            message = message[:100]
-        
-        # Create the Rally Cry
+            raise HTTPException(status_code=404, detail="Target not found")
+
+        # Validate target is actually above user in momentum
+        snapshot = bull_run.get("snapshot_at_t0", {})
+        user_person, user_mom = await get_person_momentum(str(bull_run["person_id"]), snapshot)
+        target_t0 = snapshot.get(str(target_oid), {"likes": 0, "dislikes": 0})
+        target_mom = calc_momentum(target, target_t0)
+
+        if target_mom["momentum_net"] <= user_mom["momentum_net"]:
+            raise HTTPException(status_code=400, detail="Target must have higher momentum than you")
+
+        message = (request.message or "").strip()[:100]
         expires_at = now + timedelta(hours=RALLY_CRY_DURATION_HOURS)
-        rally_cry_doc = {
+
+        result = await db.rally_cries.insert_one({
             "bull_run_id": bull_run_oid,
             "user_id": user_id,
-            "person_id": bull_run["person_id"],  # The outsider
+            "person_id": bull_run["person_id"],
             "target_celebrity_id": target_oid,
             "message": message,
             "tone": request.tone,
             "created_at": now,
             "expires_at": expires_at,
             "votes_received": 0,
-            "target_beaten": False,
+            "target_out_rallied": False,
             "external_share_count": 0,
-        }
-        
-        result = await db.rally_cries.insert_one(rally_cry_doc)
-        
-        # Calculate votes needed
-        score_gap = target.get("raw_score", 0) - user_person.get("raw_score", 0)
-        
+        })
+
+        momentum_gap = target_mom["momentum_net"] - user_mom["momentum_net"]
+
         return {
             "success": True,
             "rally_cry_id": str(result.inserted_id),
             "expires_at": expires_at.isoformat() + "Z",
-            "duration_hours": RALLY_CRY_DURATION_HOURS,
-            "target": {
-                "id": str(target["_id"]),
-                "name": target.get("name", ""),
-                "raw_score": target.get("raw_score", 0),
-            },
-            "user_score": user_person.get("raw_score", 0),
-            "score_gap": round(score_gap, 2),
+            "target": {"id": str(target_oid), "name": target.get("name", ""), "momentum_net": target_mom["momentum_net"]},
+            "user_momentum": user_mom["momentum_net"],
+            "momentum_gap": momentum_gap,
             "remaining_today": RALLY_CRY_MAX_PER_DAY - today_count - 1,
-            "message": f"Rally Cry launched! Community has {RALLY_CRY_DURATION_HOURS}h to help you beat {target.get('name', '')}!",
+            "message": f"Rally Cry launched! {RALLY_CRY_DURATION_HOURS}h to out-rally {target.get('name', '')}!",
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Rally Cry creation error: {e}")
+        logger.error(f"Rally Cry create error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @bull_run_router.get("/rally-cries/active")
 async def get_active_rally_cries(limit: int = Query(default=10, le=20)):
-    """Get active Rally Cries for the community to vote on"""
+    """Get active Rally Cries for community voting."""
     try:
         now = now_utc()
-        
-        # Get active (non-expired) Rally Cries
         cursor = db.rally_cries.find({
-            "expires_at": {"$gt": now},
-            "target_beaten": False,
+            "expires_at": {"$gt": now}, "target_out_rallied": False,
         }).sort("created_at", -1).limit(limit)
-        
-        rally_cries = await cursor.to_list(length=limit)
-        
+
         results = []
-        for rc in rally_cries:
-            # Get the outsider (person requesting votes)
+        async for rc in cursor:
             person = await db.persons.find_one({"_id": rc["person_id"]})
-            # Get the target celebrity
             target = await db.persons.find_one({"_id": rc["target_celebrity_id"]})
-            
             if not person or not target:
                 continue
-            
-            time_remaining = (rc["expires_at"] - now).total_seconds()
-            minutes_remaining = int(time_remaining / 60)
-            
-            score_gap = target.get("raw_score", 0) - person.get("raw_score", 0)
-            
+
+            mins_left = int((rc["expires_at"] - now).total_seconds() / 60)
+
             results.append({
                 "id": str(rc["_id"]),
                 "user_id": rc["user_id"],
-                "person": {
-                    "id": str(person["_id"]),
-                    "name": person.get("name", ""),
-                    "raw_score": person.get("raw_score", 0),
-                    "score": person.get("score", 0),
-                },
-                "target": {
-                    "id": str(target["_id"]),
-                    "name": target.get("name", ""),
-                    "raw_score": target.get("raw_score", 0),
-                    "score": target.get("score", 0),
-                },
+                "person": {"id": str(person["_id"]), "name": person.get("name", "")},
+                "target": {"id": str(target["_id"]), "name": target.get("name", "")},
                 "message": rc.get("message", ""),
                 "tone": rc.get("tone", "fierce"),
                 "votes_received": rc.get("votes_received", 0),
-                "score_gap": round(max(0, score_gap), 2),
-                "minutes_remaining": minutes_remaining,
+                "minutes_remaining": mins_left,
                 "expires_at": rc["expires_at"].isoformat() + "Z",
-                "created_at": rc["created_at"].isoformat() + "Z",
             })
-        
+
         return {"rally_cries": results, "total": len(results)}
-    
+
     except Exception as e:
         logger.error(f"Active Rally Cries error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -718,150 +604,96 @@ async def vote_rally_cry(
     body: RallyCryVoteRequest,
     x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
 ):
-    """
-    Vote for a Rally Cry (uses standard Popularoo vote mechanism).
-    Respects 24h cooldown. Gracefully handles already-voted case.
-    """
+    """Vote on a Rally Cry. Standard 24h cooldown. Graceful already-voted handling."""
     try:
         if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header required")
-        
-        # Validate rally_cry_id
+
         try:
             rc_oid = ObjectId(rally_cry_id)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid rally_cry_id")
-        
+
         now = now_utc()
-        
-        # Get the Rally Cry
         rally_cry = await db.rally_cries.find_one({"_id": rc_oid})
         if not rally_cry:
             raise HTTPException(status_code=404, detail="Rally Cry not found")
-        
-        # Check if Rally Cry is still active
+
         if rally_cry["expires_at"] < now:
-            return {
-                "success": False,
-                "already_voted": False,
-                "expired": True,
-                "message": "This Rally Cry has expired.",
-            }
-        
-        # Check if target already beaten
-        if rally_cry.get("target_beaten"):
-            return {
-                "success": False,
-                "already_voted": False,
-                "target_beaten": True,
-                "message": "Target already beaten! This Rally Cry is complete.",
-            }
-        
-        # The person to vote for is the outsider (rally_cry.person_id)
+            return {"success": False, "expired": True, "message": "This Rally Cry has expired."}
+
+        if rally_cry.get("target_out_rallied"):
+            return {"success": False, "target_out_rallied": True, "message": "Target already out-rallied!"}
+
         person_oid = rally_cry["person_id"]
-        
-        # Check existing vote (24h cooldown) — same logic as standard vote
+
+        # 24h cooldown check
         existing_vote = await db.votes.find_one({
-            "person_id": person_oid,
-            "device_id": x_device_id,
+            "person_id": person_oid, "device_id": x_device_id,
         })
-        
+
         if existing_vote:
             last_vote_time = existing_vote.get("updated_at") or existing_vote.get("created_at")
-            if last_vote_time:
-                time_since = now - last_vote_time
-                if time_since < timedelta(hours=24):
-                    # Already voted within 24h — graceful response
-                    person = await db.persons.find_one({"_id": person_oid})
-                    person_name = person.get("name", "this person") if person else "this person"
-                    
-                    next_vote_time = (last_vote_time + timedelta(hours=24)).isoformat() + "Z"
-                    hours_left = int((timedelta(hours=24) - time_since).total_seconds() / 3600)
-                    
-                    return {
-                        "success": False,
-                        "already_voted": True,
-                        "message": f"✓ You already supported {person_name} today",
-                        "next_vote_time": next_vote_time,
-                        "hours_remaining": hours_left,
-                    }
-        
+            if last_vote_time and (now - last_vote_time) < timedelta(hours=24):
+                person = await db.persons.find_one({"_id": person_oid})
+                name = person.get("name", "this person") if person else "this person"
+                hours_left = int((timedelta(hours=24) - (now - last_vote_time)).total_seconds() / 3600)
+                return {
+                    "success": False, "already_voted": True,
+                    "message": f"✓ You already supported {name} today",
+                    "hours_remaining": hours_left,
+                }
+
         # Execute the vote (standard Popularoo like)
         person = await db.persons.find_one({"_id": person_oid})
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
-        
-        # Update vote record
+
         if existing_vote:
-            # Update existing vote (24h has passed)
             await db.votes.update_one(
                 {"_id": existing_vote["_id"]},
                 {"$set": {"value": 1, "updated_at": now}}
             )
         else:
-            # New vote
             await db.votes.insert_one({
-                "person_id": person_oid,
-                "device_id": x_device_id,
-                "value": 1,
-                "created_at": now,
-                "updated_at": now,
+                "person_id": person_oid, "device_id": x_device_id,
+                "value": 1, "created_at": now, "updated_at": now,
             })
-        
-        # Update person's scores
+
         new_likes = person.get("likes", 0) + 1
         new_total = person.get("total_votes", 0) + 1
         new_raw_score = (new_likes / new_total * 100) if new_total > 0 else 0.0
         new_score = round(new_raw_score / 25) * 25
         new_score = max(0, min(100, new_score))
-        
+
         await db.persons.update_one(
             {"_id": person_oid},
-            {
-                "$inc": {"likes": 1, "total_votes": 1},
-                "$set": {
-                    "raw_score": new_raw_score,
-                    "score": new_score,
-                    "updated_at": now,
-                }
-            }
+            {"$inc": {"likes": 1, "total_votes": 1},
+             "$set": {"raw_score": new_raw_score, "score": new_score, "updated_at": now}}
         )
-        
-        # Record tick for charts
+
         await db.person_ticks.insert_one({
-            "person_id": person_oid,
-            "score": new_score,
-            "total_votes": new_total,
+            "person_id": person_oid, "score": new_score,
+            "total_votes": new_total, "likes": new_likes,
+            "dislikes": person.get("dislikes", 0),
             "created_at": now,
         })
-        
-        # Record vote event
+
         await db.vote_events.insert_one({
-            "person_id": person_oid,
-            "device_id": x_device_id,
-            "delta": 1,
-            "created_at": now,
-            "source": "rally_cry",
-            "rally_cry_id": rc_oid,
+            "person_id": person_oid, "device_id": x_device_id,
+            "delta": 1, "created_at": now,
+            "source": "rally_cry", "rally_cry_id": rc_oid,
         })
-        
-        # Increment rally cry votes_received counter
-        await db.rally_cries.update_one(
-            {"_id": rc_oid},
-            {"$inc": {"votes_received": 1}}
-        )
-        
-        person_name = person.get("name", "")
-        
+
+        await db.rally_cries.update_one({"_id": rc_oid}, {"$inc": {"votes_received": 1}})
+
         return {
-            "success": True,
-            "already_voted": False,
-            "message": f"🎉 Vote counted for {person_name}!",
+            "success": True, "already_voted": False,
+            "message": f"🎉 Vote counted for {person.get('name', '')}!",
             "new_score": new_score,
-            "new_raw_score": round(new_raw_score, 2),
             "votes_received": rally_cry.get("votes_received", 0) + 1,
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -877,37 +709,29 @@ async def update_notification_preferences(
     request: NotificationPreferencesRequest,
     x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
 ):
-    """Update user notification preferences (GDPR compliant opt-in)"""
     try:
-        # Security check: device must match user
         if not x_device_id:
-            raise HTTPException(status_code=401, detail="X-Device-ID header required for authentication")
+            raise HTTPException(status_code=401, detail="X-Device-ID header required")
         if not verify_device_ownership(x_device_id, user_id):
-            raise HTTPException(status_code=403, detail="Unauthorized: device does not match user")
-        
+            raise HTTPException(status_code=403, detail="Unauthorized")
+
         now = now_utc()
-        
         update_fields = {"updated_at": now}
-        
+
         if request.receive_rally_cries is not None:
             update_fields["receive_rally_cries"] = request.receive_rally_cries
-        
         if request.bull_run_notifications is not None:
             update_fields["bull_run_notifications"] = request.bull_run_notifications
-        
         if request.muted_rally_cry_users is not None:
             update_fields["muted_rally_cry_users"] = request.muted_rally_cry_users
-        
-        # Upsert user settings
+
         await db.user_settings.update_one(
             {"user_id": user_id},
             {"$set": update_fields, "$setOnInsert": {"created_at": now}},
             upsert=True,
         )
-        
-        # Fetch updated settings
+
         settings = await db.user_settings.find_one({"user_id": user_id})
-        
         return {
             "success": True,
             "preferences": {
@@ -916,33 +740,27 @@ async def update_notification_preferences(
                 "muted_rally_cry_users": settings.get("muted_rally_cry_users", []),
             }
         }
-    
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Notification preferences error: {e}")
+        logger.error(f"Notification prefs error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @bull_run_router.get("/users/{user_id}/notification-preferences")
 async def get_notification_preferences(user_id: str):
-    """Get user notification preferences"""
     try:
         settings = await db.user_settings.find_one({"user_id": user_id})
-        
         if not settings:
-            return {
-                "receive_rally_cries": False,
-                "bull_run_notifications": True,
-                "muted_rally_cry_users": [],
-            }
-        
+            return {"receive_rally_cries": False, "bull_run_notifications": True, "muted_rally_cry_users": []}
         return {
             "receive_rally_cries": settings.get("receive_rally_cries", False),
             "bull_run_notifications": settings.get("bull_run_notifications", True),
             "muted_rally_cry_users": settings.get("muted_rally_cry_users", []),
         }
-    
     except Exception as e:
-        logger.error(f"Get notification preferences error: {e}")
+        logger.error(f"Get prefs error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -950,55 +768,49 @@ async def get_notification_preferences(user_id: str):
 
 async def bull_run_background_job(database):
     """
-    Background job that runs every 5 minutes:
-    1. Check pending wins (score maintained > 30 min)
-    2. Recalculate Legend status for all active Bull Runs
-    3. Detect new potential wins
+    Every 5 minutes:
+    1. Detect new potential wins (user_momentum_net > 0 AND > celebrity)
+    2. Confirm wins held for 30+ min
+    3. Recalculate Legend status (top 10 weekly momentum)
+    4. Expire old Bull Runs
+    5. Mark Rally Cries as out-rallied
     """
     try:
         now = now_utc()
-        
-        # ---- Step 1: Confirm pending wins ----
-        pending_wins = await database.bull_run_wins.find({
+
+        # ---- 1. Confirm pending wins ----
+        pending = await database.bull_run_wins.find({
             "confirmed": False,
             "won_at": {"$lte": now - timedelta(minutes=WIN_CONFIRMATION_MINUTES)},
         }).to_list(length=100)
-        
-        for win in pending_wins:
-            # Re-check that the user's score is still above the celebrity's
-            bull_run = await database.bull_runs.find_one({"_id": win["bull_run_id"]})
-            if not bull_run or not bull_run.get("is_active"):
-                # Bull Run expired, delete the pending win
+
+        for win in pending:
+            br = await database.bull_runs.find_one({"_id": win["bull_run_id"]})
+            if not br or not br.get("is_active"):
                 await database.bull_run_wins.delete_one({"_id": win["_id"]})
                 continue
-            
-            user_person = await database.persons.find_one({"_id": bull_run["person_id"]})
-            celebrity = await database.persons.find_one({"_id": win["celebrity_id"]})
-            
-            if not user_person or not celebrity:
+
+            snapshot = br.get("snapshot_at_t0", {})
+            person_id_str = str(br["person_id"])
+            celeb_id_str = str(win["celebrity_id"])
+
+            user_person, user_mom = await _get_momentum(database, person_id_str, snapshot)
+            celeb_person, celeb_mom = await _get_momentum(database, celeb_id_str, snapshot)
+
+            if not user_person or not celeb_person:
                 await database.bull_run_wins.delete_one({"_id": win["_id"]})
                 continue
-            
-            user_raw = user_person.get("raw_score", 0)
-            celeb_raw = celebrity.get("raw_score", 0)
-            
-            if user_raw > celeb_raw:
-                # WIN CONFIRMED! Score maintained for 30+ minutes
+
+            # Victory condition: user_momentum_net > 0 AND > celebrity_momentum_net
+            if user_mom["momentum_net"] > 0 and user_mom["momentum_net"] > celeb_mom["momentum_net"]:
                 await database.bull_run_wins.update_one(
                     {"_id": win["_id"]},
                     {"$set": {"confirmed": True, "confirmed_at": now}}
                 )
-                
-                # Update Bull Run counters
                 await database.bull_runs.update_one(
                     {"_id": win["bull_run_id"]},
-                    {
-                        "$inc": {"wins_count": 1, "cumulative_wins": 1},
-                        "$set": {"updated_at": now},
-                    }
+                    {"$inc": {"wins_count": 1, "cumulative_wins": 1}, "$set": {"updated_at": now}}
                 )
-                
-                # Recalculate rank
                 updated_br = await database.bull_runs.find_one({"_id": win["bull_run_id"]})
                 if updated_br:
                     new_rank = compute_rank_from_wins(updated_br.get("cumulative_wins", 0))
@@ -1006,112 +818,132 @@ async def bull_run_background_job(database):
                         {"_id": win["bull_run_id"]},
                         {"$set": {"current_rank": new_rank}}
                     )
-                
-                logger.info(f"🏆 Win confirmed: {user_person.get('name')} beat {celebrity.get('name')}")
+                logger.info(f"🏆 Win confirmed: {user_person.get('name')} out-rallied {celeb_person.get('name')}")
             else:
-                # Score dropped back below — cancel the pending win
                 await database.bull_run_wins.delete_one({"_id": win["_id"]})
-                logger.info(f"❌ Pending win cancelled: {user_person.get('name')} dropped below {celebrity.get('name')}")
-        
-        # ---- Step 2: Detect new potential wins ----
-        active_bull_runs = await database.bull_runs.find({
-            "is_active": True,
-            "expires_at": {"$gt": now},
+                logger.info(f"❌ Pending win cancelled: momentum dropped")
+
+        # ---- 2. Detect new potential wins ----
+        active_brs = await database.bull_runs.find({
+            "is_active": True, "expires_at": {"$gt": now},
         }).to_list(length=100)
-        
-        for br in active_bull_runs:
-            user_person = await database.persons.find_one({"_id": br["person_id"]})
-            if not user_person:
-                continue
-            
-            user_raw = user_person.get("raw_score", 0)
-            
-            # Find celebrities below the user that haven't been recorded as wins yet
-            # Get all confirmed wins for this bull_run to know which celebs are already beaten
-            existing_wins = await database.bull_run_wins.find({
-                "bull_run_id": br["_id"],
-            }).to_list(length=1000)
-            
-            beaten_ids = {w["celebrity_id"] for w in existing_wins}
-            
-            # Find celebrities whose raw_score is now below user's
-            potential_beats = await database.persons.find({
-                "raw_score": {"$lt": user_raw},
-                "source": {"$ne": "self_boosted"},
-                "approved": True,
-                "_id": {"$nin": list(beaten_ids)},
-            }).to_list(length=100)
-            
-            for celeb in potential_beats:
-                # Create a pending win record
-                await database.bull_run_wins.insert_one({
-                    "bull_run_id": br["_id"],
-                    "user_id": br["user_id"],
-                    "celebrity_id": celeb["_id"],
-                    "won_at": now,
-                    "user_score_at_win": user_raw,
-                    "celebrity_score_at_win": celeb.get("raw_score", 0),
-                    "confirmed": False,
-                })
-                logger.info(f"📈 Potential win detected: {user_person.get('name')} vs {celeb.get('name')}")
-        
-        # ---- Step 3: Recalculate Legend status ----
-        for br in active_bull_runs:
-            person_id = br["person_id"]
-            person = await database.persons.find_one({"_id": person_id})
-            if not person:
-                continue
-            
-            person_raw_score = person.get("raw_score", 0)
-            higher_count = await database.persons.count_documents({
-                "raw_score": {"$gt": person_raw_score},
-                "approved": True,
-            })
-            
-            is_legend = higher_count < 10
+
+        for br in active_brs:
+            snapshot = br.get("snapshot_at_t0", {})
+            person_id_str = str(br["person_id"])
+            user_person, user_mom = await _get_momentum(database, person_id_str, snapshot)
+            if not user_person or user_mom["momentum_net"] <= 0:
+                continue  # No wins possible if momentum <= 0
+
+            existing_win_celeb_ids = set()
+            async for w in database.bull_run_wins.find({"bull_run_id": br["_id"]}):
+                existing_win_celeb_ids.add(str(w["celebrity_id"]))
+
+            # Check all non-outsider persons
+            async for celeb in database.persons.find({"source": {"$ne": "self_boosted"}, "approved": True}):
+                cid = str(celeb["_id"])
+                if cid in existing_win_celeb_ids:
+                    continue
+
+                t0 = snapshot.get(cid, {"likes": 0, "dislikes": 0})
+                celeb_mom = calc_momentum(celeb, t0)
+
+                if user_mom["momentum_net"] > celeb_mom["momentum_net"]:
+                    await database.bull_run_wins.insert_one({
+                        "bull_run_id": br["_id"],
+                        "user_id": br["user_id"],
+                        "celebrity_id": celeb["_id"],
+                        "won_at": now,
+                        "user_momentum_at_win": user_mom["momentum_net"],
+                        "celebrity_momentum_at_win": celeb_mom["momentum_net"],
+                        "confirmed": False,
+                    })
+                    logger.info(f"📈 Potential win: {user_person.get('name')} vs {celeb.get('name')} ({user_mom['momentum_net']} vs {celeb_mom['momentum_net']})")
+
+        # ---- 3. Legend recalculation (top 10 weekly momentum via vote_events) ----
+        window_start = now - timedelta(days=7)
+        pipeline = [
+            {"$match": {"created_at": {"$gte": window_start}}},
+            {"$group": {"_id": "$person_id", "net_delta": {"$sum": "$delta"}}},
+            {"$match": {"net_delta": {"$gt": 0}}},
+            {"$sort": {"net_delta": -1}},
+            {"$limit": 10},
+        ]
+        top_10_person_ids = set()
+        async for doc in database.vote_events.aggregate(pipeline):
+            top_10_person_ids.add(doc["_id"])
+
+        for br in active_brs:
+            person_oid = br["person_id"]
+            is_legend = person_oid in top_10_person_ids
             current_rank = br.get("current_rank", "none")
-            
+
             if is_legend and current_rank != "legend":
-                # Promote to Legend
                 await database.bull_runs.update_one(
                     {"_id": br["_id"]},
                     {"$set": {"current_rank": "legend", "updated_at": now}}
                 )
-                logger.info(f"🌟 Legend status granted: {person.get('name')}")
+                p = await database.persons.find_one({"_id": person_oid})
+                logger.info(f"🌟 Legend: {p.get('name') if p else '?'}")
             elif not is_legend and current_rank == "legend":
-                # Demote from Legend back to wins-based rank
                 wins_rank = compute_rank_from_wins(br.get("cumulative_wins", 0))
                 await database.bull_runs.update_one(
                     {"_id": br["_id"]},
                     {"$set": {"current_rank": wins_rank, "updated_at": now}}
                 )
-                logger.info(f"📉 Legend status removed: {person.get('name')} → {wins_rank}")
-        
-        # ---- Step 4: Expire old Bull Runs ----
+                p = await database.persons.find_one({"_id": person_oid})
+                logger.info(f"📉 Lost Legend: {p.get('name') if p else '?'} → {wins_rank}")
+
+        # ---- 4. Expire old Bull Runs ----
         expired = await database.bull_runs.update_many(
             {"is_active": True, "expires_at": {"$lte": now}},
             {"$set": {"is_active": False, "updated_at": now}}
         )
         if expired.modified_count > 0:
             logger.info(f"⏰ {expired.modified_count} Bull Run(s) expired")
-        
-        # ---- Step 5: Mark Rally Cries as beaten if target beaten ----
+
+        # ---- 5. Mark Rally Cries as out-rallied ----
         active_cries = await database.rally_cries.find({
-            "expires_at": {"$gt": now},
-            "target_beaten": False,
+            "expires_at": {"$gt": now}, "target_out_rallied": False,
         }).to_list(length=100)
-        
+
         for cry in active_cries:
-            person = await database.persons.find_one({"_id": cry["person_id"]})
+            # Find the bull_run to get the snapshot
+            br = await database.bull_runs.find_one({"_id": cry["bull_run_id"]})
+            if not br:
+                continue
+
+            snapshot = br.get("snapshot_at_t0", {})
+            person_id_str = str(cry["person_id"])
+            target_id_str = str(cry["target_celebrity_id"])
+
+            _, user_mom = await _get_momentum(database, person_id_str, snapshot)
             target = await database.persons.find_one({"_id": cry["target_celebrity_id"]})
-            
-            if person and target:
-                if person.get("raw_score", 0) > target.get("raw_score", 0):
-                    await database.rally_cries.update_one(
-                        {"_id": cry["_id"]},
-                        {"$set": {"target_beaten": True}}
-                    )
-                    logger.info(f"🎯 Rally Cry target beaten: {person.get('name')} beat {target.get('name')}")
-        
+            if not target or not user_mom:
+                continue
+
+            t0 = snapshot.get(target_id_str, {"likes": 0, "dislikes": 0})
+            target_mom = calc_momentum(target, t0)
+
+            if user_mom["momentum_net"] > 0 and user_mom["momentum_net"] > target_mom["momentum_net"]:
+                await database.rally_cries.update_one(
+                    {"_id": cry["_id"]},
+                    {"$set": {"target_out_rallied": True}}
+                )
+                logger.info(f"🎯 Rally Cry target out-rallied!")
+
     except Exception as e:
         logger.error(f"❌ Bull Run background job error: {e}")
+
+
+async def _get_momentum(database, person_id_str, snapshot):
+    """Helper for background job (uses database param instead of global db)."""
+    try:
+        person = await database.persons.find_one({"_id": ObjectId(person_id_str)})
+    except Exception:
+        return None, None
+    if not person:
+        return None, None
+    t0 = snapshot.get(person_id_str, {"likes": 0, "dislikes": 0})
+    mom = calc_momentum(person, t0)
+    return person, mom
