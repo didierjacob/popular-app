@@ -385,7 +385,16 @@ export default function Premium() {
                   <View style={styles.tierHighlight}>
                     <Ionicons name="star" size={14} color={PALETTE.gold} />
                     <Text style={styles.tierHighlightText}>
-                      Appears at the top of the Home page + name in the ranking
+                      Top of the Home page + name in the ranking
+                    </Text>
+                  </View>
+                )}
+
+                {tier.id === 'golden_booster' && (
+                  <View style={[styles.tierHighlight, { borderColor: PALETTE.gold + '40', backgroundColor: PALETTE.gold + '10' }]}>
+                    <Ionicons name="trophy" size={14} color={PALETTE.gold} />
+                    <Text style={[styles.tierHighlightText, { color: PALETTE.gold }]}>
+                      Bull Run access — Beat real celebrities and rise to Legend
                     </Text>
                   </View>
                 )}

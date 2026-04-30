@@ -150,23 +150,44 @@ export default function Outsiders() {
     router.push("/premium");
   };
 
+  const MAX_SLOTS = 10;
+  const filledSlots = outsiders.length;
+  const emptySlots = Math.max(0, MAX_SLOTS - filledSlots);
+
   const renderHeader = () => (
-    <TouchableOpacity
-      style={styles.promoBanner}
-      onPress={() => router.push("/premium")}
-      activeOpacity={0.8}
-    >
-      <View style={styles.promoIcon}>
-        <Ionicons name="rocket" size={20} color={PALETTE.gold} />
+    <View>
+      {/* Slot counter */}
+      <View style={styles.slotCounter}>
+        <View style={styles.slotCounterLeft}>
+          <Ionicons name="people" size={18} color={PALETTE.accent2} />
+          <Text style={styles.slotCounterText}>
+            {filledSlots} / {MAX_SLOTS} slots filled this week
+          </Text>
+        </View>
+        <View style={[styles.slotCounterBadge, filledSlots >= MAX_SLOTS && { backgroundColor: PALETTE.accent + '20' }]}>
+          <Text style={[styles.slotCounterBadgeText, filledSlots >= MAX_SLOTS && { color: PALETTE.accent }]}>
+            {filledSlots >= MAX_SLOTS ? 'FULL' : `${emptySlots} open`}
+          </Text>
+        </View>
       </View>
-      <View style={styles.promoText}>
-        <Text style={styles.promoTitle}>Want to appear here?</Text>
-        <Text style={styles.promoSub}>
-          Get a Booster and join the ranking!
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={PALETTE.gold} />
-    </TouchableOpacity>
+      {/* Promo banner */}
+      <TouchableOpacity
+        style={styles.promoBanner}
+        onPress={() => router.push("/premium")}
+        activeOpacity={0.8}
+      >
+        <View style={styles.promoIcon}>
+          <Ionicons name="rocket" size={20} color={PALETTE.gold} />
+        </View>
+        <View style={styles.promoText}>
+          <Text style={styles.promoTitle}>Want to appear here?</Text>
+          <Text style={styles.promoSub}>
+            Get a Booster and join the ranking!
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={PALETTE.gold} />
+      </TouchableOpacity>
+    </View>
   );
 
   const renderItem = ({
@@ -179,7 +200,7 @@ export default function Outsiders() {
     const score = item.score;
     const isUp = score > 50;
     const isDown = score < 50;
-    const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "remove";
+    const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
     const arrowColor = isUp
       ? PALETTE.green
       : isDown
@@ -270,6 +291,53 @@ export default function Outsiders() {
     </View>
   );
 
+  const renderFooter = () => (
+    <View>
+      {/* Empty slots */}
+      {emptySlots > 0 && (
+        <View style={styles.emptySlotsSection}>
+          {Array.from({ length: Math.min(emptySlots, 5) }).map((_, i) => (
+            <TouchableOpacity
+              key={`empty-slot-${i}`}
+              style={styles.emptySlotRow}
+              onPress={() => router.push("/premium")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.emptySlotCircle}>
+                <Ionicons name="add" size={20} color={PALETTE.subtext} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptySlotTitle}>Slot available</Text>
+                <Text style={styles.emptySlotSub}>Boost yourself to claim this spot</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={PALETTE.subtext} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      {/* Top Bull Runners section */}
+      <View style={styles.bullRunnerSection}>
+        <View style={styles.bullRunnerHeader}>
+          <Ionicons name="rocket" size={18} color={PALETTE.gold} />
+          <Text style={styles.bullRunnerTitle}>Top Bull Runners this week</Text>
+        </View>
+        <View style={styles.bullRunnerPlaceholder}>
+          <Ionicons name="trophy-outline" size={32} color={PALETTE.gold + '60'} />
+          <Text style={styles.bullRunnerPlaceholderText}>
+            Activate a Golden Booster to compete in Bull Run
+          </Text>
+          <TouchableOpacity
+            style={styles.bullRunnerCta}
+            onPress={() => router.push("/premium")}
+          >
+            <Text style={styles.bullRunnerCtaText}>Learn more</Text>
+            <Ionicons name="arrow-forward" size={14} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -298,6 +366,7 @@ export default function Outsiders() {
           renderItem={renderItem}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
+          ListFooterComponent={outsiders.length > 0 ? renderFooter : undefined}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -522,5 +591,127 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "700",
     fontSize: 15,
+  },
+  // Slot counter
+  slotCounter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: PALETTE.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  slotCounterLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  slotCounterText: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  slotCounterBadge: {
+    backgroundColor: PALETTE.green + "20",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  slotCounterBadgeText: {
+    color: PALETTE.green,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  // Empty slots
+  emptySlotsSection: {
+    marginTop: 8,
+  },
+  emptySlotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomColor: PALETTE.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  emptySlotCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: PALETTE.border,
+    borderStyle: "dashed" as any,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptySlotTitle: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptySlotSub: {
+    color: PALETTE.subtext + "80",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  // Bull Runner section
+  bullRunnerSection: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 16,
+    backgroundColor: PALETTE.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.gold + "40",
+    overflow: "hidden",
+  },
+  bullRunnerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.gold + "20",
+    backgroundColor: PALETTE.gold + "08",
+  },
+  bullRunnerTitle: {
+    color: PALETTE.gold,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  bullRunnerPlaceholder: {
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  bullRunnerPlaceholderText: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 10,
+    lineHeight: 18,
+  },
+  bullRunnerCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: PALETTE.gold + "40",
+  },
+  bullRunnerCtaText: {
+    color: PALETTE.gold,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

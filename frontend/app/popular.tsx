@@ -223,7 +223,7 @@ function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () =
   const score = item.score;
   const isUp = score > 50;
   const isDown = score < 50;
-  const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "remove";
+  const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
   const iconColor = isUp ? PALETTE.green : isDown ? PALETTE.accent : PALETTE.subtext;
   
   const styleAnim = {

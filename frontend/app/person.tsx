@@ -371,7 +371,7 @@ export default function Person() {
                 formatYLabel={(val) => Math.round(Number(val)).toString()}
               />
             ) : (
-              <Text style={styles.noData}>No data yet - vote to see trends!</Text>
+              <Text style={styles.noData}>Your vote shapes the trend — be the first to vote!</Text>
             )}
           </View>
 
@@ -500,7 +500,7 @@ function Trends() {
     return (
       <View style={styles.card}>
         <Text style={styles.section}>Personality trends (live)</Text>
-        <Text style={styles.noData}>No trends data yet - votes will appear here!</Text>
+        <Text style={styles.noData}>Every vote counts — cast yours to start the chart!</Text>
       </View>
     );
   }

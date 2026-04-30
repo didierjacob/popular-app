@@ -138,7 +138,7 @@ export default function MyVotes() {
         <View style={styles.emptyContainer}>
           <Ionicons name="heart-outline" size={64} color={PALETTE.subtext} />
           <Text style={styles.emptyText}>No votes yet</Text>
-          <Text style={styles.emptySubtext}>Vote for personalities to see them here</Text>
+          <Text style={styles.emptySubtext}>Be the first to vote — your vote shapes the trend!</Text>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>

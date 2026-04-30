@@ -62,9 +62,9 @@ const MOCK_LADDER = {
     { id: "celeb_003", name: "Volodymyr Zelenskyy", category: "politics", raw_score: 88.24, score: 100, total_votes: 690, gap: 20.9, status: "target" },
   ],
   below: [
-    { id: "celeb_004", name: "Joe Biden", category: "politics", raw_score: 55.01, score: 50, total_votes: 430, gap: 12.33, status: "beaten", won_at: "2026-04-27T14:22:00Z" },
-    { id: "celeb_005", name: "Serena Williams", category: "sport", raw_score: 48.76, score: 50, total_votes: 320, gap: 18.58, status: "beaten", won_at: "2026-04-26T09:15:00Z" },
-    { id: "celeb_006", name: "Jamie Dimon", category: "business", raw_score: 42.11, score: 50, total_votes: 190, gap: 25.23, status: "beaten", won_at: "2026-04-25T18:33:00Z" },
+    { id: "celeb_004", name: "Joe Biden", category: "politics", raw_score: 55.01, score: 50, total_votes: 430, gap: 12.33, status: "out-rallied", won_at: "2026-04-27T14:22:00Z" },
+    { id: "celeb_005", name: "Serena Williams", category: "sport", raw_score: 48.76, score: 50, total_votes: 320, gap: 18.58, status: "out-rallied", won_at: "2026-04-26T09:15:00Z" },
+    { id: "celeb_006", name: "Jamie Dimon", category: "business", raw_score: 42.11, score: 50, total_votes: 190, gap: 25.23, status: "out-rallied", won_at: "2026-04-25T18:33:00Z" },
   ],
   user: { id: "mock_person_001", name: "Alexandre Martin", raw_score: 67.34, score: 75, total_votes: 150 },
 };
@@ -119,33 +119,56 @@ function ProgressBar({ current, needed, nextRank }) {
   );
 }
 
-function LadderItem({ person, index, isTarget }) {
+function LadderItem({ person, index, isTarget, isClosest }) {
   const slideAnim = useRef(new Animated.Value(isTarget ? -20 : 20)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(slideAnim, { toValue: 0, duration: 350, delay: index * 80, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 250, delay: index * 80, useNativeDriver: true }),
     ]).start();
+    if (isClosest) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        ])
+      ).start();
+    }
   }, []);
 
+  const statusLabel = isTarget ? "target" : "out-rallied";
+
   return (
-    <Animated.View style={[styles.ladderRow, isTarget ? styles.ladderRowTarget : styles.ladderRowBeaten, { transform: [{ translateY: slideAnim }], opacity: fadeAnim }]}>
+    <Animated.View style={[
+      styles.ladderRow,
+      isTarget ? styles.ladderRowTarget : styles.ladderRowBeaten,
+      isClosest && styles.ladderRowClosest,
+      { transform: [{ translateY: slideAnim }], opacity: fadeAnim },
+    ]}>
+      {/* Closest target badge */}
+      {isClosest && (
+        <View style={styles.closestBadge}>
+          <Ionicons name="flash" size={10} color={PALETTE.gold} />
+          <Text style={styles.closestBadgeText}>Closest target</Text>
+        </View>
+      )}
       {/* Rank icon */}
-      <View style={[styles.ladderIcon, isTarget ? styles.ladderIconTarget : styles.ladderIconBeaten]}>
-        <Ionicons name={isTarget ? "arrow-up" : "checkmark"} size={16} color={isTarget ? PALETTE.accent2 : PALETTE.green} />
+      <View style={[styles.ladderIcon, isTarget ? styles.ladderIconTarget : styles.ladderIconBeaten, isClosest && styles.ladderIconClosest]}>
+        <Ionicons name={isTarget ? "arrow-up" : "checkmark"} size={16} color={isClosest ? PALETTE.gold : isTarget ? PALETTE.accent2 : PALETTE.green} />
       </View>
       {/* Info */}
       <View style={styles.ladderInfo}>
-        <Text style={styles.ladderName} numberOfLines={1} ellipsizeMode="tail">{person.name}</Text>
-        <Text style={[styles.ladderGap, { color: isTarget ? PALETTE.accent2 : PALETTE.green }]}>
-          {isTarget ? `${Math.round(person.gap)} points behind` : `${Math.round(person.gap)} points ahead`}
+        <Text style={[styles.ladderName, isClosest && { color: PALETTE.gold }]} numberOfLines={1} ellipsizeMode="tail">{person.name}</Text>
+        <Text style={[styles.ladderGap, { color: isClosest ? PALETTE.gold : isTarget ? PALETTE.accent2 : PALETTE.green }]}>
+          {isTarget ? `${Math.round(person.gap)} momentum behind` : `Out-rallied by ${Math.round(person.gap)} pts`}
         </Text>
       </View>
       {/* Score */}
       <View style={styles.ladderScoreBox}>
-        <Text style={styles.ladderScore}>{Math.round(person.raw_score)}</Text>
+        <Text style={[styles.ladderScore, isClosest && { color: PALETTE.gold }]}>{Math.round(person.raw_score)}</Text>
         <Text style={styles.ladderScoreUnit}>pts</Text>
       </View>
     </Animated.View>
@@ -229,7 +252,7 @@ function RallyCryModal({ visible, onClose, targets }) {
           {/* Step 1: Choose Target */}
           {step === 1 && (
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalDesc}>Who do you want to overtake?</Text>
+              <Text style={styles.modalDesc}>Who do you want to out-rally?</Text>
               {targets.map((target) => (
                 <TouchableOpacity
                   key={target.id}
@@ -272,7 +295,7 @@ function RallyCryModal({ visible, onClose, targets }) {
               <Text style={styles.modalDesc}>Write a short rallying message (max 100 chars)</Text>
               <TextInput
                 style={styles.msgInput}
-                placeholder="Help me beat them! 🚀"
+                placeholder="Help me out-rally them! 🚀"
                 placeholderTextColor={PALETTE.subtext}
                 value={message}
                 onChangeText={(t) => setMessage(t.slice(0, 100))}
@@ -391,18 +414,22 @@ export default function BullRunScreen() {
 
         {/* Targets above (reversed so closest is nearest to user) */}
         {[...ladder.above].reverse().map((person, idx) => (
-          <LadderItem key={person.id} person={person} index={idx} isTarget={true} />
+          <LadderItem key={person.id} person={person} index={idx} isTarget={true} isClosest={idx === 0} />
         ))}
 
         {/* User in the middle */}
         <UserCard user={ladder.user} rank={rank} />
 
-        {/* Beaten below */}
+        {/* Out-rallied below */}
         {ladder.below.map((person, idx) => (
-          <LadderItem key={person.id} person={person} index={idx + ladder.above.length} isTarget={false} />
+          <LadderItem key={person.id} person={person} index={idx + ladder.above.length} isTarget={false} isClosest={false} />
         ))}
 
-        {/* Rally Cry CTA */}
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      {/* Sticky Rally Cry CTA at bottom */}
+      <View style={styles.stickyFooter}>
         <TouchableOpacity
           style={styles.rallyCryBtn}
           activeOpacity={0.8}
@@ -412,9 +439,7 @@ export default function BullRunScreen() {
           <Text style={styles.rallyCryBtnText}>Launch Rally Cry</Text>
         </TouchableOpacity>
         <Text style={styles.rallyCrySub}>Ask your community to vote for you</Text>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      </View>
 
       {/* Rally Cry Modal */}
       <RallyCryModal visible={showRallyCry} onClose={() => setShowRallyCry(false)} targets={ladder.above} />
@@ -502,6 +527,29 @@ const styles = StyleSheet.create({
   },
   ladderRowTarget: { backgroundColor: PALETTE.accent + "10", borderColor: PALETTE.accent2 + "30" },
   ladderRowBeaten: { backgroundColor: PALETTE.green + "10", borderColor: PALETTE.green + "30" },
+  ladderRowClosest: {
+    backgroundColor: PALETTE.gold + "12",
+    borderColor: PALETTE.gold,
+    borderWidth: 2,
+  },
+  closestBadge: {
+    position: "absolute",
+    top: -10,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: PALETTE.gold,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  closestBadgeText: {
+    color: "#0F2F22",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   ladderIcon: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
@@ -509,6 +557,7 @@ const styles = StyleSheet.create({
   },
   ladderIconTarget: { backgroundColor: PALETTE.accent + "20", borderColor: PALETTE.accent2 + "40" },
   ladderIconBeaten: { backgroundColor: PALETTE.green + "20", borderColor: PALETTE.green + "40" },
+  ladderIconClosest: { backgroundColor: PALETTE.gold + "25", borderColor: PALETTE.gold },
   ladderInfo: { flex: 1 },
   ladderName: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
   ladderGap: { fontSize: 12, fontWeight: "500", marginTop: 2 },
@@ -532,13 +581,21 @@ const styles = StyleSheet.create({
   userCardStatLabel: { color: PALETTE.subtext, fontSize: 12, fontWeight: "500", marginTop: 2 },
   userCardDivider: { width: 1, height: 28, backgroundColor: PALETTE.border },
 
-  // Rally Cry CTA — same style as accent buttons in the app
+  // Rally Cry CTA — sticky at bottom with bold gradient style
+  stickyFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 24 : 16,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.gold + "30",
+    backgroundColor: PALETTE.bg,
+  },
   rallyCryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: PALETTE.accent2, borderRadius: 25,
-    paddingVertical: 14, marginTop: 24,
+    backgroundColor: PALETTE.gold, borderRadius: 25,
+    paddingVertical: 16,
   },
-  rallyCryBtnText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
+  rallyCryBtnText: { color: "#0F2F22", fontSize: 17, fontWeight: "800" },
   rallyCrySub: { color: PALETTE.subtext, fontSize: 12, textAlign: "center", marginTop: 6 },
 
   // ===== MODAL =====

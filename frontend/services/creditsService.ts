@@ -94,7 +94,7 @@ export const BOOSTER_TIERS: BoosterTier[] = [
     price: 49.99,
     duration_hours: 168,
     position: 'top',
-    description: 'Top of the Home page for 1 week',
+    description: 'Top of Home page + Bull Run access — Beat real celebrities and rise to Legend',
   },
 ];
 
