@@ -1271,14 +1271,14 @@ BOOSTER_TIERS = {
         "price": 0.99,
         "duration_hours": 1,
         "position": "bottom",
-        "description": "Appear in the Outsiders ranking for 1 hour. Get noticed by the community.",
+        "description": "Get a spot in the Outsiders ranking for 1 hour. Get noticed by the community.",
     },
     "super_booster": {
         "name": "Super Booster",
         "price": 9.99,
         "duration_hours": 24,
         "position": "bottom",
-        "description": "Appear in the Outsiders ranking for 24 hours. More time = more votes = better climb.",
+        "description": "Get a spot in the Outsiders ranking for 24 hours. More time = more votes = better climb.",
     },
     "golden_booster": {
         "name": "Golden Booster",
