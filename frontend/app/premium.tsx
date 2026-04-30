@@ -199,7 +199,7 @@ export default function Premium() {
       return;
     }
     if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter your name to appear on the Home page.');
+      Alert.alert('Name required', 'Please enter your name to appear in the Outsiders ranking.');
       return;
     }
     if (!iapReady) {
@@ -235,9 +235,11 @@ export default function Premium() {
     Alert.alert(
       'Confirm Purchase',
       `Purchase ${tier.name} for ${displayPrice}?\n\n` +
-      `• "${name.trim()}" will appear on the Home page\n` +
+      `• "${name.trim()}" will appear in the Outsiders ranking\n` +
       `• Duration: ${durationLabel}\n` +
-      `• Position: ${tier.position === 'top' ? 'Top (under Personality of the Day)' : 'Home page'}\n\n` +
+      (tier.id === 'golden_booster'
+        ? `• Priority placement + Home page rotation as Outsider of the Day\n• Bull Run access included\n\n`
+        : `\n`) +
       `Payment will be processed through ${Platform.OS === 'ios' ? 'Apple' : 'Google'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -315,7 +317,7 @@ export default function Premium() {
             <Ionicons name="megaphone" size={48} color={PALETTE.gold} />
             <Text style={styles.heroTitle}>Get Noticed!</Text>
             <Text style={styles.heroText}>
-              Purchase a Booster and your name will appear on the Home page for everyone to see.
+              Purchase a Booster and your name will appear in the Outsiders ranking for everyone to see. Golden Booster also gets priority placement and rotates on the Home page as Outsider of the Day.
             </Text>
           </View>
 
@@ -385,7 +387,7 @@ export default function Premium() {
                   <View style={styles.tierHighlight}>
                     <Ionicons name="star" size={14} color={PALETTE.gold} />
                     <Text style={styles.tierHighlightText}>
-                      Top of the Home page + name in the ranking
+                      Priority placement in Outsiders + name in the ranking
                     </Text>
                   </View>
                 )}
@@ -394,7 +396,7 @@ export default function Premium() {
                   <View style={[styles.tierHighlight, { borderColor: PALETTE.gold + '40', backgroundColor: PALETTE.gold + '10' }]}>
                     <Ionicons name="trophy" size={14} color={PALETTE.gold} />
                     <Text style={[styles.tierHighlightText, { color: PALETTE.gold }]}>
-                      Bull Run access — Beat real celebrities and rise to Legend
+                      Home page rotation as Outsider of the Day + Bull Run access
                     </Text>
                   </View>
                 )}

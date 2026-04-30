@@ -78,7 +78,7 @@ export const BOOSTER_TIERS: BoosterTier[] = [
     price: 0.99,
     duration_hours: 1,
     position: 'bottom',
-    description: 'Appear on the Home page for 1 hour',
+    description: 'Appear in the Outsiders ranking for 1 hour. Get noticed by the community.',
   },
   {
     id: 'super_booster',
@@ -86,7 +86,7 @@ export const BOOSTER_TIERS: BoosterTier[] = [
     price: 9.99,
     duration_hours: 24,
     position: 'bottom',
-    description: 'Appear on the Home page for 24 hours',
+    description: 'Appear in the Outsiders ranking for 24 hours. More time = more votes = better climb.',
   },
   {
     id: 'golden_booster',
@@ -94,7 +94,7 @@ export const BOOSTER_TIERS: BoosterTier[] = [
     price: 49.99,
     duration_hours: 168,
     position: 'top',
-    description: 'Top of Home page + Bull Run access — Beat real celebrities and rise to Legend',
+    description: 'Priority placement in Outsiders + Home page rotation + exclusive Bull Run access.',
   },
 ];
 

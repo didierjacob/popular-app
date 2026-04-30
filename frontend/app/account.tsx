@@ -245,7 +245,7 @@ export default function AccountScreen() {
       },
       {
         q: "How do Boosters work?",
-        a: "Boosters let you appear on the Home page as an 'Outsider'. Choose a tier:\n\n• Booster (€0.99) — 1 hour of visibility\n• Super Booster (€9.99) — 24 hours\n• Golden Booster (€49.99) — 1 week at the top",
+        a: "Boosters let you appear in the Outsiders ranking. Each tier offers different durations:\n\n• Booster (€0.99) — 1 hour in Outsiders\n• Super Booster (€9.99) — 24 hours in Outsiders\n• Golden Booster (€49.99) — 7 days with priority placement, Home page rotation as Outsider of the Day, and Bull Run access",
       },
       {
         q: "How do I vote?",

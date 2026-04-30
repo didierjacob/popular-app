@@ -110,7 +110,7 @@ async def check_expiring_boosts(db):
                         <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #FFD700;">
                             <h2 style="color: #EAEAEA; margin-top: 0;">Hello {person_name}!</h2>
                             <p style="color: #C9D8D2;">Your <strong style="color: #FFD700;">Golden Booster</strong> expires in approximately <strong style="color: #FFD700;">{remaining_hours} hours</strong>.</p>
-                            <p style="color: #C9D8D2;">Don't lose your spot at the top of the Home page!</p>
+                            <p style="color: #C9D8D2;">Don't lose your priority placement in Outsiders and Home page rotation!</p>
                             <div style="text-align: center; margin-top: 20px;">
                                 <a href="https://popularoo.com" style="display: inline-block; background: #FFD700; color: #0F2F22; padding: 12px 30px; border-radius: 25px; text-decoration: none; font-weight: bold;">Renew Now</a>
                             </div>

@@ -1264,28 +1264,28 @@ async def last_searches(limit: int = Query(default=5, le=20)):
 
 # -------------------- Booster Visibility System --------------------
 
-# Booster tiers: visibility on the Home page
+# Booster tiers: visibility in the Outsiders ranking (Golden = priority placement + Home page rotation)
 BOOSTER_TIERS = {
     "booster": {
         "name": "Booster",
         "price": 0.99,
         "duration_hours": 1,
-        "position": "bottom",  # Below categories & top personalities
-        "description": "Appear on the Home page for 1 hour",
+        "position": "bottom",
+        "description": "Appear in the Outsiders ranking for 1 hour. Get noticed by the community.",
     },
     "super_booster": {
         "name": "Super Booster",
         "price": 9.99,
         "duration_hours": 24,
         "position": "bottom",
-        "description": "Appear on the Home page for 24 hours",
+        "description": "Appear in the Outsiders ranking for 24 hours. More time = more votes = better climb.",
     },
     "golden_booster": {
         "name": "Golden Booster",
         "price": 49.99,
         "duration_hours": 24 * 7,  # 1 week
-        "position": "top",  # Under Personality of the Day, above everything
-        "description": "Appear at the top of the Home page for 1 week",
+        "position": "top",  # Priority placement in Outsiders + Home page rotation as Outsider of the Day
+        "description": "Priority placement in Outsiders + Home page rotation + exclusive Bull Run access.",
     },
 }
 
@@ -1360,7 +1360,7 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
 
 @api_router.post("/boost-myself")
 async def boost_myself(request: BoostMyselfRequest):
-    """Purchase a visibility boost and appear on the Home page as an Outsider"""
+    """Purchase a visibility boost and appear in the Outsiders ranking (Golden: + priority placement + Home page rotation)"""
     try:
         # Require a valid receipt from Apple/Google for payment verification
         if not request.receipt or len(request.receipt) < 10:
@@ -1494,6 +1494,7 @@ async def boost_myself(request: BoostMyselfRequest):
             try:
                 duration_text = "1 hour" if tier_info["duration_hours"] == 1 else \
                     "24 hours" if tier_info["duration_hours"] == 24 else "1 week"
+                position_text = "Priority placement in Outsiders + Home page rotation as Outsider of the Day" if tier_info['position'] == 'top' else "Outsiders ranking"
                 html = f"""
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
                     <h1 style="color: #FFD700; text-align: center;">🚀 Boost Confirmed!</h1>
@@ -1503,7 +1504,7 @@ async def boost_myself(request: BoostMyselfRequest):
                         <ul style="color: #C9D8D2; line-height: 2;">
                             <li>Duration: <strong>{duration_text}</strong></li>
                             <li>Expires: <strong>{end_time.strftime('%B %d, %Y at %H:%M UTC')}</strong></li>
-                            <li>Position: <strong>{'Top of Home page' if tier_info['position'] == 'top' else 'Home page'}</strong></li>
+                            <li>Position: <strong>{position_text}</strong></li>
                         </ul>
                     </div>
                     <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Thank you for using Popularoo!</p>
@@ -1512,6 +1513,10 @@ async def boost_myself(request: BoostMyselfRequest):
                 await email_service.send_email(request.email, f"🚀 Your {tier_info['name']} is active!", html)
             except Exception as email_err:
                 logger.warning(f"Failed to send confirmation email: {email_err}")
+
+        success_msg = f"🎉 {tier_info['name']} activated! '{name}' is now in the Outsiders ranking."
+        if tier_info["position"] == "top":
+            success_msg += " With priority placement and Home page rotation as Outsider of the Day."
 
         return {
             "success": True,
@@ -1523,7 +1528,7 @@ async def boost_myself(request: BoostMyselfRequest):
             "end_time": end_time.isoformat(),
             "duration_hours": tier_info["duration_hours"],
             "position": tier_info["position"],
-            "message": f"🎉 {tier_info['name']} activated! '{name}' will appear on the Home page.",
+            "message": success_msg,
         }
 
     except HTTPException:
