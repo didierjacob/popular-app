@@ -444,7 +444,7 @@ export default function HomeScreen() {
         )}
 
         {/* ===== OUTSIDER OF THE DAY (Golden Boosters only, rotates every 10s) ===== */}
-        {goldenOutsiders.length > 0 && (
+        {goldenOutsiders.length > 0 && !goldenOutsiders[currentOutsiderIndex]?.name?.toLowerCase().includes('test') && (
           <Animated.View style={[styles.outsiderOfTheDaySection, { opacity: fadeAnim }]}>
             <TouchableOpacity
               style={styles.outsiderOfTheDayCard}

@@ -581,6 +581,10 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
+    # Block dislikes on boosted users (anti-harassment protection)
+    if int(body.value) == -1 and person.get("source") == "self_boosted":
+        raise HTTPException(status_code=403, detail="Dislikes are not available for Outsiders. You can only support them!")
+
     existing_vote = await db.votes.find_one({"person_id": oid, "device_id": x_device_id})
 
     new_val = int(body.value)

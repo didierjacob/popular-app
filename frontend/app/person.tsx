@@ -326,7 +326,9 @@ export default function Person() {
             </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
             <Text style={styles.meta}>
-              {formatNumber(person?.likes || 0)} likes • {formatNumber(person?.dislikes || 0)} dislikes
+              {person?.source === "self_boosted" 
+                ? `${formatNumber(person?.likes || 0)} supporters`
+                : `${formatNumber(person?.likes || 0)} likes • ${formatNumber(person?.dislikes || 0)} dislikes`}
             </Text>
           </View>
 
@@ -409,52 +411,82 @@ export default function Person() {
           </View>
 
           {/* Vote Buttons */}
-          <View style={[styles.row, { justifyContent: 'space-between' }]}>
-            <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
-              <TouchableOpacity 
-                style={[styles.cta, { backgroundColor: PALETTE.accent }]} 
-                onPress={() => like(1)}
-              >
-                <Ionicons name="thumbs-up" size={18} color="#fff" />
-                <Text style={styles.ctaText}>Like</Text>
-              </TouchableOpacity>
-            </Animated.View>
-            <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
-              <TouchableOpacity 
-                style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} 
-                onPress={() => like(-1)}
-              >
-                <Ionicons name="thumbs-down" size={18} color="#fff" />
-                <Text style={styles.ctaText}>Dislike</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
+          {person?.source === "self_boosted" ? (
+            /* Boosted user: Support only (no dislike) */
+            <View style={[styles.row, { justifyContent: 'center' }]}>
+              <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1 }}>
+                <TouchableOpacity 
+                  style={[styles.cta, { backgroundColor: PALETTE.gold }]} 
+                  onPress={() => like(1)}
+                >
+                  <Ionicons name="heart" size={18} color="#0F2F22" />
+                  <Text style={[styles.ctaText, { color: "#0F2F22" }]}>Support {name?.split(' ')[0] || ''}</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          ) : (
+            /* Celebrity: Like + Dislike */
+            <View style={[styles.row, { justifyContent: 'space-between' }]}>
+              <Animated.View style={{ transform: [{ scale: likeScaleAnim }], flex: 1, marginRight: 6 }}>
+                <TouchableOpacity 
+                  style={[styles.cta, { backgroundColor: PALETTE.accent }]} 
+                  onPress={() => like(1)}
+                >
+                  <Ionicons name="thumbs-up" size={18} color="#fff" />
+                  <Text style={styles.ctaText}>Like</Text>
+                </TouchableOpacity>
+              </Animated.View>
+              <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
+                <TouchableOpacity 
+                  style={[styles.cta, { backgroundColor: PALETTE.accent2 }]} 
+                  onPress={() => like(-1)}
+                >
+                  <Ionicons name="thumbs-down" size={18} color="#fff" />
+                  <Text style={styles.ctaText}>Dislike</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          )}
 
           {/* Personality Trends */}
           <Trends />
 
-          {/* Share Section */}
-          <View style={[styles.card, { marginBottom: 30 }]}>
-            <Text style={styles.section}>Share</Text>
-            <View style={styles.shareGrid}>
-              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1877F2' }]} onPress={shareToFacebook}>
-                <Ionicons name="logo-facebook" size={22} color="white" />
-                <Text style={styles.shareText}>Facebook</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1DA1F2' }]} onPress={shareToTwitter}>
-                <Ionicons name="logo-twitter" size={22} color="white" />
-                <Text style={styles.shareText}>Twitter</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#E4405F' }]} onPress={shareToInstagram}>
-                <Ionicons name="logo-instagram" size={22} color="white" />
-                <Text style={styles.shareText}>Instagram</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareButton, { backgroundColor: PALETTE.accent }]} onPress={shareGeneric}>
-                <Ionicons name="share-outline" size={22} color="white" />
-                <Text style={styles.shareText}>More</Text>
-              </TouchableOpacity>
+          {/* Share / Action Section */}
+          {person?.source === "self_boosted" ? (
+            /* Boosted user: No social share buttons — just Rally Cry context */
+            <View style={[styles.card, { marginBottom: 30 }]}>
+              <Text style={styles.section}>Bull Run</Text>
+              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <Ionicons name="rocket" size={28} color={PALETTE.gold} />
+                <Text style={{ color: PALETTE.text, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
+                  This is an Outsider competing in the ranking.{'\n'}Your support helps them climb!
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            /* Celebrity: Classic share buttons */
+            <View style={[styles.card, { marginBottom: 30 }]}>
+              <Text style={styles.section}>Share</Text>
+              <View style={styles.shareGrid}>
+                <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1877F2' }]} onPress={shareToFacebook}>
+                  <Ionicons name="logo-facebook" size={22} color="white" />
+                  <Text style={styles.shareText}>Facebook</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1DA1F2' }]} onPress={shareToTwitter}>
+                  <Ionicons name="logo-twitter" size={22} color="white" />
+                  <Text style={styles.shareText}>Twitter</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#E4405F' }]} onPress={shareToInstagram}>
+                  <Ionicons name="logo-instagram" size={22} color="white" />
+                  <Text style={styles.shareText}>Instagram</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.shareButton, { backgroundColor: PALETTE.accent }]} onPress={shareGeneric}>
+                  <Ionicons name="share-outline" size={22} color="white" />
+                  <Text style={styles.shareText}>More</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           </View>
         </ScrollView>
       )}

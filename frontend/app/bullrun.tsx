@@ -261,7 +261,7 @@ function RallyCryModal({ visible, onClose, targets }) {
                 >
                   <View style={styles.targetInfo}>
                     <Text style={styles.targetName} numberOfLines={1}>{target.name}</Text>
-                    <Text style={styles.targetGap}>{Math.round(target.gap)} points away</Text>
+                    <Text style={styles.targetGap}>{Math.round(target.gap)} momentum away</Text>
                   </View>
                   <Text style={styles.targetScore}>{Math.round(target.raw_score)} pts</Text>
                   {selectedTarget === target.id && <Ionicons name="checkmark-circle" size={20} color={PALETTE.green} />}
@@ -340,7 +340,11 @@ function RallyCryModal({ visible, onClose, targets }) {
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.btnNext, step === 1 && !selectedTarget && { opacity: 0.4 }]}
+              style={[
+                styles.btnNext,
+                step === 1 && !selectedTarget && { opacity: 0.4, backgroundColor: PALETTE.subtext },
+                step === 1 && selectedTarget && { backgroundColor: PALETTE.green },
+              ]}
               disabled={step === 1 && !selectedTarget}
               onPress={() => {
                 if (step < 4) { setStep(step + 1); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
@@ -438,7 +442,7 @@ export default function BullRunScreen() {
           <Ionicons name="megaphone" size={20} color="#FFF" />
           <Text style={styles.rallyCryBtnText}>Launch Rally Cry</Text>
         </TouchableOpacity>
-        <Text style={styles.rallyCrySub}>Ask your community to vote for you</Text>
+        <Text style={styles.rallyCrySub}>Rally Popularoo voters to back you up</Text>
       </View>
 
       {/* Rally Cry Modal */}
