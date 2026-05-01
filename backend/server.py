@@ -2758,6 +2758,21 @@ async def get_rally_share_image(rally_id: str, format_type: str):
     bull_run = await db.bull_runs.find_one({"user_id": rally.get("user_id"), "active": True})
     rank = bull_run.get("rank", "Challenger") if bull_run else "Challenger"
 
+    # Calculate time remaining
+    expires_at = rally.get("expires_at")
+    if expires_at:
+        from datetime import timezone
+        remaining = expires_at - now_utc()
+        days_left = max(0, remaining.days)
+        hours_left = max(0, remaining.seconds // 3600)
+        time_remaining = f"{days_left}d {hours_left}h" if days_left > 0 else f"{hours_left}h"
+    else:
+        time_remaining = "LIVE"
+
+    # Get short URL if available
+    short_link = await db.short_links.find_one({"target_type": "rally_cry", "target_id": str(rally["_id"])})
+    short_url = f"popularoo.com/r/{short_link['short_id']}" if short_link else "popularoo.com"
+
     buffer = generate_rally_cry_image(
         user_name=user_person.get("name", "Unknown"),
         celebrity_name=celebrity.get("name", "Unknown"),
@@ -2766,6 +2781,8 @@ async def get_rally_share_image(rally_id: str, format_type: str):
         gap=celebrity.get("likes", 0) - user_person.get("likes", 0),
         rank=rank,
         format_type=format_type,
+        time_remaining=time_remaining,
+        short_url=short_url,
     )
 
     return StreamingResponse(buffer, media_type="image/png")
@@ -2953,7 +2970,13 @@ async def serve_static_asset(filename: str):
     fpath = os.path.join(ASSETS_DIR, filename)
     if not os.path.exists(fpath):
         raise HTTPException(status_code=404, detail="File not found")
-    media_type = "image/png" if filename.endswith(".png") else "application/octet-stream"
+    media_type = "image/png" if filename.endswith(".png") else \
+                 "text/html" if filename.endswith(".html") else \
+                 "application/json" if filename.endswith(".json") else \
+                 "application/octet-stream"
+    # Don't force download for images and HTML - inline display
+    if filename.endswith((".png", ".jpg", ".html")):
+        return FileResponse(fpath, media_type=media_type)
     return FileResponse(fpath, media_type=media_type, filename=filename)
 
 

@@ -4,7 +4,7 @@
         "target": {
             "namespace": "android_app",
             "package_name": "com.popularoo.app",
-            "sha256_cert_fingerprints": ["TO_BE_FILLED_WITH_YOUR_KEYSTORE_SHA256"]
+            "sha256_cert_fingerprints": ["37:80:02:5F:A5:AD:9E:ED:CB:DB:FF:22:ED:64:CF:29:0D:37:90:FA:8E:2B:18:E1:69:E7:40:29:76:5C:8E:62"]
         }
     }
 ]

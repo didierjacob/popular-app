@@ -90,16 +90,51 @@ async def resolve_short_link(db, short_id: str) -> Optional[Dict]:
 
 
 # ---- Image Generation ----
-def get_font(size: int, bold: bool = False):
-    """Get a font, fallback to default if not available"""
-    paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    ]
-    for p in paths:
+FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
+BRAND_RED = "#E04F5F"
+
+
+def get_font(size: int, bold: bool = True):
+    """Get Oswald font (condensed, impact-like), fallback to system fonts"""
+    if bold:
+        candidates = [
+            os.path.join(FONTS_DIR, "Oswald-Bold.ttf"),
+            "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Bold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        ]
+    else:
+        candidates = [
+            os.path.join(FONTS_DIR, "Oswald-Regular.ttf"),
+            "/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        ]
+    for p in candidates:
         if os.path.exists(p):
             return ImageFont.truetype(p, size)
     return ImageFont.load_default()
+
+
+def _truncate_name(draw, name: str, font, max_width: int) -> str:
+    """Truncate name with ellipsis if it exceeds max_width"""
+    text = name.upper()
+    bbox = draw.textbbox((0, 0), text, font=font)
+    if (bbox[2] - bbox[0]) <= max_width:
+        return text
+    while len(text) > 3:
+        text = text[:-1]
+        bbox = draw.textbbox((0, 0), text + "…", font=font)
+        if (bbox[2] - bbox[0]) <= max_width:
+            return text + "…"
+    return text
+
+
+def _format_score(score: int) -> str:
+    """Format score with thousands separators"""
+    if score >= 1000000:
+        return f"{score / 1000000:.1f}M"
+    elif score >= 10000:
+        return f"{score / 1000:.1f}K"
+    return f"{score:,}".replace(",", " ")
 
 
 def generate_rally_cry_image(
@@ -109,9 +144,20 @@ def generate_rally_cry_image(
     celebrity_score: int,
     gap: int,
     rank: str = "Challenger",
-    format_type: str = "square"  # "square" (1080x1080) or "vertical" (1080x1920)
+    format_type: str = "square",  # "square" (1080x1080) or "vertical" (1080x1920)
+    time_remaining: str = "4d 18h",
+    short_url: str = "popularoo.com/r/abc1234",
 ) -> BytesIO:
-    """Generate a Rally Cry share image — pure typographic scoreboard style (Bloomberg/ESPN ticker)"""
+    """
+    Generate a Rally Cry share image — UFC Fight Poster / NBA Scoreboard style.
+    100% typographic. No avatars, no circles, no fake buttons.
+    Layout:
+      - Top band (~12%): Green #009B4D with "RALLY CRY" + "LIVE • timer"
+      - User section (~38%): name (80-100px) + score in GOLD (200-250px)
+      - VS band (~7%): Red #E04F5F full width with massive "VS"
+      - Celebrity section (~38%): name (80-100px) + score in RED (200-250px)
+      - Footer (~5%): "POPULAROO — The Stock Market of Fame" + short link
+    """
 
     if format_type == "vertical":
         width, height = 1080, 1920
@@ -120,123 +166,115 @@ def generate_rally_cry_image(
 
     img = Image.new("RGB", (width, height), BRAND_DARK)
     draw = ImageDraw.Draw(img)
+    cx = width // 2
 
-    # Fonts
-    font_header = get_font(38, bold=True)
-    font_name_large = get_font(64, bold=True)
-    font_score_huge = get_font(96, bold=True)
-    font_label = get_font(24)
-    font_gap = get_font(30, bold=True)
-    font_cta = get_font(34, bold=True)
-    font_brand = get_font(20)
-    font_rank_tag = get_font(22, bold=True)
+    # ---- Proportional zones ----
+    header_h = int(height * 0.12)
+    section_h = int(height * 0.38)
+    vs_h = int(height * 0.07)
+    footer_h = int(height * 0.05)
 
-    cx = width // 2  # Center X
-    pad = 60
-
+    # ---- Font sizes (proportional) ----
     if format_type == "vertical":
-        # Vertical layout (1080x1920) — more spacing
-        y = 140
-
-        # "RALLY CRY" header bar
-        draw.rectangle([(0, y - 20), (width, y + 50)], fill=BRAND_GREEN)
-        draw.text((cx, y + 15), "RALLY CRY", font=font_header, fill="#FFFFFF", anchor="mm")
-        y += 100
-
-        # Rank tag
-        draw.text((cx, y), rank.upper(), font=font_rank_tag, fill=BRAND_GOLD, anchor="mm")
-        y += 60
-
-        # Separator
-        draw.line([(pad, y), (width - pad, y)], fill=BRAND_BORDER, width=1)
-        y += 50
-
-        # USER section
-        draw.text((cx, y), "OUTSIDER", font=font_label, fill=BRAND_GOLD + "88", anchor="mm")
-        y += 40
-        draw.text((cx, y), user_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
-        y += 80
-        draw.text((cx, y), str(user_score), font=font_score_huge, fill=BRAND_GOLD, anchor="mm")
-        y += 80
-        draw.text((cx, y), "votes", font=font_label, fill=BRAND_GOLD + "AA", anchor="mm")
-        y += 70
-
-        # GAP indicator
-        gap_color = BRAND_GREEN if gap <= 0 else "#E04F5F"
-        gap_arrow = "▲" if gap <= 0 else "▼"
-        gap_word = "AHEAD" if gap <= 0 else "BEHIND"
-        draw.rectangle([(pad, y), (width - pad, y + 60)], fill=gap_color + "22", outline=gap_color, width=2)
-        draw.text((cx, y + 30), f"{gap_arrow}  {abs(gap)} MOMENTUM {gap_word}", font=font_gap, fill=gap_color, anchor="mm")
-        y += 110
-
-        # CELEBRITY section
-        draw.text((cx, y), "CELEBRITY", font=font_label, fill="#E04F5F88", anchor="mm")
-        y += 40
-        draw.text((cx, y), celebrity_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
-        y += 80
-        draw.text((cx, y), str(celebrity_score), font=font_score_huge, fill="#E04F5F", anchor="mm")
-        y += 80
-        draw.text((cx, y), "votes", font=font_label, fill="#E04F5FAA", anchor="mm")
-        y += 100
-
-        # CTA bar
-        cta_y = height - 220
-        draw.rounded_rectangle([(pad, cta_y), (width - pad, cta_y + 70)], radius=35, fill=BRAND_GOLD)
-        draw.text((cx, cta_y + 35), f"VOTE FOR {user_name.split(' ')[0].upper()}", font=font_cta, fill=BRAND_DARK, anchor="mm")
-
-        # Footer branding
-        draw.text((cx, height - 80), "POPULAROO", font=font_header, fill=BRAND_LIGHT + "44", anchor="mm")
-        draw.text((cx, height - 45), "The Stock Market of Fame", font=font_brand, fill=BRAND_LIGHT + "33", anchor="mm")
-
+        sz_header_title = 56
+        sz_live = 32
+        sz_label = 34
+        sz_name = 90
+        sz_score = 220
+        sz_vs = 90
+        sz_footer = 26
+        sz_link = 22
     else:
-        # Square layout (1080x1080) — compact scoreboard
-        y = 60
+        sz_header_title = 48
+        sz_live = 28
+        sz_label = 30
+        sz_name = 80
+        sz_score = 200
+        sz_vs = 80
+        sz_footer = 22
+        sz_link = 20
 
-        # "RALLY CRY" header bar
-        draw.rectangle([(0, y - 10), (width, y + 44)], fill=BRAND_GREEN)
-        draw.text((cx, y + 17), "RALLY CRY", font=font_header, fill="#FFFFFF", anchor="mm")
-        y += 80
+    f_header_title = get_font(sz_header_title, bold=True)
+    f_live = get_font(sz_live, bold=False)
+    f_label = get_font(sz_label, bold=False)
+    f_name = get_font(sz_name, bold=True)
+    f_score = get_font(sz_score, bold=True)
+    f_vs = get_font(sz_vs, bold=True)
+    f_footer = get_font(sz_footer, bold=False)
+    f_link = get_font(sz_link, bold=False)
 
-        # Rank tag
-        draw.text((cx, y), rank.upper(), font=font_rank_tag, fill=BRAND_GOLD, anchor="mm")
-        y += 50
+    # ============ TOP HEADER BAND (green) ============
+    y0 = 0
+    draw.rectangle([(0, y0), (width, y0 + header_h)], fill=BRAND_GREEN)
 
-        # Thin separator
-        draw.line([(pad, y), (width - pad, y)], fill=BRAND_BORDER, width=1)
-        y += 35
+    # "RALLY CRY" left-of-center
+    header_cy = y0 + header_h // 2
+    draw.text((60, header_cy), "RALLY CRY", font=f_header_title, fill="#FFFFFF", anchor="lm")
 
-        # USER section
-        draw.text((cx, y), "OUTSIDER", font=font_label, fill=BRAND_GOLD + "88", anchor="mm")
-        y += 35
-        draw.text((cx, y), user_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
-        y += 70
-        draw.text((cx, y), str(user_score), font=font_score_huge, fill=BRAND_GOLD, anchor="mm")
-        y += 70
+    # "LIVE • 4d 18h" right-of-center
+    live_text = f"LIVE  •  {time_remaining}"
+    draw.text((width - 60, header_cy), live_text, font=f_live, fill="#FFFFFF", anchor="rm")
 
-        # GAP indicator
-        gap_color = BRAND_GREEN if gap <= 0 else "#E04F5F"
-        gap_arrow = "▲" if gap <= 0 else "▼"
-        gap_word = "AHEAD" if gap <= 0 else "BEHIND"
-        draw.rectangle([(pad, y), (width - pad, y + 50)], fill=gap_color + "22", outline=gap_color, width=2)
-        draw.text((cx, y + 25), f"{gap_arrow}  {abs(gap)} MOMENTUM {gap_word}", font=font_gap, fill=gap_color, anchor="mm")
-        y += 85
+    # Thin bright line at bottom of header
+    draw.rectangle([(0, y0 + header_h - 3), (width, y0 + header_h)], fill=BRAND_GOLD)
 
-        # CELEBRITY section
-        draw.text((cx, y), "CELEBRITY", font=font_label, fill="#E04F5F88", anchor="mm")
-        y += 35
-        draw.text((cx, y), celebrity_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
-        y += 70
-        draw.text((cx, y), str(celebrity_score), font=font_score_huge, fill="#E04F5F", anchor="mm")
-        y += 85
+    # ============ USER SECTION (top half) ============
+    user_y0 = header_h
+    user_cy = user_y0 + section_h // 2
 
-        # CTA bar
-        draw.rounded_rectangle([(pad, y), (width - pad, y + 60)], radius=30, fill=BRAND_GOLD)
-        draw.text((cx, y + 30), f"VOTE FOR {user_name.split(' ')[0].upper()}", font=font_cta, fill=BRAND_DARK, anchor="mm")
+    # "OUTSIDER" label
+    label_y = user_y0 + int(section_h * 0.15)
+    draw.text((cx, label_y), "OUTSIDER", font=f_label, fill=BRAND_GOLD, anchor="mm")
 
-        # Footer branding
-        draw.text((cx, height - 35), "POPULAROO — The Stock Market of Fame", font=font_brand, fill=BRAND_LIGHT + "33", anchor="mm")
+    # User name (truncated if needed)
+    name_y = user_y0 + int(section_h * 0.38)
+    user_display = _truncate_name(draw, user_name, f_name, width - 120)
+    draw.text((cx, name_y), user_display, font=f_name, fill="#FFFFFF", anchor="mm")
 
-    # Export
+    # User score — MASSIVE in GOLD
+    score_y = user_y0 + int(section_h * 0.72)
+    user_score_text = _format_score(user_score)
+    draw.text((cx, score_y), user_score_text, font=f_score, fill=BRAND_GOLD, anchor="mm")
+
+    # ============ VS BAND (red bar) ============
+    vs_y0 = header_h + section_h
+    draw.rectangle([(0, vs_y0), (width, vs_y0 + vs_h)], fill=BRAND_RED)
+
+    # "VS" centered — massive white
+    vs_cy = vs_y0 + vs_h // 2
+    draw.text((cx, vs_cy), "VS", font=f_vs, fill="#FFFFFF", anchor="mm")
+
+    # ============ CELEBRITY SECTION (bottom half) ============
+    celeb_y0 = header_h + section_h + vs_h
+
+    # "CELEBRITY" label
+    clabel_y = celeb_y0 + int(section_h * 0.15)
+    draw.text((cx, clabel_y), "CELEBRITY", font=f_label, fill=BRAND_RED, anchor="mm")
+
+    # Celebrity name (truncated if needed)
+    cname_y = celeb_y0 + int(section_h * 0.38)
+    celeb_display = _truncate_name(draw, celebrity_name, f_name, width - 120)
+    draw.text((cx, cname_y), celeb_display, font=f_name, fill="#FFFFFF", anchor="mm")
+
+    # Celebrity score — MASSIVE in RED
+    cscore_y = celeb_y0 + int(section_h * 0.72)
+    celeb_score_text = _format_score(celebrity_score)
+    draw.text((cx, cscore_y), celeb_score_text, font=f_score, fill=BRAND_RED, anchor="mm")
+
+    # ============ FOOTER ============
+    footer_y0 = height - footer_h
+    # Thin separator
+    draw.rectangle([(0, footer_y0), (width, footer_y0 + 2)], fill=BRAND_GOLD + "55")
+
+    # "POPULAROO — The Stock Market of Fame"
+    brand_y = footer_y0 + int(footer_h * 0.35)
+    draw.text((cx, brand_y), "POPULAROO — The Stock Market of Fame", font=f_footer, fill=BRAND_GOLD, anchor="mm")
+
+    # Short link
+    link_y = footer_y0 + int(footer_h * 0.75)
+    draw.text((cx, link_y), short_url, font=f_link, fill="#FFFFFF80", anchor="mm")
+
+    # ============ EXPORT ============
     buffer = BytesIO()
     img.save(buffer, format="PNG", optimize=True)
     buffer.seek(0)
@@ -571,7 +609,7 @@ ANDROID_ASSET_LINKS = [
         "target": {
             "namespace": "android_app",
             "package_name": "com.popularoo.app",
-            "sha256_cert_fingerprints": ["TO_BE_FILLED"]
+            "sha256_cert_fingerprints": ["37:80:02:5F:A5:AD:9E:ED:CB:DB:FF:22:ED:64:CF:29:0D:37:90:FA:8E:2B:18:E1:69:E7:40:29:76:5C:8E:62"]
         }
     }
 ]
