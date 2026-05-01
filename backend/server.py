@@ -2682,7 +2682,6 @@ async def init_votes():
 
 
 # Include the router in the main app
-app.include_router(api_router)
 # Include Bull Run / Rally Cry router
 app.include_router(bull_run_router)
 app.include_router(share_router)
@@ -2972,6 +2971,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# Include API router AFTER all endpoints are defined on it
+app.include_router(api_router)
 
 
 @app.on_event("shutdown")
