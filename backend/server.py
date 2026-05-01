@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Header, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -16,6 +16,11 @@ import re
 from trends_service import trends_service
 from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
 from bull_run import bull_run_router, init_bull_run, bull_run_background_job
+from share_system import (
+    share_router, create_short_link, resolve_short_link,
+    generate_rally_cry_image, get_share_messages,
+    generate_rally_page_html, generate_user_page_html,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -2680,6 +2685,206 @@ async def init_votes():
 app.include_router(api_router)
 # Include Bull Run / Rally Cry router
 app.include_router(bull_run_router)
+app.include_router(share_router)
+
+
+# -------------------- Share System Endpoints --------------------
+
+@api_router.get("/share/rally/{rally_id}")
+async def get_rally_share_data(rally_id: str):
+    """Get share data for a Rally Cry (short link, messages, image URLs)"""
+    try:
+        oid = ObjectId(rally_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid rally_id")
+
+    rally = await db.rally_cries.find_one({"_id": oid})
+    if not rally:
+        raise HTTPException(status_code=404, detail="Rally Cry not found")
+
+    # Get user and celebrity data
+    user_person = await db.persons.find_one({"_id": ObjectId(rally["person_id"])})
+    celebrity = await db.persons.find_one({"_id": ObjectId(rally["target_celebrity_id"])})
+
+    if not user_person or not celebrity:
+        raise HTTPException(status_code=404, detail="Person data not found")
+
+    user_name = user_person.get("name", "Unknown")
+    celeb_name = celebrity.get("name", "Unknown")
+    user_score = user_person.get("likes", 0)
+    celeb_score = celebrity.get("likes", 0)
+    gap = celeb_score - user_score
+
+    # Create short link
+    short_id = await create_short_link(db, "rally_cry", rally_id)
+    short_url = f"https://popularoo.com/r/{short_id}"
+
+    # Generate share messages
+    messages = get_share_messages(user_name, celeb_name, gap, short_url)
+
+    return {
+        "short_url": short_url,
+        "short_id": short_id,
+        "share_image_square": f"/api/share/rally-image/{rally_id}/square",
+        "share_image_vertical": f"/api/share/rally-image/{rally_id}/vertical",
+        "messages": messages,
+        "user_name": user_name,
+        "celebrity_name": celeb_name,
+        "gap": gap,
+    }
+
+
+@api_router.get("/share/rally-image/{rally_id}/{format_type}")
+async def get_rally_share_image(rally_id: str, format_type: str):
+    """Generate and return a Rally Cry share image (square or vertical)"""
+    if format_type not in ("square", "vertical"):
+        raise HTTPException(status_code=400, detail="format must be 'square' or 'vertical'")
+
+    try:
+        oid = ObjectId(rally_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid rally_id")
+
+    rally = await db.rally_cries.find_one({"_id": oid})
+    if not rally:
+        raise HTTPException(status_code=404, detail="Rally Cry not found")
+
+    user_person = await db.persons.find_one({"_id": ObjectId(rally["person_id"])})
+    celebrity = await db.persons.find_one({"_id": ObjectId(rally["target_celebrity_id"])})
+
+    if not user_person or not celebrity:
+        raise HTTPException(status_code=404, detail="Person data not found")
+
+    # Get Bull Run info for rank
+    bull_run = await db.bull_runs.find_one({"user_id": rally.get("user_id"), "active": True})
+    rank = bull_run.get("rank", "Challenger") if bull_run else "Challenger"
+
+    buffer = generate_rally_cry_image(
+        user_name=user_person.get("name", "Unknown"),
+        celebrity_name=celebrity.get("name", "Unknown"),
+        user_score=user_person.get("likes", 0),
+        celebrity_score=celebrity.get("likes", 0),
+        gap=celebrity.get("likes", 0) - user_person.get("likes", 0),
+        rank=rank,
+        format_type=format_type,
+    )
+
+    return StreamingResponse(buffer, media_type="image/png")
+
+
+@api_router.get("/public/r/{short_id}", response_class=HTMLResponse)
+async def public_rally_page(short_id: str):
+    """Server-rendered public page for a Rally Cry"""
+    link = await resolve_short_link(db, short_id)
+    if not link or link.get("target_type") != "rally_cry":
+        return HTMLResponse("<h1>Rally Cry not found</h1>", status_code=404)
+
+    rally_id = link["target_id"]
+    try:
+        rally = await db.rally_cries.find_one({"_id": ObjectId(rally_id)})
+    except Exception:
+        return HTMLResponse("<h1>Invalid link</h1>", status_code=404)
+
+    if not rally:
+        return HTMLResponse("<h1>Rally Cry not found</h1>", status_code=404)
+
+    user_person = await db.persons.find_one({"_id": ObjectId(rally["person_id"])})
+    celebrity = await db.persons.find_one({"_id": ObjectId(rally["target_celebrity_id"])})
+
+    if not user_person or not celebrity:
+        return HTMLResponse("<h1>Data not found</h1>", status_code=404)
+
+    bull_run = await db.bull_runs.find_one({"user_id": rally.get("user_id"), "active": True})
+    rank = bull_run.get("rank", "Challenger") if bull_run else "Challenger"
+
+    user_name = user_person.get("name", "Unknown")
+    celeb_name = celebrity.get("name", "Unknown")
+    user_score = user_person.get("likes", 0)
+    celeb_score = celebrity.get("likes", 0)
+    gap = celeb_score - user_score
+
+    html = generate_rally_page_html(
+        user_name=user_name,
+        celebrity_name=celeb_name,
+        user_score=user_score,
+        celebrity_score=celeb_score,
+        gap=gap,
+        rank=rank,
+        short_id=short_id,
+        rally_id=rally_id,
+    )
+    return HTMLResponse(html)
+
+
+@api_router.get("/public/u/{short_id}", response_class=HTMLResponse)
+async def public_user_page(short_id: str):
+    """Server-rendered public profile page for a boosted user"""
+    link = await resolve_short_link(db, short_id)
+    if not link or link.get("target_type") != "user":
+        return HTMLResponse("<h1>User not found</h1>", status_code=404)
+
+    person_id = link["target_id"]
+    try:
+        person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    except Exception:
+        return HTMLResponse("<h1>Invalid link</h1>", status_code=404)
+
+    if not person:
+        return HTMLResponse("<h1>User not found</h1>", status_code=404)
+
+    # Get Bull Run info
+    # Find any bull_run for this person
+    bull_run = await db.bull_runs.find_one({"person_id": person_id})
+    rank = bull_run.get("rank", "Newcomer") if bull_run else "Newcomer"
+
+    # Get recent wins
+    wins_cursor = db.bull_run_wins.find(
+        {"user_person_id": person_id}
+    ).sort("won_at", -1).limit(5)
+    wins = []
+    async for w in wins_cursor:
+        celeb = await db.persons.find_one({"_id": ObjectId(w.get("celebrity_id", ""))})
+        if celeb:
+            wins.append(celeb.get("name", "Unknown"))
+
+    html = generate_user_page_html(
+        user_name=person.get("name", "Unknown"),
+        rank=rank,
+        total_votes=person.get("likes", 0),
+        wins=wins,
+        short_id=short_id,
+        person_id=person_id,
+    )
+    return HTMLResponse(html)
+
+
+@api_router.get("/share/user/{person_id}")
+async def get_user_share_data(person_id: str):
+    """Get share data for a user profile page"""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    short_id = await create_short_link(db, "user", person_id)
+    short_url = f"https://popularoo.com/u/{short_id}"
+
+    user_name = person.get("name", "Unknown")
+
+    return {
+        "short_url": short_url,
+        "short_id": short_id,
+        "user_name": user_name,
+        "messages": {
+            "generic": f"Check out {user_name} on Popularoo — The Stock Market of Fame!\n\nVote here: {short_url}",
+            "whatsapp": f"🏆 {user_name} is on Popularoo!\n\nVote for them 👉 {short_url}",
+            "twitter": f"Vote for {user_name} on @Popularoo — The Stock Market of Fame 🏆\n\n{short_url}",
+        },
+    }
 
 # Serve Instagram images
 import zipfile

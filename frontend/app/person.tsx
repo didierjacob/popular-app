@@ -420,7 +420,7 @@ export default function Person() {
                   onPress={() => like(1)}
                 >
                   <Ionicons name="heart" size={18} color="#0F2F22" />
-                  <Text style={[styles.ctaText, { color: "#0F2F22" }]}>Support {name?.split(' ')[0] || ''}</Text>
+                  <Text style={[styles.ctaText, { color: "#0F2F22" }]}>Vote for {name?.split(' ')[0] || ''}</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -459,7 +459,7 @@ export default function Person() {
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                 <Ionicons name="rocket" size={28} color={PALETTE.gold} />
                 <Text style={{ color: PALETTE.text, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
-                  This is an Outsider competing in the ranking.{'\n'}Your support helps them climb!
+                  This is an Outsider competing in the ranking.{'\n'}Your vote helps them climb!
                 </Text>
               </View>
             </View>

@@ -1,0 +1,10 @@
+[
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.popularoo.app",
+            "sha256_cert_fingerprints": ["TO_BE_FILLED_WITH_YOUR_KEYSTORE_SHA256"]
+        }
+    }
+]

@@ -1,0 +1,14 @@
+{
+    "applinks": {
+        "apps": [],
+        "details": [
+            {
+                "appID": "XXXXXXXXXX.com.popularoo.app",
+                "paths": ["/r/*", "/u/*"]
+            }
+        ]
+    },
+    "webcredentials": {
+        "apps": ["XXXXXXXXXX.com.popularoo.app"]
+    }
+}

@@ -11,11 +11,19 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
+  Share,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
+
+const API_BASE = Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_URL
+  || process.env.EXPO_PUBLIC_BACKEND_URL
+  || "";
 
 // ===================== PALETTE — identique au reste de l'app =====================
 const PALETTE = {
@@ -306,7 +314,7 @@ function RallyCryModal({ visible, onClose, targets }) {
             </View>
           )}
 
-          {/* Step 4: Confirmation */}
+          {/* Step 4: Confirmation + Share */}
           {step === 4 && (
             <View style={styles.modalBody}>
               <View style={styles.confirmCard}>
@@ -317,7 +325,7 @@ function RallyCryModal({ visible, onClose, targets }) {
                 </View>
                 <View style={styles.confirmLine}>
                   <Text style={styles.confirmLabel}>Gap</Text>
-                  <Text style={[styles.confirmValue, { color: PALETTE.accent2 }]}>{Math.round(selectedTargetData?.gap || 0)} pts</Text>
+                  <Text style={[styles.confirmValue, { color: PALETTE.accent2 }]}>{Math.round(selectedTargetData?.gap || 0)} momentum</Text>
                 </View>
                 <View style={styles.confirmLine}>
                   <Text style={styles.confirmLabel}>Tone</Text>
@@ -329,6 +337,31 @@ function RallyCryModal({ visible, onClose, targets }) {
                 </View>
                 {message ? <Text style={styles.confirmMsg}>{message}</Text> : null}
               </View>
+
+              {/* Share CTA */}
+              <TouchableOpacity
+                style={styles.shareCta}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  try {
+                    const shareMsg = `🚀 I'm competing against ${selectedTargetData?.name} on Popularoo!\n\n` +
+                      `Only ${Math.round(selectedTargetData?.gap || 0)} momentum away.\n` +
+                      `Help me win — vote on Popularoo!\n\n` +
+                      `https://popularoo.com`;
+                    await Share.share({
+                      message: shareMsg,
+                      title: `Rally Cry — Vote for me on Popularoo!`,
+                    });
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  } catch (e) {
+                    console.log("Share cancelled or failed", e);
+                  }
+                }}
+              >
+                <Ionicons name="share-social" size={18} color={PALETTE.gold} />
+                <Text style={styles.shareCtaText}>Share Rally Cry</Text>
+                <Text style={styles.shareCtaSub}>WhatsApp, SMS, TikTok...</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -601,6 +634,15 @@ const styles = StyleSheet.create({
   },
   rallyCryBtnText: { color: "#0F2F22", fontSize: 17, fontWeight: "800" },
   rallyCrySub: { color: PALETTE.subtext, fontSize: 12, textAlign: "center", marginTop: 6 },
+  // Share CTA in Step 4
+  shareCta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    marginTop: 16, paddingVertical: 14, paddingHorizontal: 20,
+    borderRadius: 14, borderWidth: 1.5, borderColor: PALETTE.gold + "50",
+    backgroundColor: PALETTE.gold + "10",
+  },
+  shareCtaText: { color: PALETTE.gold, fontSize: 15, fontWeight: "700" },
+  shareCtaSub: { color: PALETTE.subtext, fontSize: 11 },
 
   // ===== MODAL =====
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
