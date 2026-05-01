@@ -3,7 +3,7 @@
         "apps": [],
         "details": [
             {
-                "appID": "XXXXXXXXXX.com.popularoo.app",
+                "appID": "WWSNPS7M6R.com.popularoo.app",
                 "paths": ["/r/*", "/u/*"]
             }
         ]

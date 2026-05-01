@@ -111,7 +111,7 @@ def generate_rally_cry_image(
     rank: str = "Challenger",
     format_type: str = "square"  # "square" (1080x1080) or "vertical" (1080x1920)
 ) -> BytesIO:
-    """Generate a Rally Cry share image in scoreboard/ticker style"""
+    """Generate a Rally Cry share image — pure typographic scoreboard style (Bloomberg/ESPN ticker)"""
 
     if format_type == "vertical":
         width, height = 1080, 1920
@@ -122,82 +122,119 @@ def generate_rally_cry_image(
     draw = ImageDraw.Draw(img)
 
     # Fonts
-    font_title = get_font(42, bold=True)
-    font_large = get_font(72, bold=True)
-    font_medium = get_font(36, bold=True)
-    font_small = get_font(28)
-    font_tiny = get_font(22)
-    font_brand = get_font(32, bold=True)
+    font_header = get_font(38, bold=True)
+    font_name_large = get_font(64, bold=True)
+    font_score_huge = get_font(96, bold=True)
+    font_label = get_font(24)
+    font_gap = get_font(30, bold=True)
+    font_cta = get_font(34, bold=True)
+    font_brand = get_font(20)
+    font_rank_tag = get_font(22, bold=True)
 
-    # --- Draw the scoreboard ---
-    cy = height // 2  # Center Y
+    cx = width // 2  # Center X
+    pad = 60
 
-    # Top section: "RALLY CRY" header
-    header_y = 60 if format_type == "square" else 200
-    draw.text((width // 2, header_y), "RALLY CRY", font=font_title, fill=BRAND_GOLD, anchor="mt")
-    draw.text((width // 2, header_y + 50), "Bull Run Mode", font=font_small, fill=BRAND_LIGHT + "AA", anchor="mt")
+    if format_type == "vertical":
+        # Vertical layout (1080x1920) — more spacing
+        y = 140
 
-    # Separator line
-    sep_y = header_y + 100
-    draw.line([(100, sep_y), (width - 100, sep_y)], fill=BRAND_BORDER, width=2)
+        # "RALLY CRY" header bar
+        draw.rectangle([(0, y - 20), (width, y + 50)], fill=BRAND_GREEN)
+        draw.text((cx, y + 15), "RALLY CRY", font=font_header, fill="#FFFFFF", anchor="mm")
+        y += 100
 
-    # User section (top player)
-    user_section_y = sep_y + 40 if format_type == "square" else sep_y + 80
-    
-    # User initial circle
-    circle_x, circle_y = 140, user_section_y + 50
-    draw.ellipse([circle_x - 40, circle_y - 40, circle_x + 40, circle_y + 40], fill=BRAND_GOLD)
-    initial = user_name[0].upper() if user_name else "?"
-    draw.text((circle_x, circle_y), initial, font=font_large, fill=BRAND_DARK, anchor="mm")
+        # Rank tag
+        draw.text((cx, y), rank.upper(), font=font_rank_tag, fill=BRAND_GOLD, anchor="mm")
+        y += 60
 
-    # User name and rank
-    draw.text((220, user_section_y + 25), user_name[:20], font=font_medium, fill=BRAND_LIGHT, anchor="lm")
-    draw.text((220, user_section_y + 75), f"Rank: {rank}", font=font_tiny, fill=BRAND_GOLD, anchor="lm")
+        # Separator
+        draw.line([(pad, y), (width - pad, y)], fill=BRAND_BORDER, width=1)
+        y += 50
 
-    # User score (right side)
-    draw.text((width - 100, user_section_y + 50), str(user_score), font=font_large, fill=BRAND_GOLD, anchor="rm")
+        # USER section
+        draw.text((cx, y), "OUTSIDER", font=font_label, fill=BRAND_GOLD + "88", anchor="mm")
+        y += 40
+        draw.text((cx, y), user_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
+        y += 80
+        draw.text((cx, y), str(user_score), font=font_score_huge, fill=BRAND_GOLD, anchor="mm")
+        y += 80
+        draw.text((cx, y), "votes", font=font_label, fill=BRAND_GOLD + "AA", anchor="mm")
+        y += 70
 
-    # VS / Gap section
-    vs_y = user_section_y + 140 if format_type == "square" else user_section_y + 180
-    
-    # Gap indicator
-    gap_bg_y = vs_y - 25
-    draw.rounded_rectangle(
-        [width // 2 - 120, gap_bg_y, width // 2 + 120, gap_bg_y + 50],
-        radius=25,
-        fill=BRAND_GREEN if gap <= 0 else "#E04F5F"
-    )
-    gap_text = f"{'▲' if gap <= 0 else '▼'} {abs(gap)} momentum {'ahead' if gap <= 0 else 'behind'}"
-    draw.text((width // 2, gap_bg_y + 25), gap_text, font=font_tiny, fill="#FFF", anchor="mm")
+        # GAP indicator
+        gap_color = BRAND_GREEN if gap <= 0 else "#E04F5F"
+        gap_arrow = "▲" if gap <= 0 else "▼"
+        gap_word = "AHEAD" if gap <= 0 else "BEHIND"
+        draw.rectangle([(pad, y), (width - pad, y + 60)], fill=gap_color + "22", outline=gap_color, width=2)
+        draw.text((cx, y + 30), f"{gap_arrow}  {abs(gap)} MOMENTUM {gap_word}", font=font_gap, fill=gap_color, anchor="mm")
+        y += 110
 
-    # Celebrity section (bottom player)
-    celeb_section_y = vs_y + 60 if format_type == "square" else vs_y + 100
+        # CELEBRITY section
+        draw.text((cx, y), "CELEBRITY", font=font_label, fill="#E04F5F88", anchor="mm")
+        y += 40
+        draw.text((cx, y), celebrity_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
+        y += 80
+        draw.text((cx, y), str(celebrity_score), font=font_score_huge, fill="#E04F5F", anchor="mm")
+        y += 80
+        draw.text((cx, y), "votes", font=font_label, fill="#E04F5FAA", anchor="mm")
+        y += 100
 
-    # Celebrity initial circle
-    circle_x2, circle_y2 = 140, celeb_section_y + 50
-    draw.ellipse([circle_x2 - 40, circle_y2 - 40, circle_x2 + 40, circle_y2 + 40], fill="#E04F5F")
-    initial2 = celebrity_name[0].upper() if celebrity_name else "?"
-    draw.text((circle_x2, circle_y2), initial2, font=font_large, fill="#FFF", anchor="mm")
+        # CTA bar
+        cta_y = height - 220
+        draw.rounded_rectangle([(pad, cta_y), (width - pad, cta_y + 70)], radius=35, fill=BRAND_GOLD)
+        draw.text((cx, cta_y + 35), f"VOTE FOR {user_name.split(' ')[0].upper()}", font=font_cta, fill=BRAND_DARK, anchor="mm")
 
-    # Celebrity name
-    draw.text((220, celeb_section_y + 25), celebrity_name[:20], font=font_medium, fill=BRAND_LIGHT, anchor="lm")
-    draw.text((220, celeb_section_y + 75), "Celebrity", font=font_tiny, fill="#E04F5F99", anchor="lm")
+        # Footer branding
+        draw.text((cx, height - 80), "POPULAROO", font=font_header, fill=BRAND_LIGHT + "44", anchor="mm")
+        draw.text((cx, height - 45), "The Stock Market of Fame", font=font_brand, fill=BRAND_LIGHT + "33", anchor="mm")
 
-    # Celebrity score
-    draw.text((width - 100, celeb_section_y + 50), str(celebrity_score), font=font_large, fill="#E04F5F", anchor="rm")
+    else:
+        # Square layout (1080x1080) — compact scoreboard
+        y = 60
 
-    # Bottom section: CTA
-    cta_y = height - 120 if format_type == "square" else height - 250
-    draw.rounded_rectangle(
-        [width // 2 - 200, cta_y, width // 2 + 200, cta_y + 60],
-        radius=30,
-        fill=BRAND_GOLD
-    )
-    draw.text((width // 2, cta_y + 30), f"Vote for {user_name.split(' ')[0]}!", font=font_medium, fill=BRAND_DARK, anchor="mm")
+        # "RALLY CRY" header bar
+        draw.rectangle([(0, y - 10), (width, y + 44)], fill=BRAND_GREEN)
+        draw.text((cx, y + 17), "RALLY CRY", font=font_header, fill="#FFFFFF", anchor="mm")
+        y += 80
 
-    # Branding footer
-    footer_y = height - 50 if format_type == "square" else height - 100
-    draw.text((width // 2, footer_y), "Popularoo — The Stock Market of Fame", font=font_tiny, fill=BRAND_LIGHT + "77", anchor="mm")
+        # Rank tag
+        draw.text((cx, y), rank.upper(), font=font_rank_tag, fill=BRAND_GOLD, anchor="mm")
+        y += 50
+
+        # Thin separator
+        draw.line([(pad, y), (width - pad, y)], fill=BRAND_BORDER, width=1)
+        y += 35
+
+        # USER section
+        draw.text((cx, y), "OUTSIDER", font=font_label, fill=BRAND_GOLD + "88", anchor="mm")
+        y += 35
+        draw.text((cx, y), user_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
+        y += 70
+        draw.text((cx, y), str(user_score), font=font_score_huge, fill=BRAND_GOLD, anchor="mm")
+        y += 70
+
+        # GAP indicator
+        gap_color = BRAND_GREEN if gap <= 0 else "#E04F5F"
+        gap_arrow = "▲" if gap <= 0 else "▼"
+        gap_word = "AHEAD" if gap <= 0 else "BEHIND"
+        draw.rectangle([(pad, y), (width - pad, y + 50)], fill=gap_color + "22", outline=gap_color, width=2)
+        draw.text((cx, y + 25), f"{gap_arrow}  {abs(gap)} MOMENTUM {gap_word}", font=font_gap, fill=gap_color, anchor="mm")
+        y += 85
+
+        # CELEBRITY section
+        draw.text((cx, y), "CELEBRITY", font=font_label, fill="#E04F5F88", anchor="mm")
+        y += 35
+        draw.text((cx, y), celebrity_name.upper(), font=font_name_large, fill=BRAND_LIGHT, anchor="mm")
+        y += 70
+        draw.text((cx, y), str(celebrity_score), font=font_score_huge, fill="#E04F5F", anchor="mm")
+        y += 85
+
+        # CTA bar
+        draw.rounded_rectangle([(pad, y), (width - pad, y + 60)], radius=30, fill=BRAND_GOLD)
+        draw.text((cx, y + 30), f"VOTE FOR {user_name.split(' ')[0].upper()}", font=font_cta, fill=BRAND_DARK, anchor="mm")
+
+        # Footer branding
+        draw.text((cx, height - 35), "POPULAROO — The Stock Market of Fame", font=font_brand, fill=BRAND_LIGHT + "33", anchor="mm")
 
     # Export
     buffer = BytesIO()
@@ -521,7 +558,7 @@ APPLE_APP_SITE_ASSOCIATION = {
         "apps": [],
         "details": [
             {
-                "appID": "XXXXXXXXXX.com.popularoo.app",
+                "appID": "WWSNPS7M6R.com.popularoo.app",
                 "paths": ["/r/*", "/u/*"]
             }
         ]
