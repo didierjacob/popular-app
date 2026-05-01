@@ -2964,18 +2964,21 @@ async def serve_legal_page(page_name: str):
 # ─── Static Assets (screenshots, etc.) ───────────────────────────────
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "static")
 
-@app.get("/api/static/{filename}")
+@app.get("/api/static/{filename:path}")
 async def serve_static_asset(filename: str):
-    """Serve static image/asset files"""
+    """Serve static image/asset files (supports subdirectories)"""
+    # Security: prevent path traversal
+    if ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid path")
     fpath = os.path.join(ASSETS_DIR, filename)
-    if not os.path.exists(fpath):
+    if not os.path.exists(fpath) or not os.path.isfile(fpath):
         raise HTTPException(status_code=404, detail="File not found")
     media_type = "image/png" if filename.endswith(".png") else \
                  "text/html" if filename.endswith(".html") else \
                  "application/json" if filename.endswith(".json") else \
                  "application/octet-stream"
-    # Don't force download for images and HTML - inline display
-    if filename.endswith((".png", ".jpg", ".html")):
+    # Don't force download for images, HTML, and JSON - inline display
+    if filename.endswith((".png", ".jpg", ".html", ".json")):
         return FileResponse(fpath, media_type=media_type)
     return FileResponse(fpath, media_type=media_type, filename=filename)
 
