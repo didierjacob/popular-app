@@ -117,7 +117,7 @@ export default function AccountScreen() {
   const contactSupport = () => {
     const subject = encodeURIComponent("Popularoo App - Support Request");
     const body = encodeURIComponent(
-      `Hello,\n\nI need help with:\n\n---\nApp: Popularoo v1.0.0\nName: ${accountInfo.name || "N/A"}\nEmail: ${accountInfo.email || "N/A"}\n`
+      `Hello,\n\nI need help with:\n\n---\nApp: Popularoo v2.0.0\nName: ${accountInfo.name || "N/A"}\nEmail: ${accountInfo.email || "N/A"}\n`
     );
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
   };
@@ -241,11 +241,31 @@ export default function AccountScreen() {
     const FAQ = [
       {
         q: "What is Popularoo?",
-        a: "Popularoo is an app where you can rate and rank public personalities. Discover trending figures, vote for your favorites, and see who's the most popular!",
+        a: "Popularoo is the first real-time popularity index for public figures. Vote on your favorite personalities, discover who's trending, and watch rankings shift in real time. Every vote counts — and your voice shapes the Popularoo Index.",
+      },
+      {
+        q: "What is the Popularoo Index?",
+        a: "The Popularoo Index is a live score assigned to every personality in the app. It reflects their current popularity based on community votes, engagement momentum, and recent trends. Think of it as a real-time pulse on public opinion.\n\nThe exact formula is kept under wraps — but the more votes and engagement a personality receives, the higher their Index climbs.",
+      },
+      {
+        q: "What are Daily Runs?",
+        a: "A Daily Run is a 24-hour challenge where you pick a personality and rally the community to vote for them. It's like launching a campaign — you choose your target, and the clock starts ticking.\n\nFor example: you launch a Daily Run for Beyoncé. Over the next 24 hours, every vote she receives counts toward the Run. If enough momentum builds, you could trigger a Strike and earn a Victory.\n\nDaily Runs are the heart of the game. See 'What are Strikes?' to learn what happens when a Run catches fire.",
+      },
+      {
+        q: "What are Strikes?",
+        a: "Strikes are momentum amplifiers triggered by Superlikes during a Daily Run. When a personality receives a burst of Superlikes, the app detects the surge and activates a Strike chain:\n\n• Heating Up — The personality is gaining traction\n• On Fire — Momentum is building fast\n• Trending — The community is taking notice\n• Going Viral — Massive engagement detected\n• Legend Mode — The highest level, reserved for exceptional surges\n\nEach Strike level boosts the personality's Popularoo Index further. Strikes are rare and exciting — they mean something big is happening.",
+      },
+      {
+        q: "What are Victory Tiers?",
+        a: "When a Daily Run ends, the outcome is evaluated and assigned a Victory Tier based on how well the personality performed:\n\n• Standard Win — Solid performance, the personality gained meaningful votes\n• Underdog Win — An unexpected surge! The personality outperformed expectations\n• Legendary Strike — The rarest outcome. The Run triggered multiple Strikes and the community went all-in\n\nVictory Tiers reward strategic play and community engagement.",
+      },
+      {
+        q: "What is a Superlike?",
+        a: "A Superlike is a premium vote that carries more weight than a regular vote. It signals strong support for a personality and is the key to triggering Strikes during Daily Runs.\n\nUse Superlikes strategically — they can be the difference between a quiet Run and a Legendary Strike.",
       },
       {
         q: "How do Boosters work?",
-        a: "Boosters let you appear in the Outsiders ranking. Each tier offers different durations:\n\n• Booster (€0.99) — 1 hour in Outsiders\n• Super Booster (€9.99) — 24 hours in Outsiders\n• Golden Booster (€49.99) — 7 days with priority placement, Home page rotation as Outsider of the Day, and Bull Run access",
+        a: "Boosters let you appear in the Outsiders ranking. Each tier offers different durations:\n\n• Booster (€0.99) — 1 hour in Outsiders\n• Super Booster (€9.99) — 24 hours in Outsiders\n• Golden Booster (€49.99) — 7 days with priority placement, Home page rotation as Outsider of the Day, and Daily Run access",
       },
       {
         q: "How do I vote?",
@@ -253,7 +273,7 @@ export default function AccountScreen() {
       },
       {
         q: "What is Personality of the Day?",
-        a: "It's the personality with the highest popularity score at the moment. It updates automatically based on votes.",
+        a: "It's the personality with the highest Popularoo Index at the moment. It updates automatically based on votes and engagement.",
       },
       {
         q: "Can I add a new personality?",
@@ -475,7 +495,7 @@ export default function AccountScreen() {
         {/* App Info */}
         <View style={[styles.section, { marginBottom: 40 }]}>
           <View style={styles.appInfo}>
-            <Text style={styles.appVersion}>Popularoo v1.0.0</Text>
+            <Text style={styles.appVersion}>Popularoo v2.0.0</Text>
             <Text style={styles.appCopyright}>
               © 2026 Popularoo App. All rights reserved.
             </Text>

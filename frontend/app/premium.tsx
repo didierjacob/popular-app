@@ -238,7 +238,7 @@ export default function Premium() {
       `• "${name.trim()}" will appear in the Outsiders ranking\n` +
       `• Duration: ${durationLabel}\n` +
       (tier.id === 'golden_booster'
-        ? `• Priority placement + Home page rotation as Outsider of the Day\n• Bull Run access included\n\n`
+        ? `• Priority placement + Home page rotation as Outsider of the Day\n• Daily Run access included\n\n`
         : `\n`) +
       `Payment will be processed through ${Platform.OS === 'ios' ? 'Apple' : 'Google'}.`,
       [
@@ -396,7 +396,7 @@ export default function Premium() {
                   <View style={[styles.tierHighlight, { borderColor: PALETTE.gold + '40', backgroundColor: PALETTE.gold + '10' }]}>
                     <Ionicons name="trophy" size={14} color={PALETTE.gold} />
                     <Text style={[styles.tierHighlightText, { color: PALETTE.gold }]}>
-                      Home page rotation as Outsider of the Day + Bull Run access
+                      Home page rotation as Outsider of the Day + Daily Run access
                     </Text>
                   </View>
                 )}

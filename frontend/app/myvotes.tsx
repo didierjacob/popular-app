@@ -115,7 +115,7 @@ export default function MyVotes() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
-          <Text style={styles.emptyText}>Chargement...</Text>
+          <Text style={styles.emptyText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );

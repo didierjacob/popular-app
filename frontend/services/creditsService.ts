@@ -94,7 +94,7 @@ export const BOOSTER_TIERS: BoosterTier[] = [
     price: 49.99,
     duration_hours: 168,
     position: 'top',
-    description: 'Priority placement in Outsiders + Home page rotation + exclusive Bull Run access.',
+    description: 'Priority placement in Outsiders + Home page rotation + exclusive Daily Run access.',
   },
 ];
 

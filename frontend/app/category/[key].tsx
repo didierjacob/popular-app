@@ -77,7 +77,7 @@ export default function CategoryList() {
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.meta}>
-          {capitalize(item.category || 'other')} • Score {Math.round(item.score)} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+          {capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />

@@ -271,7 +271,7 @@ export default function Person() {
   };
 
   // Share functions
-  const shareMessage = `Check out ${name} on Popularoo! Current score: ${Math.round(person?.score || 0)} with ${formatNumber(person?.total_votes || 0)} votes! 📊`;
+  const shareMessage = `Check out ${name} on Popularoo! Popularoo Index: ${Math.round(person?.score || 0)} with ${formatNumber(person?.total_votes || 0)} votes! 📊`;
 
   const shareToFacebook = async () => {
     const url = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;
@@ -455,7 +455,7 @@ export default function Person() {
           {person?.source === "self_boosted" ? (
             /* Boosted user: No social share buttons — just Rally Cry context */
             <View style={[styles.card, { marginBottom: 30 }]}>
-              <Text style={styles.section}>Bull Run</Text>
+              <Text style={styles.section}>Daily Run</Text>
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                 <Ionicons name="rocket" size={28} color={PALETTE.gold} />
                 <Text style={{ color: PALETTE.text, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>

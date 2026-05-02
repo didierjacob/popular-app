@@ -161,7 +161,7 @@ export default function Outsiders() {
         <View style={styles.slotCounterLeft}>
           <Ionicons name="people" size={18} color={PALETTE.accent2} />
           <Text style={styles.slotCounterText}>
-            {filledSlots} / {MAX_SLOTS} slots filled this week
+            {filledSlots} / {MAX_SLOTS} active slots
           </Text>
         </View>
         <View style={[styles.slotCounterBadge, filledSlots >= MAX_SLOTS && { backgroundColor: PALETTE.accent + '20' }]}>
@@ -319,12 +319,12 @@ export default function Outsiders() {
       <View style={styles.bullRunnerSection}>
         <View style={styles.bullRunnerHeader}>
           <Ionicons name="rocket" size={18} color={PALETTE.gold} />
-          <Text style={styles.bullRunnerTitle}>Top Bull Runners this week</Text>
+          <Text style={styles.bullRunnerTitle}>Daily Run Leaders</Text>
         </View>
         <View style={styles.bullRunnerPlaceholder}>
           <Ionicons name="trophy-outline" size={32} color={PALETTE.gold + '60'} />
           <Text style={styles.bullRunnerPlaceholderText}>
-            Activate a Golden Booster to compete in Bull Run
+            Activate a Golden Booster to join the Daily Run
           </Text>
           <TouchableOpacity
             style={styles.bullRunnerCta}

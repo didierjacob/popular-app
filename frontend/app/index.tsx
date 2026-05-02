@@ -397,12 +397,12 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
             <Text style={styles.title}>Popularoo</Text>
           </TouchableOpacity>
-          <Text style={styles.subtitle}>Rate & rank personalities</Text>
+          <Text style={styles.subtitle}>Vote on the world's most famous people</Text>
         </View>
 
         {/* Search Box */}
         <View style={styles.searchCard}>
-          <Text style={styles.searchLabel}>Rate a personality</Text>
+          <Text style={styles.searchLabel}>Cast your vote</Text>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
@@ -413,7 +413,7 @@ export default function HomeScreen() {
               onSubmitEditing={handleSearch}
             />
             <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-              <Text style={styles.searchButtonText}>Rate</Text>
+              <Text style={styles.searchButtonText}>Go</Text>
             </TouchableOpacity>
           </View>
         </View>
