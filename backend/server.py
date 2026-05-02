@@ -28,6 +28,15 @@ from popularoo_index import (
     migrate_initial_index, get_strike_level,
     invalidate_config_cache,
 )
+from strikes import (
+    check_and_trigger_strikes, get_active_strikes_detail,
+    cleanup_expired_strikes, ensure_strike_indexes,
+)
+from daily_run_v2 import (
+    get_suggested_targets, activate_daily_run, get_active_daily_run,
+    get_daily_run_history, get_live_daily_runs, check_victories,
+    ensure_daily_run_indexes, determine_tier,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -54,6 +63,12 @@ async def startup_event():
     
     # Ensure Popularoo Index database indexes
     await ensure_index_indexes(db)
+    
+    # Ensure Strike indexes
+    await ensure_strike_indexes(db)
+    
+    # Ensure Daily Run indexes
+    await ensure_daily_run_indexes(db)
     
     # Seed algorithm config if not exists
     await load_index_config(db)
@@ -687,6 +702,21 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
             updated = await db.persons.find_one({"_id": oid})
         except Exception as e:
             logger.warning(f"Quick index recalc failed: {e}")
+
+        # ---- Strike detection (event-driven) ----
+        strike_result = None
+        try:
+            strike_result = await check_and_trigger_strikes(db, oid)
+            if strike_result and strike_result.get("new_strikes"):
+                logger.info(f"⚡ Strikes triggered for {updated.get('name')}: {strike_result['new_strikes']} "
+                           f"(total active: {strike_result['active_count']})")
+                # Re-read updated person (strikes modified it)
+                updated = await db.persons.find_one({"_id": oid})
+                # Recalc index with new strikes bonus
+                await quick_recalc_index(db, updated, config)
+                updated = await db.persons.find_one({"_id": oid})
+        except Exception as e:
+            logger.warning(f"Strike detection failed: {e}")
 
         # Record tick
         await db.person_ticks.insert_one({
@@ -2902,6 +2932,125 @@ async def get_person_index_detail(person_id: str):
         "superlikes": person.get("superlikes", 0),
         "active_strikes": person.get("active_strikes", 0),
         "last_index_calc": person.get("last_index_calc"),
+    }
+
+
+# -------------------- Daily Run V2 Endpoints --------------------
+
+@api_router.get("/daily-run/suggested-targets/{person_id}")
+async def api_get_suggested_targets(person_id: str, limit: int = 10):
+    """Get suggested targets for a Daily Run (persons with similar Index)."""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+    targets = await get_suggested_targets(db, oid, limit=limit)
+    return {"targets": targets}
+
+
+@api_router.post("/daily-run/activate")
+async def api_activate_daily_run(body: Dict[str, Any]):
+    """
+    Activate a new Daily Run.
+    Body: {user_id, person_id, target_id, rally_message?}
+    """
+    user_id = body.get("user_id")
+    person_id_str = body.get("person_id")
+    target_id_str = body.get("target_id")
+    rally_message = body.get("rally_message", "")
+
+    if not user_id or not person_id_str or not target_id_str:
+        raise HTTPException(status_code=400, detail="user_id, person_id, and target_id are required")
+
+    try:
+        person_oid = ObjectId(person_id_str)
+        target_oid = ObjectId(target_id_str)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id or target_id")
+
+    result = await activate_daily_run(db, user_id, person_oid, target_oid, rally_message)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@api_router.get("/daily-run/{user_id}/active")
+async def api_get_active_daily_run(user_id: str):
+    """Get the current active Daily Run for a user."""
+    run = await get_active_daily_run(db, user_id)
+    if not run:
+        return {"active": False, "daily_run": None}
+    return {"active": True, "daily_run": run}
+
+
+@api_router.get("/daily-run/{user_id}/history")
+async def api_get_daily_run_history(user_id: str, limit: int = 20):
+    """Get past Daily Runs for a user."""
+    runs = await get_daily_run_history(db, user_id, limit=limit)
+    return {"runs": runs}
+
+
+@api_router.get("/daily-run/live")
+async def api_get_live_daily_runs(limit: int = 10):
+    """Get all active Daily Runs sorted by excitement (public endpoint)."""
+    runs = await get_live_daily_runs(db, limit=limit)
+    return {"live_runs": runs}
+
+
+@api_router.get("/daily-run/preview-tier")
+async def api_preview_tier(person_id: str, target_id: str):
+    """Preview what tier/conditions would apply before activating a Daily Run."""
+    try:
+        p_oid = ObjectId(person_id)
+        t_oid = ObjectId(target_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid IDs")
+
+    person = await db.persons.find_one({"_id": p_oid})
+    target = await db.persons.find_one({"_id": t_oid})
+    if not person or not target:
+        raise HTTPException(status_code=404, detail="Person or target not found")
+
+    p_idx = person.get("popularoo_index", 0)
+    t_idx = target.get("popularoo_index", 0)
+    gap = abs(t_idx - p_idx)
+    tier, condition, reward = determine_tier(p_idx, t_idx)
+
+    return {
+        "person_index": p_idx,
+        "target_index": t_idx,
+        "index_gap": round(gap, 1),
+        "tier": tier,
+        "victory_condition": condition,
+        "reward": reward,
+    }
+
+
+# -------------------- Strikes Endpoints --------------------
+
+@api_router.get("/people/{person_id}/strikes")
+async def api_get_person_strikes(person_id: str):
+    """Get active strikes for a person."""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    strikes = await get_active_strikes_detail(db, oid)
+    active_count = person.get("active_strikes", 0)
+    emoji, label = get_strike_level(active_count)
+
+    return {
+        "person_id": str(oid),
+        "name": person.get("name"),
+        "active_strikes": active_count,
+        "level_emoji": emoji,
+        "level_label": label,
+        "strikes": strikes,
     }
 
 

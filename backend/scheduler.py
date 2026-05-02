@@ -34,6 +34,24 @@ async def run_index_recalc_job(db):
         logger.error(f"❌ Index recalculation job error: {e}")
 
 
+async def run_daily_run_check_job(db):
+    """Wrapper to call the Daily Run victory/expiration check job"""
+    try:
+        from daily_run_v2 import check_victories
+        await check_victories(db)
+    except Exception as e:
+        logger.error(f"❌ Daily Run check job error: {e}")
+
+
+async def run_strike_cleanup_job(db):
+    """Wrapper to call the strike cleanup job"""
+    try:
+        from strikes import cleanup_expired_strikes
+        await cleanup_expired_strikes(db)
+    except Exception as e:
+        logger.error(f"❌ Strike cleanup job error: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -89,12 +107,34 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Popularoo Index Recalculation',
         replace_existing=True
     )
+
+    # Daily Run victory/expiration check every 5 minutes
+    scheduler.add_job(
+        run_daily_run_check_job,
+        IntervalTrigger(minutes=5),
+        args=[db],
+        id='daily_run_check_job',
+        name='Daily Run Victory Check',
+        replace_existing=True
+    )
+
+    # Strike cleanup every 15 minutes
+    scheduler.add_job(
+        run_strike_cleanup_job,
+        IntervalTrigger(minutes=15),
+        args=[db],
+        id='strike_cleanup_job',
+        name='Strike Cleanup',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     logger.info("Next Google Trends refresh scheduled at 3:00 AM UTC")
     logger.info("Boost expiration checker runs every 15 minutes")
     logger.info("Bull Run job runs every 5 minutes")
     logger.info("Popularoo Index recalculation runs every 15 minutes")
+    logger.info("Daily Run victory check runs every 5 minutes")
+    logger.info("Strike cleanup runs every 15 minutes")
     
     return scheduler
 
