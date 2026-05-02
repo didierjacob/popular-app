@@ -33,8 +33,9 @@ from strikes import (
     cleanup_expired_strikes, ensure_strike_indexes,
 )
 from daily_run_v2 import (
-    get_suggested_targets, activate_daily_run, get_active_daily_run,
-    get_daily_run_history, get_live_daily_runs, check_victories,
+    get_suggested_targets, search_target, activate_daily_run,
+    get_active_daily_run, get_daily_run_history, get_live_daily_runs,
+    get_daily_run_status, check_victories,
     ensure_daily_run_indexes, determine_tier,
 )
 
@@ -3024,6 +3025,34 @@ async def api_preview_tier(person_id: str, target_id: str):
         "victory_condition": condition,
         "reward": reward,
     }
+
+
+@api_router.get("/daily-run/search-target/{person_id}")
+async def api_search_target(person_id: str, q: str = Query(..., min_length=1), limit: int = 10):
+    """
+    Search for any person as a potential Daily Run target ('Choose Anyone' feature).
+    Returns matching persons with tier/victory condition calculated.
+    """
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+    targets = await search_target(db, oid, q, limit=limit)
+    return {"targets": targets}
+
+
+@api_router.get("/daily-run/status/{user_id}/{person_id}")
+async def api_daily_run_status(user_id: str, person_id: str):
+    """
+    Get Daily Run slot status for a user's outsider profile.
+    Returns: available slots, used slots, cooldown info, active run info.
+    """
+    try:
+        p_oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+    status = await get_daily_run_status(db, user_id, p_oid)
+    return status
 
 
 # -------------------- Strikes Endpoints --------------------
