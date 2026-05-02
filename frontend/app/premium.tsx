@@ -139,7 +139,7 @@ export default function Premium() {
             : purchase.purchaseToken;
 
           if (!receipt) {
-            Alert.alert('Error', 'No payment receipt received. Purchase was not completed.');
+            Alert.alert(t('common.errorTitle'), t('premium.noReceiptError'));
             setPurchasing(false);
             return;
           }
@@ -162,8 +162,8 @@ export default function Premium() {
           await iapService.finishPurchase(purchase, true);
 
           Alert.alert(
-            '🎉 Boost Activated!',
-            `${result.message}\n\nExpires: ${new Date(result.end_time).toLocaleString()}`,
+            t('premium.boostActivated'),
+            t('premium.boostActivatedMsg', { message: result.message, date: new Date(result.end_time).toLocaleString() }),
           );
 
           setName('');
@@ -175,7 +175,7 @@ export default function Premium() {
           await loadHistory();
         } catch (error: any) {
           console.error('[Premium] Post-purchase error:', error);
-          Alert.alert('Error', error.message || 'Failed to activate boost');
+          Alert.alert(t('common.errorTitle'), error.message || t('premium.activateError'));
         } finally {
           setPurchasing(false);
         }
@@ -183,7 +183,7 @@ export default function Premium() {
       (error: any) => {
         console.error('[Premium] Purchase error:', error);
         if (error.code !== 'E_USER_CANCELLED') {
-          Alert.alert('Purchase Failed', error.message || 'An error occurred during purchase');
+          Alert.alert(t('premium.purchaseFailed'), error.message || t('premium.purchaseErrorMsg'));
         }
         setPurchasing(false);
       },
@@ -204,20 +204,20 @@ export default function Premium() {
 
   const handlePurchase = async () => {
     if (!selectedTier) {
-      Alert.alert('Select a Booster', 'Please choose a booster tier first.');
+      Alert.alert(t('premium.selectBooster'), t('premium.selectBoosterMsg'));
       return;
     }
     if (!name.trim()) {
-      Alert.alert('Name required', 'Please enter your name to appear in the Outsiders ranking.');
+      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
       return;
     }
     if (!iapReady) {
       Alert.alert(
-        'Connecting to Store',
-        'We are connecting to the App Store. Please wait a moment and try again.',
+        t('premium.connectingStore'),
+        t('premium.connectingStoreMsg'),
         [
-          { text: 'OK' },
-          { text: 'Retry', onPress: () => {
+          { text: t('premium.ok') },
+          { text: t('premium.retry'), onPress: () => {
             // Try to reinitialize IAP
             iapService.getProducts().then((products: any) => {
               if (products && products.length > 0) {
@@ -242,18 +242,18 @@ export default function Premium() {
     const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
     Alert.alert(
-      'Confirm Purchase',
-      `Purchase ${tier.name} for ${displayPrice}?\n\n` +
-      `• "${name.trim()}" will appear in the Outsiders ranking\n` +
-      `• Duration: ${durationLabel}\n` +
+      t('premium.confirmPurchase'),
+      t('premium.confirmBody', { tierName: tier.name, price: displayPrice }) + `\n\n` +
+      `• ${t('premium.confirmAppear', { name: name.trim() })}\n` +
+      `• ${t('premium.confirmDuration', { duration: durationLabel })}\n` +
       (tier.id === 'golden_booster'
-        ? `• Priority placement + Home page rotation as Outsider of the Day\n• Daily Run access included\n\n`
+        ? `• ${t('premium.confirmGoldenExtra')}\n\n`
         : `\n`) +
-      `Payment will be processed through ${Platform.OS === 'ios' ? 'Apple' : 'Google'}.`,
+      t('premium.confirmPaymentVia', { store: Platform.OS === 'ios' ? 'Apple' : 'Google' }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('premium.cancel'), style: 'cancel' },
         {
-          text: `Buy ${displayPrice}`,
+          text: t('premium.buyPrice', { price: displayPrice }),
           onPress: async () => {
             Keyboard.dismiss();
             setPurchasing(true);
@@ -263,7 +263,7 @@ export default function Premium() {
             } catch (error: any) {
               console.error('[Premium] Purchase initiation error:', error);
               if (error?.code !== 'E_USER_CANCELLED') {
-                Alert.alert('Purchase Error', error.message || 'Could not initiate purchase. Please try again.');
+                Alert.alert(t('premium.purchaseError'), error.message || t('premium.purchaseErrorMsg'));
               }
               setPurchasing(false);
             }
@@ -289,19 +289,19 @@ export default function Premium() {
       const restored = await iapService.restorePurchases();
       if (restored.length > 0) {
         Alert.alert(
-          'Purchases Restored',
-          `${restored.length} purchase(s) have been restored and finalized.`,
+          t('premium.purchasesRestored'),
+          t('premium.purchasesRestoredMsg', { count: restored.length }),
         );
         await loadHistory();
       } else {
         Alert.alert(
-          'No Purchases Found',
-          'No previous purchases were found to restore.',
+          t('premium.noPurchasesFound'),
+          t('premium.noPurchasesFoundMsg'),
         );
       }
     } catch (error: any) {
       console.error('[Premium] Restore error:', error);
-      Alert.alert('Restore Failed', error.message || 'Could not restore purchases. Please try again.');
+      Alert.alert(t('premium.restoreFailed'), error.message || t('premium.restoreFailedMsg'));
     } finally {
       setRestoring(false);
     }

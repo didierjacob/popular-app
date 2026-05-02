@@ -177,7 +177,22 @@
     "purchaseError": "Errore di acquisto",
     "purchaseErrorMsg": "Non è stato possibile avviare l'acquisto.",
     "restoreFailed": "Ripristino fallito",
-    "restoreFailedMsg": "Non è stato possibile ripristinare gli acquisti."
+    "restoreFailedMsg": "Non è stato possibile ripristinare gli acquisti.",
+    "confirmBody": "Acquistare {{tierName}} per {{price}}?",
+    "confirmAppear": "\"{{name}}\" apparirà nella classifica Outsiders",
+    "confirmDuration": "Durata: {{duration}}",
+    "confirmGoldenExtra": "Posizionamento prioritario + rotazione in homepage + accesso Daily Run",
+    "confirmPaymentVia": "Pagamento tramite {{store}}.",
+    "cancel": "Annulla",
+    "buyPrice": "Acquista {{price}}",
+    "ok": "OK",
+    "retry": "Riprova",
+    "purchasesRestoredMsg": "{{count}} acquisto/i ripristinato/i.",
+    "noPurchasesFoundMsg": "Nessun acquisto precedente trovato.",
+    "noReceiptError": "Nessuna ricevuta di pagamento ricevuta.",
+    "activateError": "Impossibile attivare il boost",
+    "purchaseFailed": "Acquisto fallito",
+    "boostActivatedMsg": "{{message}}\n\nScade il: {{date}}"
   },
   "account": {
     "title": "Il mio account",

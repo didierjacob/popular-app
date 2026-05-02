@@ -177,7 +177,22 @@
     "purchaseError": "Erro na compra",
     "purchaseErrorMsg": "Não foi possível iniciar a compra.",
     "restoreFailed": "Falha na restauração",
-    "restoreFailedMsg": "Não foi possível restaurar as compras."
+    "restoreFailedMsg": "Não foi possível restaurar as compras.",
+    "confirmBody": "Comprar {{tierName}} por {{price}}?",
+    "confirmAppear": "\"{{name}}\" aparecerá no ranking Outsiders",
+    "confirmDuration": "Duração: {{duration}}",
+    "confirmGoldenExtra": "Posição prioritária + rotação na home + acesso Daily Run",
+    "confirmPaymentVia": "Pagamento via {{store}}.",
+    "cancel": "Cancelar",
+    "buyPrice": "Comprar {{price}}",
+    "ok": "OK",
+    "retry": "Tentar novamente",
+    "purchasesRestoredMsg": "{{count}} compra(s) restaurada(s).",
+    "noPurchasesFoundMsg": "Nenhuma compra anterior encontrada.",
+    "noReceiptError": "Nenhum recibo de pagamento recebido.",
+    "activateError": "Falha ao ativar o boost",
+    "purchaseFailed": "Compra falhou",
+    "boostActivatedMsg": "{{message}}\n\nExpira em: {{date}}"
   },
   "account": {
     "title": "Minha conta",

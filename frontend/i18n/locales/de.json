@@ -177,7 +177,22 @@
     "purchaseError": "Kauffehler",
     "purchaseErrorMsg": "Der Kauf konnte nicht gestartet werden.",
     "restoreFailed": "Wiederherstellung fehlgeschlagen",
-    "restoreFailedMsg": "Käufe konnten nicht wiederhergestellt werden."
+    "restoreFailedMsg": "Käufe konnten nicht wiederhergestellt werden.",
+    "confirmBody": "{{tierName}} für {{price}} kaufen?",
+    "confirmAppear": "\"{{name}}\" wird im Outsiders-Ranking erscheinen",
+    "confirmDuration": "Dauer: {{duration}}",
+    "confirmGoldenExtra": "Prioritätsplatzierung + Startseiten-Rotation + Daily Run Zugang",
+    "confirmPaymentVia": "Zahlung über {{store}}.",
+    "cancel": "Abbrechen",
+    "buyPrice": "Kaufen {{price}}",
+    "ok": "OK",
+    "retry": "Erneut versuchen",
+    "purchasesRestoredMsg": "{{count}} Kauf/Käufe wiederhergestellt.",
+    "noPurchasesFoundMsg": "Keine früheren Käufe gefunden.",
+    "noReceiptError": "Kein Zahlungsbeleg erhalten.",
+    "activateError": "Boost konnte nicht aktiviert werden",
+    "purchaseFailed": "Kauf fehlgeschlagen",
+    "boostActivatedMsg": "{{message}}\n\nLäuft ab: {{date}}"
   },
   "account": {
     "title": "Mein Konto",
