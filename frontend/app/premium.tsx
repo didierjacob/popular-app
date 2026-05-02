@@ -59,12 +59,19 @@ const TIER_ICONS: Record<string, string> = {
   golden_booster: "trophy",
 };
 
-function getDurationLabel(hours: number): string {
-  if (hours === 1) return "1 hour";
-  if (hours === 24) return "24 hours";
-  if (hours === 168) return "1 week";
+function getDurationLabel(hours: number, t: any): string {
+  if (hours === 1) return t("premium.duration_1h");
+  if (hours === 24) return t("premium.duration_24h");
+  if (hours === 168) return t("premium.duration_1w");
   return `${hours}h`;
 }
+
+// Map tier ID to translation key for description
+const TIER_DESC_KEYS: Record<string, string> = {
+  booster: "premium.boosterDesc",
+  super_booster: "premium.superBoosterDesc",
+  golden_booster: "premium.goldenBoosterDesc",
+};
 
 export default function Premium() {
   const { t } = useTranslation();
@@ -227,7 +234,7 @@ export default function Premium() {
     const tier = BOOSTER_TIERS.find(t => t.id === selectedTier);
     if (!tier) return;
 
-    const durationLabel = getDurationLabel(tier.duration_hours);
+    const durationLabel = getDurationLabel(tier.duration_hours, t);
     const productId = iapService.getProductIdForTier(selectedTier);
 
     // Use the real store price
@@ -374,7 +381,7 @@ export default function Premium() {
                     <View style={styles.tierInfo}>
                       <Text style={styles.tierName}>{tier.name}</Text>
                       <Text style={[styles.tierDuration, { color }]}>
-                        {getDurationLabel(tier.duration_hours)}
+                        {getDurationLabel(tier.duration_hours, t)}
                       </Text>
                     </View>
                   </View>
@@ -383,13 +390,13 @@ export default function Premium() {
                   </View>
                 </View>
 
-                <Text style={styles.tierDesc}>{tier.description}</Text>
+                <Text style={styles.tierDesc}>{t(TIER_DESC_KEYS[tier.id] || "premium.boosterDesc")}</Text>
 
                 {tier.position === 'top' && (
                   <View style={styles.tierHighlight}>
                     <Ionicons name="star" size={14} color={PALETTE.gold} />
                     <Text style={styles.tierHighlightText}>
-                      Priority placement in Outsiders + name in the ranking
+                      {t("premium.priorityFeature")}
                     </Text>
                   </View>
                 )}
@@ -398,7 +405,7 @@ export default function Premium() {
                   <View style={[styles.tierHighlight, { borderColor: PALETTE.gold + '40', backgroundColor: PALETTE.gold + '10' }]}>
                     <Ionicons name="trophy" size={14} color={PALETTE.gold} />
                     <Text style={[styles.tierHighlightText, { color: PALETTE.gold }]}>
-                      Home page rotation as Outsider of the Day + Daily Run access
+                      {t("premium.goldenFeature")}
                     </Text>
                   </View>
                 )}
@@ -406,7 +413,7 @@ export default function Premium() {
                 {isSelected && (
                   <View style={[styles.selectedIndicator, { backgroundColor: color }]}>
                     <Ionicons name="checkmark" size={16} color="#000" />
-                    <Text style={styles.selectedText}>Selected</Text>
+                    <Text style={styles.selectedText}>{t("premium.selected")}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -478,7 +485,7 @@ export default function Premium() {
                   </View>
                   <TextInput
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="Profile name or URL"
+                    placeholder={t("premium.profileUrl")}
                     placeholderTextColor={PALETTE.subtext}
                     value={facebook}
                     onChangeText={setFacebook}
@@ -503,11 +510,14 @@ export default function Premium() {
                   <>
                     <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#000" />
                     <Text style={styles.purchaseButtonText}>
-                      {`Buy via ${Platform.OS === 'ios' ? 'Apple' : 'Google'} — ${(() => {
-                        const productId = iapService.getProductIdForTier(selectedTier);
-                        const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-                        return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(t => t.id === selectedTier)?.price.toFixed(2)}`;
-                      })()}`}
+                      {t("premium.buyVia", {
+                        store: Platform.OS === 'ios' ? 'Apple' : 'Google',
+                        price: (() => {
+                          const productId = iapService.getProductIdForTier(selectedTier);
+                          const storeProduct = storeProducts.find((p: any) => p.productId === productId);
+                          return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(bt => bt.id === selectedTier)?.price.toFixed(2)}`;
+                        })()
+                      })}
                     </Text>
                   </>
                 )}

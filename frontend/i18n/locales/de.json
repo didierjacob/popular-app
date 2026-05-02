@@ -15,13 +15,19 @@
     "votes_count": "{{count}} Stimmen",
     "notFound": "\"{{name}}\" nicht gefunden. Versuch einen anderen Namen.",
     "success": "Erfolg",
-    "errorTitle": "Fehler"
+    "errorTitle": "Fehler",
+    "expired": "Abgelaufen",
+    "timeLeft_m": "{{m}}min übrig",
+    "timeLeft_h": "{{h}}h übrig",
+    "timeLeft_hm": "{{h}}h {{m}}min übrig",
+    "timeLeft_d": "{{d}}T übrig",
+    "timeLeft_dh": "{{d}}T {{h}}h übrig"
   },
   "tabs": {
     "home": "Start",
     "list": "Ranking",
     "outsiders": "Outsiders",
-    "myvotes": "Meine Stimmen",
+    "myvotes": "Stimmen",
     "boost": "Boost",
     "account": "Konto"
   },

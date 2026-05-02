@@ -37,20 +37,20 @@ const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
-function formatTimeRemaining(hours: number): string {
-  if (hours <= 0) return "Expired";
+function formatTimeRemaining(hours: number, t: any): string {
+  if (hours <= 0) return t("common.expired");
   if (hours < 1) {
     const mins = Math.round(hours * 60);
-    return `${mins}m left`;
+    return t("common.timeLeft_m", { m: mins });
   }
   if (hours < 24) {
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
-    return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+    return m > 0 ? t("common.timeLeft_hm", { h, m }) : t("common.timeLeft_h", { h });
   }
   const days = Math.floor(hours / 24);
   const remainHours = Math.round(hours - days * 24);
-  return remainHours > 0 ? `${days}d ${remainHours}h left` : `${days}d left`;
+  return remainHours > 0 ? t("common.timeLeft_dh", { d: days, h: remainHours }) : t("common.timeLeft_d", { d: days });
 }
 
 function getTimeBadgeColor(hours: number): string {
@@ -244,14 +244,14 @@ export default function Outsiders() {
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
             {item.tier_name} •{" "}
             {formatNumber(item.total_votes)}{" "}
-            {item.total_votes <= 1 ? "vote" : "votes"}
+            {item.total_votes <= 1 ? t("common.vote") : t("common.votes")}
           </Text>
           {/* Time remaining badge */}
           <View style={styles.timeRow}>
             <View style={[styles.timeBadge, { backgroundColor: timeBadgeColor + "20", borderColor: timeBadgeColor + "40" }]}>
               <Ionicons name="time-outline" size={12} color={timeBadgeColor} />
               <Text style={[styles.timeBadgeText, { color: timeBadgeColor }]}>
-                {formatTimeRemaining(item.hours_remaining)}
+                {formatTimeRemaining(item.hours_remaining, t)}
               </Text>
             </View>
             {isOwn && item.hours_remaining <= 24 && (
@@ -359,8 +359,8 @@ export default function Outsiders() {
         }}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Outsiders</Text>
-          <Text style={styles.subtitle}>Boosted by the community</Text>
+          <Text style={styles.title}>{t("outsiders.title")}</Text>
+          <Text style={styles.subtitle}>{t("outsiders.subtitle")}</Text>
         </View>
         <FlatList
           data={outsiders}

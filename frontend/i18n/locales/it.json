@@ -15,7 +15,13 @@
     "votes_count": "{{count}} voti",
     "notFound": "\"{{name}}\" non trovato. Prova con un altro nome.",
     "success": "Successo",
-    "errorTitle": "Errore"
+    "errorTitle": "Errore",
+    "expired": "Scaduto",
+    "timeLeft_m": "{{m}}min rimasti",
+    "timeLeft_h": "{{h}}h rimasti",
+    "timeLeft_hm": "{{h}}h {{m}}min rimasti",
+    "timeLeft_d": "{{d}}g rimasti",
+    "timeLeft_dh": "{{d}}g {{h}}h rimasti"
   },
   "tabs": {
     "home": "Home",

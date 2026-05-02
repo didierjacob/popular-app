@@ -434,7 +434,7 @@ export default function HomeScreen() {
               <View style={styles.potdInfo}>
                 <Text style={styles.potdName}>{personOfTheDay.name}</Text>
                 <Text style={styles.potdMeta}>
-                  {capitalize(personOfTheDay.category)} • {formatNumber(personOfTheDay.total_votes)} votes
+                  {t(`categories.${personOfTheDay.category}`) || capitalize(personOfTheDay.category)} • {formatNumber(personOfTheDay.total_votes)} votes
                 </Text>
                 <Text style={styles.potdVotes}>
                   {formatNumber(personOfTheDay.total_votes)} {personOfTheDay.total_votes <= 1 ? 'vote' : 'votes'}
@@ -490,7 +490,7 @@ export default function HomeScreen() {
                 onPress={() => router.push({ pathname: "/list", params: { category: cat.key } })}
               >
                 <Ionicons name={cat.icon as any} size={20} color={PALETTE.accent2} />
-                <Text style={styles.categoryLabelSmall}>{cat.label}</Text>
+                <Text style={styles.categoryLabelSmall}>{t(`categories.${cat.key}`)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -528,7 +528,7 @@ export default function HomeScreen() {
               <View style={styles.personInfo}>
                 <Text style={styles.personName}>{person.name}</Text>
                 <Text style={styles.personMeta}>
-                  {capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? 'vote' : 'votes'}
+                  {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
                 </Text>
               </View>
               <View style={styles.gaugeContainer}>
