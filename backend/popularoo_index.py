@@ -44,12 +44,13 @@ DEFAULT_CONFIG = {
         "regularity": 0.15,
     },
     "strike_value": 5,  # points per active strike
-    "low_vote_cap": 30,  # max index if weighted_votes < low_vote_threshold
-    "low_vote_threshold": 10,  # weighted votes below which cap applies
+    "low_vote_cap": 30,  # max index if total_engagement < low_vote_threshold
+    "low_vote_threshold": 10,  # total engagement below which cap applies
     "momentum_multiplier": 5,  # momentum = delta * this
     "regularity_scale": 10,  # regularity normalized to 0-this
-    "volume_scale": 20,  # score_volume = log10(wv+1) * this
-    "ratio_scale": 10,  # ratio_approbation *= this
+    "volume_scale": 35,  # score_volume = log10(total_engagement+1) * this
+    "ratio_scale": 25,  # ratio_approbation = log10(ratio_raw+1) * this
+    "adaptive_ceiling": 0,  # 0 = disabled. When > 0, normalizes volume relative to this ceiling
 }
 
 
@@ -90,17 +91,19 @@ def invalidate_config_cache():
 
 def calc_score_volume(person: Dict, config: Dict) -> float:
     """
-    score_volume = log10(weighted_votes + 1) * volume_scale
-    weighted_votes = likes + (5 * superlikes) - dislikes
+    score_volume = log10(total_engagement + 1) * volume_scale
+    total_engagement = likes + (5 * superlikes) + dislikes
+    Uses TOTAL engagement (notoriety) — not net positive.
+    Being massively known (even controversially) = high volume.
     """
     likes = person.get("likes", 0)
     superlikes = person.get("superlikes", 0)
     dislikes = person.get("dislikes", 0)
-    scale = config.get("volume_scale", 20)
+    scale = config.get("volume_scale", 35)
 
-    weighted_votes = likes + (5 * superlikes) - dislikes
-    weighted_votes = max(0, weighted_votes)  # Floor at 0
-    return math.log10(weighted_votes + 1) * scale
+    total_engagement = likes + (5 * superlikes) + dislikes
+    total_engagement = max(0, total_engagement)
+    return math.log10(total_engagement + 1) * scale
 
 
 def calc_ratio_approbation(person: Dict, config: Dict) -> float:
@@ -223,15 +226,15 @@ def compute_popularoo_index(
 
     final = base + (momentum_raw * w_m)
 
-    # Low-vote cap
+    # Low-vote cap — use total engagement, not net
     likes = person.get("likes", 0)
     superlikes = person.get("superlikes", 0)
     dislikes = person.get("dislikes", 0)
-    weighted_votes = likes + (5 * superlikes) - dislikes
+    total_engagement = likes + (5 * superlikes) + dislikes
     low_cap = config.get("low_vote_cap", 30)
     low_threshold = config.get("low_vote_threshold", 10)
 
-    if weighted_votes < low_threshold:
+    if total_engagement < low_threshold:
         final = min(final, low_cap)
 
     # Clamp to [0, 100]
@@ -245,7 +248,7 @@ def compute_popularoo_index(
         "strikes_bonus": round(strikes, 2),
         "base_index": round(base, 2),
         "final_index": round(final, 2),
-        "weighted_votes": weighted_votes,
+        "total_engagement": total_engagement,
     }
 
     return round(final, 1), components
@@ -396,15 +399,15 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     base = (volume * w_v) + (ratio * w_r) + (regularity * w_reg) + strikes
     final = base + (momentum_raw * w_m)
 
-    # Low-vote cap
+    # Low-vote cap — use total engagement
     likes = person.get("likes", 0)
     superlikes = person.get("superlikes", 0)
     dislikes = person.get("dislikes", 0)
-    weighted_votes = likes + (5 * superlikes) - dislikes
+    total_engagement = likes + (5 * superlikes) + dislikes
     low_cap = config.get("low_vote_cap", 30)
     low_threshold = config.get("low_vote_threshold", 10)
 
-    if weighted_votes < low_threshold:
+    if total_engagement < low_threshold:
         final = min(final, low_cap)
 
     final = max(0.0, min(100.0, final))
@@ -419,7 +422,7 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
         "strikes_bonus": round(strikes, 2),
         "base_index": round(base, 2),
         "final_index": round(final, 2),
-        "weighted_votes": weighted_votes,
+        "total_engagement": total_engagement,
     }
 
     await db.persons.update_one(
