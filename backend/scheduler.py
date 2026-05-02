@@ -25,6 +25,15 @@ async def run_bull_run_job(db):
         logger.error(f"❌ Bull Run job wrapper error: {e}")
 
 
+async def run_index_recalc_job(db):
+    """Wrapper to call the Popularoo Index recalculation job"""
+    try:
+        from popularoo_index import recalculate_all_indices
+        await recalculate_all_indices(db)
+    except Exception as e:
+        logger.error(f"❌ Index recalculation job error: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -69,11 +78,23 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Bull Run Win Check & Legend Recalculation',
         replace_existing=True
     )
+
+    # Popularoo Index recalculation every 15 minutes
+    # (full recalc with momentum, regularity, snapshots)
+    scheduler.add_job(
+        run_index_recalc_job,
+        IntervalTrigger(minutes=15),
+        args=[db],
+        id='index_recalc_job',
+        name='Popularoo Index Recalculation',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     logger.info("Next Google Trends refresh scheduled at 3:00 AM UTC")
     logger.info("Boost expiration checker runs every 15 minutes")
     logger.info("Bull Run job runs every 5 minutes")
+    logger.info("Popularoo Index recalculation runs every 15 minutes")
     
     return scheduler
 

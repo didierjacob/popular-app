@@ -21,6 +21,13 @@ from share_system import (
     generate_rally_cry_image, get_share_messages,
     generate_rally_page_html, generate_user_page_html,
 )
+from popularoo_index import (
+    load_config as load_index_config,
+    quick_recalc_index, recalculate_all_indices,
+    ensure_indexes as ensure_index_indexes,
+    migrate_initial_index, get_strike_level,
+    invalidate_config_cache,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -42,8 +49,14 @@ api_router = APIRouter(prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize scheduler on application startup"""
+    """Initialize scheduler and Popularoo Index on application startup"""
     logger.info("🚀 Starting Popularoo API...")
+    
+    # Ensure Popularoo Index database indexes
+    await ensure_index_indexes(db)
+    
+    # Seed algorithm config if not exists
+    await load_index_config(db)
     
     # Initialize and start the scheduler
     init_scheduler(db, trends_service, email_service)
@@ -51,6 +64,7 @@ async def startup_event():
     
     logger.info("✅ Scheduler initialized and started")
     logger.info("📅 Daily Google Trends refresh scheduled at 3:00 AM UTC")
+    logger.info("📊 Popularoo Index recalculation scheduled every 15 minutes")
 
 
 @app.on_event("shutdown")
@@ -140,15 +154,17 @@ def compute_effective_score(person):
 
     likes = person.get("likes", 0)
     dislikes = person.get("dislikes", 0)
+    superlikes = person.get("superlikes", 0)
     seed_likes = person.get("seed_votes_likes", 0)
     seed_dislikes = person.get("seed_votes_dislikes", 0)
 
     effective_likes = max(0, likes - int(seed_likes * decay_factor))
     effective_dislikes = max(0, dislikes - int(seed_dislikes * decay_factor))
-    effective_total = effective_likes + effective_dislikes
+    # Total includes superlikes (not affected by seed decay)
+    effective_total = effective_likes + effective_dislikes + superlikes
 
-    if effective_total > 0:
-        raw_score = (effective_likes / effective_total) * 100
+    if (effective_likes + effective_dislikes) > 0:
+        raw_score = (effective_likes / (effective_likes + effective_dislikes)) * 100
     else:
         raw_score = 0.0
 
@@ -185,14 +201,19 @@ class PersonOut(BaseModel):
     score: float = 100.0
     likes: int = 0
     dislikes: int = 0
+    superlikes: int = 0
     total_votes: int = 0
+    popularoo_index: float = 0.0
+    active_strikes: int = 0
+    strike_emoji: Optional[str] = None
+    strike_label: Optional[str] = None
     last_updated: Optional[datetime] = None
     source: Optional[str] = "seed"  # "seed", "user_added", "self_boosted", "trending"
     is_trending: Optional[bool] = False
 
 
 class VoteIn(BaseModel):
-    value: Literal[1, -1]
+    value: Literal[1, -1, 5]  # 1=like, -1=dislike, 5=superlike
 
 
 class VoteOut(BaseModel):
@@ -200,7 +221,9 @@ class VoteOut(BaseModel):
     score: float
     likes: int
     dislikes: int
+    superlikes: int = 0
     total_votes: int
+    popularoo_index: float = 0.0
     voted_value: Optional[int] = None
     already_voted: bool = False
     next_vote_time: Optional[str] = None
@@ -471,6 +494,11 @@ async def get_status_checks():
 def person_to_out(doc: Dict[str, Any]) -> PersonOut:
     # Apply seed decay for displayed score
     _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
+
+    # Strike level
+    active_strikes = doc.get("active_strikes", 0)
+    s_emoji, s_label = get_strike_level(active_strikes)
+
     return PersonOut(
         id=str(doc["_id"]),
         name=doc.get("name"),
@@ -479,7 +507,12 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
         score=float(eff_score),
         likes=int(eff_likes),
         dislikes=int(eff_dislikes),
+        superlikes=int(doc.get("superlikes", 0)),
         total_votes=int(eff_total),
+        popularoo_index=float(doc.get("popularoo_index", 0.0)),
+        active_strikes=active_strikes,
+        strike_emoji=s_emoji if s_emoji else None,
+        strike_label=s_label if s_label else None,
         last_updated=doc.get("updated_at"),
         source=doc.get("source", "seed"),
     )
@@ -586,13 +619,98 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    # Block dislikes on boosted users (anti-harassment protection)
-    if int(body.value) == -1 and person.get("source") == "self_boosted":
+    new_val = int(body.value)
+    is_outsider = person.get("source") == "self_boosted"
+
+    # Block dislikes on outsiders (anti-harassment protection)
+    if new_val == -1 and is_outsider:
         raise HTTPException(status_code=403, detail="Dislikes are not available for Outsiders. You can only support them!")
 
+    # Block superlikes on non-outsiders
+    if new_val == 5 and not is_outsider:
+        raise HTTPException(status_code=403, detail="Superlikes are only available for Outsiders")
+
+    # ---- SUPERLIKE PATH (value=5) ----
+    if new_val == 5:
+        # Separate cooldown tracking for superlikes
+        existing_sl = await db.superlike_votes.find_one({
+            "person_id": oid, "device_id": x_device_id
+        })
+        if existing_sl:
+            last_sl_time = existing_sl.get("created_at")
+            time_since = now_utc() - last_sl_time if last_sl_time else timedelta(days=2)
+            if time_since < timedelta(hours=24):
+                next_vote_time = (last_sl_time + timedelta(hours=24)).isoformat() + "Z" if last_sl_time else None
+                _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(person)
+                return VoteOut(
+                    id=str(person["_id"]),
+                    score=float(eff_score),
+                    likes=int(eff_likes),
+                    dislikes=int(eff_dislikes),
+                    superlikes=int(person.get("superlikes", 0)),
+                    total_votes=int(eff_total),
+                    popularoo_index=float(person.get("popularoo_index", 0.0)),
+                    voted_value=5,
+                    already_voted=True,
+                    next_vote_time=next_vote_time,
+                )
+            # 24h passed, update existing record
+            await db.superlike_votes.update_one(
+                {"_id": existing_sl["_id"]},
+                {"$set": {"created_at": now_utc()}}
+            )
+        else:
+            await db.superlike_votes.insert_one({
+                "person_id": oid, "device_id": x_device_id, "created_at": now_utc()
+            })
+
+        # Record superlike event (for strike detection in Phase B)
+        await db.superlike_events.insert_one({
+            "person_id": oid, "device_id": x_device_id, "created_at": now_utc()
+        })
+
+        # Increment superlikes counter + total_votes
+        inc_doc = {"superlikes": 1, "total_votes": 1}
+        await db.persons.update_one(
+            {"_id": oid},
+            {"$inc": inc_doc, "$set": {"updated_at": now_utc()}}
+        )
+
+        # Write vote event (delta=5 for superlike weight)
+        await write_vote_event(oid, x_device_id, 5)
+
+        # Quick recalculate Popularoo Index
+        updated = await db.persons.find_one({"_id": oid})
+        try:
+            config = await load_index_config(db)
+            new_index = await quick_recalc_index(db, updated, config)
+            updated = await db.persons.find_one({"_id": oid})
+        except Exception as e:
+            logger.warning(f"Quick index recalc failed: {e}")
+
+        # Record tick
+        await db.person_ticks.insert_one({
+            "person_id": oid,
+            "score": updated.get("score", 0),
+            "total_votes": updated.get("total_votes", 0),
+            "created_at": now_utc()
+        })
+
+        _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(updated)
+        return VoteOut(
+            id=str(updated["_id"]),
+            score=float(eff_score),
+            likes=int(eff_likes),
+            dislikes=int(eff_dislikes),
+            superlikes=int(updated.get("superlikes", 0)),
+            total_votes=int(eff_total),
+            popularoo_index=float(updated.get("popularoo_index", 0.0)),
+            voted_value=5,
+        )
+
+    # ---- LIKE/DISLIKE PATH (value=1 or -1) ----
     existing_vote = await db.votes.find_one({"person_id": oid, "device_id": x_device_id})
 
-    new_val = int(body.value)
     delta = new_val
     inc_doc: Dict[str, Any] = {"total_votes": 0}
 
@@ -602,7 +720,6 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         
         # Check if 24 hours have passed since last vote
         time_since_last_vote = now_utc() - last_vote_time if last_vote_time else timedelta(days=2)
-        hours_remaining = 24 - (time_since_last_vote.total_seconds() / 3600)
         
         if time_since_last_vote < timedelta(hours=24):
             # Less than 24h - cannot vote again
@@ -613,7 +730,9 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
                 score=float(eff_score),
                 likes=int(eff_likes),
                 dislikes=int(eff_dislikes),
+                superlikes=int(person.get("superlikes", 0)),
                 total_votes=int(eff_total),
+                popularoo_index=float(person.get("popularoo_index", 0.0)),
                 voted_value=old_val,
                 already_voted=True,
                 next_vote_time=next_vote_time,
@@ -648,51 +767,57 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         })
 
     # Calculate new score based on likes and dislikes ratio
-    # Simple system with scores in multiples of 25: 0, 25, 50, 75, 100
     new_likes = int(person.get("likes", 0)) + inc_doc.get("likes", 0)
     new_dislikes = int(person.get("dislikes", 0)) + inc_doc.get("dislikes", 0)
     new_total_votes = int(person.get("total_votes", 0)) + inc_doc.get("total_votes", 0)
     
-    # Calculate raw_score (precise, for Bull Run comparisons)
     if new_total_votes > 0:
         raw_score = (new_likes / new_total_votes) * 100
     else:
         raw_score = 0.0
     
-    # Calculate public score (rounded to nearest 25)
     if new_total_votes > 0:
         new_score = round(raw_score / 25) * 25
         new_score = max(0, min(100, new_score))
     else:
-        new_score = 0  # No votes = 0
+        new_score = 0
     
-    # Update person aggregates with both scores
+    # Update person aggregates
     await db.persons.update_one(
         {"_id": oid},
         {"$inc": inc_doc, "$set": {"score": new_score, "raw_score": raw_score, "updated_at": now_utc()}}
     )
     
-    # Fetch updated totals for tick
-    updated_person = await db.persons.find_one({"_id": oid})
-    total_votes_now = updated_person.get("total_votes", 0) if updated_person else 0
-    
+    # Write vote event
+    await write_vote_event(oid, x_device_id, int(delta))
+
+    # Quick recalculate Popularoo Index
+    updated = await db.persons.find_one({"_id": oid})
+    try:
+        config = await load_index_config(db)
+        await quick_recalc_index(db, updated, config)
+        updated = await db.persons.find_one({"_id": oid})
+    except Exception as e:
+        logger.warning(f"Quick index recalc failed: {e}")
+
+    # Record tick
+    total_votes_now = updated.get("total_votes", 0) if updated else 0
     await db.person_ticks.insert_one({
         "person_id": oid, 
         "score": new_score, 
         "total_votes": total_votes_now,
         "created_at": now_utc()
     })
-    await write_vote_event(oid, x_device_id, int(delta))
 
-    # fetch updated person and apply seed decay
-    updated = await db.persons.find_one({"_id": oid})
     _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(updated)
     return VoteOut(
         id=str(updated["_id"]),
         score=float(eff_score),
         likes=int(eff_likes),
         dislikes=int(eff_dislikes),
+        superlikes=int(updated.get("superlikes", 0)),
         total_votes=int(eff_total),
+        popularoo_index=float(updated.get("popularoo_index", 0.0)),
         voted_value=new_val,
     )
 
@@ -2679,6 +2804,105 @@ async def init_votes():
     except Exception as e:
         logger.error(f"Failed to init votes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Popularoo Index Admin Endpoints --------------------
+
+@api_router.post("/admin/migrate-popularoo-index")
+async def admin_migrate_index():
+    """
+    One-time migration: Calculate initial Popularoo Index for all persons.
+    Safe to run multiple times (idempotent).
+    """
+    try:
+        count = await migrate_initial_index(db)
+        return {
+            "success": True,
+            "message": f"Popularoo Index migrated for {count} persons",
+            "count": count,
+        }
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/recalculate-all-indices")
+async def admin_recalculate_indices():
+    """Force a full recalculation of Popularoo Index for all persons."""
+    try:
+        await recalculate_all_indices(db)
+        return {"success": True, "message": "All indices recalculated"}
+    except Exception as e:
+        logger.error(f"Recalculation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/admin/index-config")
+async def admin_get_index_config():
+    """View current algorithm configuration (admin only)."""
+    config = await load_index_config(db)
+    safe = {k: v for k, v in config.items() if k != "_id"}
+    return {"config": safe}
+
+
+@api_router.post("/admin/index-config")
+async def admin_update_index_config(body: Dict[str, Any]):
+    """
+    Update algorithm coefficients (admin only).
+    Example: {"coefficients": {"volume": 0.25, "ratio": 0.35}}
+    """
+    try:
+        update_fields = {}
+        if "coefficients" in body:
+            for k, v in body["coefficients"].items():
+                if k in ("volume", "ratio", "momentum", "regularity"):
+                    update_fields[f"coefficients.{k}"] = float(v)
+        for key in ("strike_value", "low_vote_cap", "low_vote_threshold",
+                     "momentum_multiplier", "regularity_scale", "volume_scale", "ratio_scale"):
+            if key in body:
+                update_fields[key] = float(body[key])
+
+        if not update_fields:
+            return {"success": False, "message": "No valid fields to update"}
+
+        update_fields["last_updated"] = now_utc()
+        await db.algorithm_config.update_one(
+            {"_id": "popularoo_index"},
+            {"$set": update_fields},
+        )
+        invalidate_config_cache()
+        new_config = await load_index_config(db)
+        safe = {k: v for k, v in new_config.items() if k != "_id"}
+        return {"success": True, "config": safe}
+    except Exception as e:
+        logger.error(f"Config update failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/people/{person_id}/index-detail")
+async def get_person_index_detail(person_id: str):
+    """Get detailed Popularoo Index breakdown for a person."""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    return {
+        "person_id": str(person["_id"]),
+        "name": person.get("name"),
+        "popularoo_index": person.get("popularoo_index", 0.0),
+        "base_index": person.get("base_index", 0.0),
+        "components": person.get("index_components", {}),
+        "likes": person.get("likes", 0),
+        "dislikes": person.get("dislikes", 0),
+        "superlikes": person.get("superlikes", 0),
+        "active_strikes": person.get("active_strikes", 0),
+        "last_index_calc": person.get("last_index_calc"),
+    }
 
 
 # Include the router in the main app
