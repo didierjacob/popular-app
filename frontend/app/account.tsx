@@ -241,54 +241,18 @@ export default function AccountScreen() {
   // ---- Help Center Sub-screen ----
   if (screen === "help") {
     const FAQ = [
-      {
-        q: "What is Popularoo?",
-        a: "Popularoo is the first real-time popularity index for public figures. Vote on your favorite personalities, discover who's trending, and watch rankings shift in real time. Every vote counts — and your voice shapes the Popularoo Index.",
-      },
-      {
-        q: "What is the Popularoo Index?",
-        a: "The Popularoo Index is a live score assigned to every personality in the app. It captures community votes, momentum over the last 24 hours, and how consistently a personality engages the audience over time. Think of it as a real-time pulse on public opinion.\n\nThe exact formula is kept under wraps — but the more votes and engagement a personality receives, the higher their Index climbs.",
-      },
-      {
-        q: "What are Daily Runs?",
-        a: "A Daily Run is a 24-hour challenge where you, as a Boosted outsider, pick a personality and rally your community to outshine them. Think of it as a campaign: you choose a target — anyone from your favorite local figure to global stars like Beyoncé or Trump — and the clock starts ticking.\n\nFor example: you launch a Daily Run against Beyoncé. Over the next 24 hours, every Like and Superlike you receive counts toward your momentum. If your momentum surpasses Beyoncé's, you win — and depending on how big the gap was, you earn a Standard Win, an Underdog Win, or a Legendary Strike.\n\nDaily Runs are the heart of the game. See \"What are Strikes?\" to learn what happens when your Run catches fire.",
-      },
-      {
-        q: "What are Strikes?",
-        a: "Strikes are momentum amplifiers triggered when a Boosted outsider receives a burst of Superlikes. When the app detects a surge, it activates a Strike chain:\n\n• Heating Up — The outsider is gaining traction\n• On Fire — Momentum is building fast\n• Trending — The community is taking notice\n• Going Viral — Massive engagement detected\n• Legend Mode — The highest level, reserved for exceptional surges\n\nEach Strike level boosts the outsider's Popularoo Index further. Strikes are rare and exciting — they signal that something big is happening. They become especially powerful during Daily Runs, where they can turn the tide of a challenge.",
-      },
-      {
-        q: "What are Victory Tiers?",
-        a: "When you launch a Daily Run, the app calculates the gap between your Popularoo Index and your target's. This gap determines your Victory Tier — the kind of win you'll earn if you succeed:\n\n• Standard Win — Gap under 20 points. A solid win, perfect for testing your community's momentum\n• Underdog Win — Gap between 20 and 50 points. An unexpected surge! You outperformed expectations against a much stronger personality\n• Legendary Strike — Gap over 50 points. The rarest outcome, achieved by triggering multiple Strikes during the Run. Your community went all-in\n\nThe bigger the gap, the bigger the reward. Victory Tiers reward strategic targeting and community engagement.",
-      },
-      {
-        q: "What is a Superlike?",
-        a: "A Superlike is a high-impact vote that counts more than a regular vote. It's free, but limited: you can give one Superlike per personality per day. Use them to show strong support and to help trigger Strikes for your favorite outsiders.\n\nSuperlikes are the key to powering Daily Runs. When several Superlikes hit a single outsider in a short window, they can ignite a Strike — and turn a quiet Run into a Legendary one.\n\nUse them strategically. Choose who deserves your daily Superlike, and watch the momentum build.",
-      },
-      {
-        q: "How do Boosters work?",
-        a: "Boosters let you appear in the Outsiders ranking. Each tier offers different durations:\n\n• Booster (€0.99) — 1 hour in Outsiders\n• Super Booster (€9.99) — 24 hours in Outsiders\n• Golden Booster (€49.99) — 7 days with priority placement, Home page rotation as Outsider of the Day, and Daily Run access",
-      },
-      {
-        q: "How do I vote?",
-        a: "Search for a personality or tap on one from the lists. On their page, tap the thumbs up or thumbs down button. You can vote once every 24 hours per personality.",
-      },
-      {
-        q: "What is Personality of the Day?",
-        a: "It's the personality with the highest Popularoo Index at the moment. It updates automatically based on votes and engagement.",
-      },
-      {
-        q: "Can I add a new personality?",
-        a: "Yes! Use the search bar on the Home page. If the person isn't in our database, we'll search Wikipedia and add them automatically.",
-      },
-      {
-        q: "How do I contact support?",
-        a: `Send an email to ${SUPPORT_EMAIL} and we'll get back to you within 24 hours.`,
-      },
-      {
-        q: "Is my data private?",
-        a: "Yes. We use a device-based anonymous ID. We don't collect personal data unless you choose to provide it in your Account page or when purchasing a Booster.",
-      },
+      { q: t("helpCenter.faq_whatIsPopularoo_q"), a: t("helpCenter.faq_whatIsPopularoo_a") },
+      { q: t("helpCenter.faq_popularooIndex_q"), a: t("helpCenter.faq_popularooIndex_a") },
+      { q: t("helpCenter.faq_dailyRuns_q"), a: t("helpCenter.faq_dailyRuns_a") },
+      { q: t("helpCenter.faq_strikes_q"), a: t("helpCenter.faq_strikes_a") },
+      { q: t("helpCenter.faq_victoryTiers_q"), a: t("helpCenter.faq_victoryTiers_a") },
+      { q: t("helpCenter.faq_superlike_q"), a: t("helpCenter.faq_superlike_a") },
+      { q: t("helpCenter.faq_boosters_q"), a: t("helpCenter.faq_boosters_a") },
+      { q: t("helpCenter.faq_vote_q"), a: t("helpCenter.faq_vote_a") },
+      { q: t("helpCenter.faq_potd_q"), a: t("helpCenter.faq_potd_a") },
+      { q: t("helpCenter.faq_addPerson_q"), a: t("helpCenter.faq_addPerson_a") },
+      { q: t("helpCenter.faq_contact_q"), a: t("helpCenter.faq_contact_a", { email: SUPPORT_EMAIL }) },
+      { q: t("helpCenter.faq_privacy_q"), a: t("helpCenter.faq_privacy_a") },
     ];
 
     return (
