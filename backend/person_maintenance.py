@@ -1,46 +1,166 @@
 """
 Automated maintenance jobs for personality database.
-- Weekly deceased check via Wikipedia
-- Dynamic tag evolution based on vote patterns
+
+Jobs:
+- Daily deceased check for top 50 via Wikidata (P570 death_date)
+- Weekly deceased check for remaining personalities via Wikidata
+- Weekly country tag evolution based on vote patterns
+
+Ajustements V2:
+- Wikidata P570 (structured death_date) instead of Wikipedia extract parsing
+- Tag evolution threshold raised to 25% + 100 absolute minimum votes
+- Daily check for top 50 Index personalities, weekly for the rest
+- Active Daily Runs cancelled on deceased detection + slot returned
 """
 
+import asyncio
 import logging
-import re
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Dict, List, Optional
 
 import httpx
 from bson import ObjectId
 
 logger = logging.getLogger("person_maintenance")
 
-WIKI_HEADERS = {"User-Agent": "Popularoo/1.0 (contact@popularoo.com) httpx/0.27"}
+WIKIDATA_HEADERS = {"User-Agent": "Popularoo/1.0 (contact@popularoo.com) httpx/0.27"}
+
+# Tag evolution thresholds (Ajustement 1)
+TAG_EVOLUTION_RATIO_THRESHOLD = 0.25     # 25% of votes from a country
+TAG_EVOLUTION_ABSOLUTE_MIN = 100          # Minimum 100 votes from that country
+TAG_EVOLUTION_INTL_COUNTRIES = 5          # Votes from 5+ different countries
+TAG_EVOLUTION_INTL_MAX_DOMINANCE = 0.70   # No single country > 70%
 
 
-async def check_deceased_persons(db, batch_size: int = 50):
+# ==================== WIKIDATA DECEASED CHECK (Ajustement 2) ====================
+
+async def _check_wikidata_death(name: str, client: httpx.AsyncClient) -> Optional[str]:
     """
-    Weekly job: check if any active personalities have passed away.
-    Uses Wikipedia extracts to detect death mentions.
-    If deceased, sets status to 'inactive' (respectful, no deletion).
+    Check if a person is deceased using Wikidata structured data (P570).
+    Returns the death date string if deceased, None if alive.
     
-    Checks in batches to respect Wikipedia rate limits.
+    Uses Wikidata API:
+    1. Search for the entity by name
+    2. Fetch the entity claims
+    3. Check property P570 (date of death)
+    
+    This is binary and unambiguous — no false positives from text parsing.
+    """
+    try:
+        # Step 1: Search Wikidata for the entity
+        search_params = {
+            "action": "wbsearchentities",
+            "search": name,
+            "language": "en",
+            "type": "item",
+            "limit": 3,
+            "format": "json",
+        }
+        resp = await client.get(
+            "https://www.wikidata.org/w/api.php",
+            params=search_params,
+            headers=WIKIDATA_HEADERS,
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+
+        data = resp.json()
+        results = data.get("search", [])
+        if not results:
+            return None
+
+        # Take the first result (most relevant match)
+        entity_id = results[0].get("id")
+        if not entity_id:
+            return None
+
+        # Step 2: Fetch the entity's P570 (date of death) claim
+        claims_params = {
+            "action": "wbgetclaims",
+            "entity": entity_id,
+            "property": "P570",
+            "format": "json",
+        }
+        resp2 = await client.get(
+            "https://www.wikidata.org/w/api.php",
+            params=claims_params,
+            headers=WIKIDATA_HEADERS,
+            timeout=10,
+        )
+        if resp2.status_code != 200:
+            return None
+
+        claims_data = resp2.json()
+        death_claims = claims_data.get("claims", {}).get("P570", [])
+
+        if death_claims:
+            # P570 exists → person is deceased
+            # Extract the date value
+            try:
+                time_value = death_claims[0]["mainsnak"]["datavalue"]["value"]["time"]
+                # time_value format: "+2024-11-28T00:00:00Z"
+                return time_value
+            except (KeyError, IndexError):
+                return "unknown_date"
+
+        # No P570 → person is alive
+        return None
+
+    except Exception as e:
+        logger.warning(f"Wikidata check error for '{name}': {e}")
+        return None
+
+
+# ==================== DECEASED CHECK JOB (Ajustement 3) ====================
+
+async def check_deceased_top50(db):
+    """
+    Daily job: check top 50 personalities by Index for recent deaths.
+    Fast, targeted, runs every 24h.
+    """
+    return await _run_deceased_check(db, top_n=50, check_interval_days=1)
+
+
+async def check_deceased_all(db):
+    """
+    Weekly job: check ALL remaining personalities for deaths.
+    Broader sweep, runs every 7 days.
+    """
+    return await _run_deceased_check(db, top_n=None, check_interval_days=7)
+
+
+async def _run_deceased_check(db, top_n: Optional[int], check_interval_days: int):
+    """
+    Core deceased check logic using Wikidata P570.
+    
+    On detection:
+    - Person marked is_deceased=True, approved=False
+    - Active Daily Runs against this person: cancelled, slot returned
+    - Admin notification logged
     """
     now = datetime.utcnow()
+    check_cutoff = now - timedelta(days=check_interval_days)
     checked = 0
     deactivated = 0
 
-    # Only check persons who haven't been checked recently (last 7 days)
-    check_cutoff = now - timedelta(days=7)
-    
-    cursor = db.persons.find({
+    # Build query
+    query_filter = {
         "approved": True,
         "source": {"$ne": "self_boosted"},
+        "is_deceased": {"$ne": True},
         "$or": [
             {"deceased_checked_at": {"$exists": False}},
             {"deceased_checked_at": {"$lt": check_cutoff}},
         ],
-        "is_deceased": {"$ne": True},
-    }).limit(batch_size)
+    }
+
+    if top_n:
+        # Top N by Popularoo Index
+        cursor = db.persons.find(query_filter).sort("popularoo_index", -1).limit(top_n)
+    else:
+        # All remaining (batch of 100 to respect rate limits)
+        cursor = db.persons.find(query_filter).limit(100)
 
     async with httpx.AsyncClient() as client:
         async for person in cursor:
@@ -48,91 +168,102 @@ async def check_deceased_persons(db, batch_size: int = 50):
             if not name:
                 continue
 
-            try:
-                params = {
-                    "action": "query",
-                    "titles": name,
-                    "prop": "extracts",
-                    "exintro": True,
-                    "explaintext": True,
-                    "exsentences": 3,
-                    "format": "json",
-                }
-                resp = await client.get(
-                    "https://en.wikipedia.org/w/api.php",
-                    params=params,
-                    headers=WIKI_HEADERS,
-                    timeout=10,
-                )
-                
-                if resp.status_code != 200:
-                    continue
-                
-                data = resp.json()
-                pages = data.get("query", {}).get("pages", {})
-                
-                extract = ""
-                for page_id, page_data in pages.items():
-                    if page_id != "-1":
-                        extract = page_data.get("extract", "").lower()
-                
-                # Check for death indicators in the extract
-                death_patterns = [
-                    r"was a[n]? ",  # "was a politician" (past tense = deceased)
-                    r"died\s",
-                    r"\(\d{4}\s*[-–]\s*\d{4}\)",  # (1940-2024) date range
-                    r"death\s",
-                ]
-                
-                is_deceased = False
-                for pattern in death_patterns:
-                    if re.search(pattern, extract):
-                        # Double check: "was a" is common for deceased but also for retired
-                        # Confirm with date range pattern
-                        has_death_date = bool(re.search(r"\(\d{4}\s*[-–]\s*\d{4}\)", extract))
-                        has_was = "was a" in extract or "was an" in extract
-                        
-                        if has_death_date or (has_was and "died" in extract):
-                            is_deceased = True
-                            break
-                
-                update = {"$set": {"deceased_checked_at": now}}
-                
-                if is_deceased:
-                    update["$set"]["is_deceased"] = True
-                    update["$set"]["approved"] = False  # Hide from feeds
-                    update["$set"]["deactivated_reason"] = "deceased"
-                    update["$set"]["deactivated_at"] = now
-                    deactivated += 1
-                    logger.info(f"⚰️ Deactivated deceased person: {name}")
-                
-                await db.persons.update_one({"_id": person["_id"]}, update)
-                checked += 1
+            death_date = await _check_wikidata_death(name, client)
 
-            except Exception as e:
-                logger.warning(f"Error checking {name}: {e}")
-            
-            # Rate limit: 200ms between requests
-            import asyncio
-            await asyncio.sleep(0.2)
+            update = {"$set": {"deceased_checked_at": now}}
+
+            if death_date is not None:
+                # Person is confirmed deceased via Wikidata P570
+                update["$set"]["is_deceased"] = True
+                update["$set"]["approved"] = False
+                update["$set"]["deactivated_reason"] = "deceased"
+                update["$set"]["deactivated_at"] = now
+                update["$set"]["death_date_wikidata"] = death_date
+                deactivated += 1
+
+                logger.warning(f"⚰️ DECEASED DETECTED: {name} (death_date={death_date})")
+
+                # Cancel active Daily Runs involving this person
+                await _cancel_daily_runs_for_deceased(db, person["_id"], name, now)
+
+                # Log admin notification
+                await db.admin_notifications.insert_one({
+                    "type": "deceased_detected",
+                    "person_id": person["_id"],
+                    "person_name": name,
+                    "death_date": death_date,
+                    "detected_at": now,
+                    "action_taken": "deactivated",
+                    "read": False,
+                })
+
+            await db.persons.update_one({"_id": person["_id"]}, update)
+            checked += 1
+
+            # Rate limit: 300ms between Wikidata requests
+            await asyncio.sleep(0.3)
 
     if checked > 0 or deactivated > 0:
-        logger.info(f"🔍 Deceased check: {checked} checked, {deactivated} deactivated")
-    
+        logger.info(f"🔍 Deceased check: {checked} checked, {deactivated} deactivated "
+                    f"(top_n={'all' if not top_n else top_n})")
+
     return {"checked": checked, "deactivated": deactivated}
 
 
-async def evolve_country_tags(db, min_votes: int = 50):
+async def _cancel_daily_runs_for_deceased(db, person_id: ObjectId, person_name: str, now: datetime):
+    """
+    Cancel all active Daily Runs where the deceased person is either
+    the outsider or the target. Return Daily Run slots to outsiders.
+    """
+    cancelled = 0
+
+    # Find active runs where deceased is the target
+    async for run in db.daily_runs.find({
+        "target_id": person_id,
+        "status": "active",
+    }):
+        await db.daily_runs.update_one(
+            {"_id": run["_id"]},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_reason": f"Target {person_name} deceased",
+                "cancelled_at": now,
+            }}
+        )
+        cancelled += 1
+        logger.info(f"🎯 Daily Run cancelled: {run.get('outsider_name')} vs {person_name} "
+                    f"(target deceased) — slot returned")
+
+    # Find active runs where deceased is the outsider
+    async for run in db.daily_runs.find({
+        "person_id": person_id,
+        "status": "active",
+    }):
+        await db.daily_runs.update_one(
+            {"_id": run["_id"]},
+            {"$set": {
+                "status": "cancelled",
+                "cancelled_reason": f"Outsider {person_name} deceased",
+                "cancelled_at": now,
+            }}
+        )
+        cancelled += 1
+
+    if cancelled > 0:
+        logger.info(f"🎯 {cancelled} Daily Run(s) cancelled due to {person_name} passing")
+
+
+# ==================== TAG EVOLUTION (Ajustement 1) ====================
+
+async def evolve_country_tags(db, min_votes: int = 100):
     """
     Dynamic tag evolution: analyze vote distribution by country
-    and adjust tags if patterns emerge.
-    
-    Rules:
-    - If 90%+ votes from one country → reinforce that country tag
-    - If significant votes from new countries → add those country tags
-    - If votes are globally distributed → promote to international
-    
-    Only processes persons with enough votes for statistical significance.
+    and adjust tags if significant patterns emerge.
+
+    Thresholds (Ajustement 1):
+    - 25% of votes from a new country AND minimum 100 absolute votes → add country tag
+    - Votes from 5+ countries, no single country >70% → promote to International
+    - Only processes persons with 100+ total votes for statistical significance
     """
     now = datetime.utcnow()
     updated = 0
@@ -145,7 +276,7 @@ async def evolve_country_tags(db, min_votes: int = 50):
     async for person in cursor:
         person_id = person["_id"]
         current_tags = person.get("country_tags", [])
-        
+
         # Get vote distribution by country
         pipeline = [
             {"$match": {"person_id": person_id}},
@@ -161,8 +292,8 @@ async def evolve_country_tags(db, min_votes: int = 50):
                 "vote_count": {"$sum": 1},
             }},
         ]
-        
-        country_votes = {}
+
+        country_votes: Dict[str, int] = {}
         total_country_votes = 0
         try:
             async for doc in db.votes.aggregate(pipeline):
@@ -172,34 +303,36 @@ async def evolve_country_tags(db, min_votes: int = 50):
                     total_country_votes += doc["vote_count"]
         except Exception:
             continue
-        
+
         if total_country_votes < min_votes:
             continue
-        
+
         # Analyze distribution
         new_tags = list(current_tags)
         changed = False
-        
+
         for country, votes in country_votes.items():
             ratio = votes / total_country_votes
-            
-            # If 10%+ of votes from a country not yet tagged → add tag
-            if ratio >= 0.10 and country not in new_tags and country != "international":
+
+            # Ajustement 1: 25% ratio AND 100+ absolute votes from the country
+            if (ratio >= TAG_EVOLUTION_RATIO_THRESHOLD
+                    and votes >= TAG_EVOLUTION_ABSOLUTE_MIN
+                    and country not in new_tags
+                    and country != "international"):
                 new_tags.append(country)
                 changed = True
                 logger.info(f"🏷️ Tag evolution: {person.get('name')} gained tag {country} "
-                           f"({ratio:.0%} of votes)")
-        
-        # If votes from 5+ different countries → consider international
-        if len(country_votes) >= 5 and "international" not in new_tags:
-            # Check that no single country dominates >70%
+                           f"({ratio:.0%} of votes, {votes} absolute)")
+
+        # International promotion: 5+ countries, no single country >70%
+        if len(country_votes) >= TAG_EVOLUTION_INTL_COUNTRIES and "international" not in new_tags:
             max_ratio = max(v / total_country_votes for v in country_votes.values())
-            if max_ratio < 0.70:
+            if max_ratio < TAG_EVOLUTION_INTL_MAX_DOMINANCE:
                 new_tags.append("international")
                 changed = True
                 logger.info(f"🌍 Tag evolution: {person.get('name')} promoted to International "
                            f"(votes from {len(country_votes)} countries)")
-        
+
         if changed:
             await db.persons.update_one(
                 {"_id": person_id},
@@ -209,8 +342,8 @@ async def evolve_country_tags(db, min_votes: int = 50):
                 }}
             )
             updated += 1
-    
+
     if updated > 0:
         logger.info(f"🏷️ Tag evolution: {updated} persons updated")
-    
+
     return {"updated": updated}

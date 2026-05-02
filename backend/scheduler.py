@@ -53,12 +53,21 @@ async def run_strike_cleanup_job(db):
 
 
 async def run_deceased_check_job(db):
-    """Weekly wrapper: check for recently deceased persons via Wikipedia"""
+    """Daily wrapper: check top 50 via Wikidata P570 (structured death_date)"""
     try:
-        from person_maintenance import check_deceased_persons
-        await check_deceased_persons(db, batch_size=50)
+        from person_maintenance import check_deceased_top50
+        await check_deceased_top50(db)
     except Exception as e:
-        logger.error(f"❌ Deceased check job error: {e}")
+        logger.error(f"❌ Deceased check (top50) job error: {e}")
+
+
+async def run_deceased_check_all_job(db):
+    """Weekly wrapper: check ALL remaining persons via Wikidata P570"""
+    try:
+        from person_maintenance import check_deceased_all
+        await check_deceased_all(db)
+    except Exception as e:
+        logger.error(f"❌ Deceased check (all) job error: {e}")
 
 
 async def run_tag_evolution_job(db):
@@ -146,13 +155,23 @@ def init_scheduler(db, trends_service, email_svc=None):
         replace_existing=True
     )
 
-    # Weekly deceased persons check (Sunday 2:00 AM UTC)
+    # Weekly deceased persons check — ALL remaining (Sunday 2:00 AM UTC)
     scheduler.add_job(
-        run_deceased_check_job,
+        run_deceased_check_all_job,
         CronTrigger(day_of_week='sun', hour=2, minute=0),
         args=[db],
-        id='deceased_check_job',
-        name='Weekly Deceased Check',
+        id='deceased_check_all_job',
+        name='Weekly Deceased Check (All)',
+        replace_existing=True
+    )
+
+    # Daily deceased check — Top 50 by Index (every day at 6:00 AM UTC)
+    scheduler.add_job(
+        run_deceased_check_job,
+        CronTrigger(hour=6, minute=0),
+        args=[db],
+        id='deceased_check_top50_job',
+        name='Daily Deceased Check (Top 50)',
         replace_existing=True
     )
 
@@ -173,7 +192,8 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Popularoo Index recalculation runs every 15 minutes")
     logger.info("Daily Run victory check runs every 5 minutes")
     logger.info("Strike cleanup runs every 15 minutes")
-    logger.info("Weekly deceased check scheduled Sundays 2:00 AM UTC")
+    logger.info("Daily deceased check (top 50) scheduled at 6:00 AM UTC")
+    logger.info("Weekly deceased check (all) scheduled Sundays 2:00 AM UTC")
     logger.info("Weekly tag evolution scheduled Sundays 4:00 AM UTC")
     
     return scheduler
