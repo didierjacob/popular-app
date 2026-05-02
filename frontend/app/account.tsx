@@ -245,23 +245,23 @@ export default function AccountScreen() {
       },
       {
         q: "What is the Popularoo Index?",
-        a: "The Popularoo Index is a live score assigned to every personality in the app. It reflects their current popularity based on community votes, engagement momentum, and recent trends. Think of it as a real-time pulse on public opinion.\n\nThe exact formula is kept under wraps — but the more votes and engagement a personality receives, the higher their Index climbs.",
+        a: "The Popularoo Index is a live score assigned to every personality in the app. It captures community votes, momentum over the last 24 hours, and how consistently a personality engages the audience over time. Think of it as a real-time pulse on public opinion.\n\nThe exact formula is kept under wraps — but the more votes and engagement a personality receives, the higher their Index climbs.",
       },
       {
         q: "What are Daily Runs?",
-        a: "A Daily Run is a 24-hour challenge where you pick a personality and rally the community to vote for them. It's like launching a campaign — you choose your target, and the clock starts ticking.\n\nFor example: you launch a Daily Run for Beyoncé. Over the next 24 hours, every vote she receives counts toward the Run. If enough momentum builds, you could trigger a Strike and earn a Victory.\n\nDaily Runs are the heart of the game. See 'What are Strikes?' to learn what happens when a Run catches fire.",
+        a: "A Daily Run is a 24-hour challenge where you, as a Boosted outsider, pick a personality and rally your community to outshine them. Think of it as a campaign: you choose a target — anyone from your favorite local figure to global stars like Beyoncé or Trump — and the clock starts ticking.\n\nFor example: you launch a Daily Run against Beyoncé. Over the next 24 hours, every Like and Superlike you receive counts toward your momentum. If your momentum surpasses Beyoncé's, you win — and depending on how big the gap was, you earn a Standard Win, an Underdog Win, or a Legendary Strike.\n\nDaily Runs are the heart of the game. See \"What are Strikes?\" to learn what happens when your Run catches fire.",
       },
       {
         q: "What are Strikes?",
-        a: "Strikes are momentum amplifiers triggered by Superlikes during a Daily Run. When a personality receives a burst of Superlikes, the app detects the surge and activates a Strike chain:\n\n• Heating Up — The personality is gaining traction\n• On Fire — Momentum is building fast\n• Trending — The community is taking notice\n• Going Viral — Massive engagement detected\n• Legend Mode — The highest level, reserved for exceptional surges\n\nEach Strike level boosts the personality's Popularoo Index further. Strikes are rare and exciting — they mean something big is happening.",
+        a: "Strikes are momentum amplifiers triggered when a Boosted outsider receives a burst of Superlikes. When the app detects a surge, it activates a Strike chain:\n\n• Heating Up — The outsider is gaining traction\n• On Fire — Momentum is building fast\n• Trending — The community is taking notice\n• Going Viral — Massive engagement detected\n• Legend Mode — The highest level, reserved for exceptional surges\n\nEach Strike level boosts the outsider's Popularoo Index further. Strikes are rare and exciting — they signal that something big is happening. They become especially powerful during Daily Runs, where they can turn the tide of a challenge.",
       },
       {
         q: "What are Victory Tiers?",
-        a: "When a Daily Run ends, the outcome is evaluated and assigned a Victory Tier based on how well the personality performed:\n\n• Standard Win — Solid performance, the personality gained meaningful votes\n• Underdog Win — An unexpected surge! The personality outperformed expectations\n• Legendary Strike — The rarest outcome. The Run triggered multiple Strikes and the community went all-in\n\nVictory Tiers reward strategic play and community engagement.",
+        a: "When you launch a Daily Run, the app calculates the gap between your Popularoo Index and your target's. This gap determines your Victory Tier — the kind of win you'll earn if you succeed:\n\n• Standard Win — Gap under 20 points. A solid win, perfect for testing your community's momentum\n• Underdog Win — Gap between 20 and 50 points. An unexpected surge! You outperformed expectations against a much stronger personality\n• Legendary Strike — Gap over 50 points. The rarest outcome, achieved by triggering multiple Strikes during the Run. Your community went all-in\n\nThe bigger the gap, the bigger the reward. Victory Tiers reward strategic targeting and community engagement.",
       },
       {
         q: "What is a Superlike?",
-        a: "A Superlike is a premium vote that carries more weight than a regular vote. It signals strong support for a personality and is the key to triggering Strikes during Daily Runs.\n\nUse Superlikes strategically — they can be the difference between a quiet Run and a Legendary Strike.",
+        a: "A Superlike is a high-impact vote that counts more than a regular vote. It's free, but limited: you can give one Superlike per personality per day. Use them to show strong support and to help trigger Strikes for your favorite outsiders.\n\nSuperlikes are the key to powering Daily Runs. When several Superlikes hit a single outsider in a short window, they can ignite a Strike — and turn a quiet Run into a Legendary one.\n\nUse them strategically. Choose who deserves your daily Superlike, and watch the momentum build.",
       },
       {
         q: "How do Boosters work?",
