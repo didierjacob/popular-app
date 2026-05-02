@@ -52,6 +52,24 @@ async def run_strike_cleanup_job(db):
         logger.error(f"❌ Strike cleanup job error: {e}")
 
 
+async def run_deceased_check_job(db):
+    """Weekly wrapper: check for recently deceased persons via Wikipedia"""
+    try:
+        from person_maintenance import check_deceased_persons
+        await check_deceased_persons(db, batch_size=50)
+    except Exception as e:
+        logger.error(f"❌ Deceased check job error: {e}")
+
+
+async def run_tag_evolution_job(db):
+    """Weekly wrapper: evolve country tags based on vote distribution"""
+    try:
+        from person_maintenance import evolve_country_tags
+        await evolve_country_tags(db, min_votes=50)
+    except Exception as e:
+        logger.error(f"❌ Tag evolution job error: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -127,6 +145,26 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Strike Cleanup',
         replace_existing=True
     )
+
+    # Weekly deceased persons check (Sunday 2:00 AM UTC)
+    scheduler.add_job(
+        run_deceased_check_job,
+        CronTrigger(day_of_week='sun', hour=2, minute=0),
+        args=[db],
+        id='deceased_check_job',
+        name='Weekly Deceased Check',
+        replace_existing=True
+    )
+
+    # Weekly country tag evolution (Sunday 4:00 AM UTC)
+    scheduler.add_job(
+        run_tag_evolution_job,
+        CronTrigger(day_of_week='sun', hour=4, minute=0),
+        args=[db],
+        id='tag_evolution_job',
+        name='Weekly Tag Evolution',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     logger.info("Next Google Trends refresh scheduled at 3:00 AM UTC")
@@ -135,6 +173,8 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Popularoo Index recalculation runs every 15 minutes")
     logger.info("Daily Run victory check runs every 5 minutes")
     logger.info("Strike cleanup runs every 15 minutes")
+    logger.info("Weekly deceased check scheduled Sundays 2:00 AM UTC")
+    logger.info("Weekly tag evolution scheduled Sundays 4:00 AM UTC")
     
     return scheduler
 

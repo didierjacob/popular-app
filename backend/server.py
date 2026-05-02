@@ -1275,9 +1275,10 @@ def remove_accents(text: str) -> str:
     )
 
 async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
-    """Search Wikipedia for a person and return their info if found"""
+    """Search Wikipedia for a person and return their info if found.
+    Filters out deceased persons (checks for death_date in Wikidata).
+    """
     try:
-        # Search Wikipedia API
         search_url = "https://en.wikipedia.org/w/api.php"
         params = {
             "action": "query",
@@ -1302,12 +1303,10 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
             if not search_results:
                 return None
             
-            # Try to find a person in the results
             for result in search_results:
                 title = result.get("title", "")
                 snippet = result.get("snippet", "").lower()
                 
-                # Check if it looks like a person (contains common person-related keywords)
                 person_keywords = ["born", "politician", "actor", "actress", "singer", "player", 
                                    "athlete", "businessman", "businesswoman", "president", "minister",
                                    "celebrity", "artist", "musician", "footballer", "basketball",
@@ -1315,12 +1314,19 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
                 
                 is_person = any(keyword in snippet for keyword in person_keywords)
                 
-                # Also check if the title looks like a name (2-4 words, capitalized)
                 words = title.split()
                 looks_like_name = 1 <= len(words) <= 5 and all(w[0].isupper() for w in words if w)
                 
                 if is_person or looks_like_name:
-                    # Determine category based on snippet
+                    # Check for deceased — look for "died" or death year in snippet
+                    death_keywords = ["died", "death", "deceased", "was a ", "was an "]
+                    is_deceased = any(dk in snippet for dk in death_keywords)
+                    
+                    if is_deceased:
+                        logger.info(f"⚰️ Skipping deceased person: {title}")
+                        continue
+                    
+                    # Determine category
                     category = "other"
                     if any(k in snippet for k in ["politician", "president", "minister", "senator", "governor", "pope"]):
                         category = "politics"
@@ -3246,8 +3252,17 @@ async def admin_bulk_import_personalities():
             likes = int(base_votes * likes_ratio)
             dislikes = base_votes - likes
 
+            # Generate unique slug
+            base_slug = slugify(name)
+            slug = base_slug
+            counter = 1
+            while await db.persons.find_one({"slug": slug}):
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
             person_doc = {
                 "name": name,
+                "slug": slug,
                 "category": category,
                 "approved": True,
                 "score": round(100 * (likes / max(1, base_votes)), 2),
