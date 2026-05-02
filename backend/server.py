@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Query, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
@@ -226,6 +226,10 @@ class PersonOut(BaseModel):
     last_updated: Optional[datetime] = None
     source: Optional[str] = "seed"  # "seed", "user_added", "self_boosted", "trending"
     is_trending: Optional[bool] = False
+    # Multi-country fields (Chantier 1)
+    country_tags: Optional[List[str]] = None       # ["FR", "US", "international"]
+    is_international: Optional[bool] = False
+    primary_country: Optional[str] = None           # Main country code (e.g. "FR")
 
 
 class VoteIn(BaseModel):
@@ -507,6 +511,123 @@ async def get_status_checks():
     return out
 
 
+# -------------------- User Settings & Country Detection --------------------
+
+SUPPORTED_COUNTRIES = ["FR", "GB", "US", "CA", "ES", "MX", "BR", "AR", "DE", "IT", "BE", "CH"]
+SUPPORTED_LANGUAGES = ["en", "fr", "es", "pt", "de", "it"]
+
+# Country → default language mapping
+COUNTRY_LANGUAGE_MAP = {
+    "FR": "fr", "BE": "fr", "CH": "fr",
+    "US": "en", "GB": "en", "CA": "en", "AU": "en",
+    "ES": "es", "MX": "es", "AR": "es",
+    "BR": "pt", "PT": "pt",
+    "DE": "de", "IT": "it",
+}
+
+
+@api_router.get("/detect-country")
+async def detect_country(request: Request):
+    """
+    Detect user country from request headers (X-Forwarded-For → IP geolocation fallback).
+    Primary source should be App Store/Google Play country, set by the client.
+    This endpoint provides a server-side fallback via IP.
+    """
+    # Try to get country from header (set by frontend from device locale/store)
+    client_country = request.headers.get("X-User-Country", "").upper().strip()
+    if client_country in SUPPORTED_COUNTRIES:
+        return {
+            "country": client_country,
+            "source": "client_header",
+            "language": COUNTRY_LANGUAGE_MAP.get(client_country, "en"),
+        }
+
+    # IP-based fallback using free ipapi.co service
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else request.client.host if request.client else None
+
+    if client_ip and client_ip not in ("127.0.0.1", "localhost", "::1"):
+        try:
+            async with httpx.AsyncClient() as http_client:
+                resp = await http_client.get(
+                    f"https://ipapi.co/{client_ip}/json/",
+                    headers={"User-Agent": "Popularoo/1.0"},
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    detected = data.get("country_code", "").upper()
+                    if detected in SUPPORTED_COUNTRIES:
+                        return {
+                            "country": detected,
+                            "source": "ip_geolocation",
+                            "language": COUNTRY_LANGUAGE_MAP.get(detected, "en"),
+                            "ip_country_name": data.get("country_name", ""),
+                        }
+        except Exception as e:
+            logger.warning(f"IP geolocation failed: {e}")
+
+    # Default fallback
+    return {
+        "country": "US",
+        "source": "default_fallback",
+        "language": "en",
+    }
+
+
+@api_router.post("/user-settings")
+async def save_user_settings(body: Dict[str, Any]):
+    """
+    Save user preferences (country, language).
+    Stored by device_id for anonymous users.
+    """
+    device_id = body.get("device_id")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id required")
+
+    now = now_utc()
+    update_fields = {"updated_at": now}
+
+    if "country" in body:
+        c = body["country"].upper().strip()
+        if c in SUPPORTED_COUNTRIES:
+            update_fields["country"] = c
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported country: {c}")
+
+    if "language" in body:
+        lang = body["language"].lower().strip()
+        if lang in SUPPORTED_LANGUAGES:
+            update_fields["language"] = lang
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
+
+    await db.user_settings.update_one(
+        {"device_id": device_id},
+        {"$set": update_fields, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+
+    doc = await db.user_settings.find_one({"device_id": device_id})
+    return {
+        "success": True,
+        "country": doc.get("country"),
+        "language": doc.get("language"),
+    }
+
+
+@api_router.get("/user-settings/{device_id}")
+async def get_user_settings(device_id: str):
+    """Get saved user preferences."""
+    doc = await db.user_settings.find_one({"device_id": device_id})
+    if not doc:
+        return {"country": None, "language": None}
+    return {
+        "country": doc.get("country"),
+        "language": doc.get("language"),
+    }
+
+
 def person_to_out(doc: Dict[str, Any]) -> PersonOut:
     # Apply seed decay for displayed score
     _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
@@ -531,11 +652,24 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
         strike_label=s_label if s_label else None,
         last_updated=doc.get("updated_at"),
         source=doc.get("source", "seed"),
+        country_tags=doc.get("country_tags"),
+        is_international=doc.get("is_international", False),
+        primary_country=doc.get("primary_country"),
     )
 
 
 @api_router.get("/people", response_model=List[PersonOut])
-async def list_people(query: Optional[str] = Query(default=None), limit: int = Query(default=20, le=100), category: Optional[str] = Query(default=None), include_outsiders: bool = Query(default=False)):
+async def list_people(
+    query: Optional[str] = Query(default=None),
+    limit: int = Query(default=20, le=100),
+    category: Optional[str] = Query(default=None),
+    include_outsiders: bool = Query(default=False),
+    country: Optional[str] = Query(default=None, description="User country code for 50/50 feed filtering"),
+):
+    """
+    List personalities with optional 50/50 local/international feed.
+    If country is provided, returns ~50% local + ~50% international.
+    """
     filter_q: Dict[str, Any] = {"approved": True}
     
     # Exclude "outsiders" (self_boosted) from main lists unless explicitly requested
@@ -562,6 +696,40 @@ async def list_people(query: Optional[str] = Query(default=None), limit: int = Q
                 raise HTTPException(status_code=400, detail="Invalid category")
             else:
                 filter_q["category"] = cat
+
+    # 50/50 local/international feed when country is specified
+    if country and not query:
+        user_country = country.upper().strip()
+        local_limit = limit // 2
+        intl_limit = limit - local_limit
+
+        # Fetch local personalities (tagged with user's country)
+        local_filter = {**filter_q, "country_tags": user_country}
+        local_cursor = db.persons.find(local_filter).sort([("popularoo_index", -1)]).limit(local_limit)
+        local_docs = await local_cursor.to_list(length=local_limit)
+
+        # If not enough local, fill with more international
+        remaining = limit - len(local_docs)
+        
+        # Fetch international personalities (excluding already-fetched locals)
+        local_ids = [d["_id"] for d in local_docs]
+        intl_filter = {**filter_q, "is_international": True, "_id": {"$nin": local_ids}}
+        intl_cursor = db.persons.find(intl_filter).sort([("popularoo_index", -1)]).limit(remaining)
+        intl_docs = await intl_cursor.to_list(length=remaining)
+
+        # Interleave: local, intl, local, intl...
+        merged = []
+        li, ii = 0, 0
+        while li < len(local_docs) or ii < len(intl_docs):
+            if li < len(local_docs):
+                merged.append(local_docs[li])
+                li += 1
+            if ii < len(intl_docs):
+                merged.append(intl_docs[ii])
+                ii += 1
+
+        return [person_to_out(d) for d in merged[:limit]]
+    
     cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
     docs = await cursor.to_list(length=limit)
     return [person_to_out(d) for d in docs]
@@ -1359,23 +1527,34 @@ async def search_suggestions_by_category(window: str = Query(default="24h"), per
 
 
 @api_router.get("/outsiders")
-async def get_outsiders(limit: int = Query(default=20, le=50)):
-    """Get active outsiders with visibility boosts, split by position (golden=top, regular=bottom)"""
+async def get_outsiders(
+    limit: int = Query(default=20, le=50),
+    country: Optional[str] = Query(default=None, description="User country code — outsiders restricted to same country"),
+):
+    """Get active outsiders with visibility boosts, split by position (golden=top, regular=bottom).
+    If country is provided, only show outsiders boosted from the same country."""
     try:
         now = now_utc()
 
         # Get all active boosts (not expired)
-        active_boosts = await db.active_boosts.find({
-            "end_time": {"$gt": now},
-        }).sort("start_time", -1).to_list(length=100)
+        boost_filter: Dict[str, Any] = {"end_time": {"$gt": now}}
+        active_boosts = await db.active_boosts.find(boost_filter).sort("start_time", -1).to_list(length=100)
 
         golden_outsiders = []
         regular_outsiders = []
+
+        user_country = country.upper().strip() if country else None
 
         for boost in active_boosts:
             person = await db.persons.find_one({"_id": boost["person_id"]})
             if not person:
                 continue
+
+            # Country restriction: outsiders visible only to same-country users
+            if user_country:
+                boost_country = boost.get("country") or person.get("primary_country")
+                if boost_country and boost_country.upper() != user_country:
+                    continue
 
             time_remaining = (boost["end_time"] - now).total_seconds()
             hours_remaining = max(0, time_remaining / 3600)
@@ -1468,6 +1647,7 @@ class BoostMyselfRequest(BaseModel):
     category: Optional[str] = "other"
     receipt: Optional[str] = None
     platform: Optional[str] = None
+    country: Optional[str] = None  # Country code for geo-restriction
 
 class ExtendBoostRequest(BaseModel):
     user_id: str
@@ -1632,6 +1812,7 @@ async def boost_myself(request: BoostMyselfRequest):
                 "email": request.email or "",
                 "tier": request.tier,
                 "position": tier_info["position"],
+                "country": getattr(request, 'country', None),  # Country for geo-restriction
                 "start_time": now,
                 "end_time": end_time,
                 "reminder_sent": False,
@@ -2908,6 +3089,99 @@ async def admin_update_index_config(body: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Config update failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------- Admin: Geo-Tagging Endpoints --------------------
+
+@api_router.post("/admin/apply-geo-tags")
+async def admin_apply_geo_tags():
+    """
+    Apply geo-tags from the pre-generated JSON file to all personalities.
+    Idempotent: safe to run multiple times.
+    """
+    import json as json_lib
+    json_path = os.path.join(os.path.dirname(__file__), "static", "personality_tags.json")
+    if not os.path.exists(json_path):
+        raise HTTPException(status_code=404, detail="Tags file not found. Run tag_personalities.py first.")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        tags_data = json_lib.load(f)
+
+    updated = 0
+    for entry in tags_data:
+        person_id = entry.get("person_id")
+        if not person_id:
+            continue
+        country_tags = [t.strip() for t in entry["country_tags"].split(",") if t.strip()]
+        is_international = entry["is_international"] == "YES"
+        primary_country = entry["primary_country"] if entry["primary_country"] != "??" else None
+
+        result = await db.persons.update_one(
+            {"_id": ObjectId(person_id)},
+            {"$set": {
+                "country_tags": country_tags,
+                "is_international": is_international,
+                "primary_country": primary_country,
+            }}
+        )
+        if result.modified_count > 0:
+            updated += 1
+
+    return {"success": True, "updated": updated, "total": len(tags_data)}
+
+
+@api_router.get("/admin/geo-tags-summary")
+async def admin_geo_tags_summary():
+    """Get summary of geo-tag distribution across all personalities."""
+    pipeline = [
+        {"$match": {"approved": True, "source": {"$ne": "self_boosted"}}},
+        {"$group": {
+            "_id": "$primary_country",
+            "count": {"$sum": 1},
+            "names": {"$push": "$name"},
+        }},
+        {"$sort": {"count": -1}},
+    ]
+    by_country = []
+    async for doc in db.persons.aggregate(pipeline):
+        by_country.append({
+            "country": doc["_id"] or "untagged",
+            "count": doc["count"],
+            "sample_names": doc["names"][:5],
+        })
+
+    intl_count = await db.persons.count_documents({"is_international": True, "approved": True})
+    tagged_count = await db.persons.count_documents({"country_tags": {"$exists": True, "$ne": []}, "approved": True})
+    total = await db.persons.count_documents({"approved": True, "source": {"$ne": "self_boosted"}})
+
+    return {
+        "total_personalities": total,
+        "tagged": tagged_count,
+        "international": intl_count,
+        "by_country": by_country,
+    }
+
+
+@api_router.post("/admin/delete-duplicate/{person_id}")
+async def admin_delete_duplicate(person_id: str):
+    """Delete a duplicate/invalid personality entry. Admin only."""
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    # Delete the person and their associated data
+    name = person.get("name", "Unknown")
+    await db.persons.delete_one({"_id": oid})
+    await db.votes.delete_many({"person_id": oid})
+    await db.person_ticks.delete_many({"person_id": oid})
+
+    logger.info(f"🗑️ Admin deleted personality: {name} ({person_id})")
+    return {"success": True, "deleted": name, "person_id": person_id}
 
 
 @api_router.get("/people/{person_id}/index-detail")
