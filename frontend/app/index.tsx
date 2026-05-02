@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { CreditsService, type OutsiderData } from "../services/creditsService";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -277,6 +278,7 @@ function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [people, setPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
   const [goldenOutsiders, setGoldenOutsiders] = useState<OutsiderData[]>([]);
@@ -397,23 +399,23 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
             <Text style={styles.title}>Popularoo</Text>
           </TouchableOpacity>
-          <Text style={styles.subtitle}>Vote on the world's most famous people</Text>
+          <Text style={styles.subtitle}>{t("home.subtitle")}</Text>
         </View>
 
         {/* Search Box */}
         <View style={styles.searchCard}>
-          <Text style={styles.searchLabel}>Cast your vote</Text>
+          <Text style={styles.searchLabel}>{t("home.searchLabel")}</Text>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
-              placeholder="Enter a name"
+              placeholder={t("home.searchPlaceholder")}
               placeholderTextColor={PALETTE.subtext}
               value={searchName}
               onChangeText={setSearchName}
               onSubmitEditing={handleSearch}
             />
             <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-              <Text style={styles.searchButtonText}>Go</Text>
+              <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -426,7 +428,7 @@ export default function HomeScreen() {
           >
             <View style={styles.potdBadge}>
               <Ionicons name="star" size={16} color={PALETTE.gold} />
-              <Text style={styles.potdBadgeText}>Personality of the Day</Text>
+              <Text style={styles.potdBadgeText}>{t("home.personalityOfTheDay")}</Text>
             </View>
             <View style={styles.potdContent}>
               <View style={styles.potdInfo}>
@@ -456,7 +458,7 @@ export default function HomeScreen() {
             >
               <View style={styles.outsiderOfTheDayBadge}>
                 <Ionicons name="trophy" size={16} color={PALETTE.gold} />
-                <Text style={styles.outsiderOfTheDayBadgeText}>Outsider of the Day</Text>
+                <Text style={styles.outsiderOfTheDayBadgeText}>{t("home.outsiderOfTheDay")}</Text>
                 {goldenOutsiders.length > 1 && (
                   <Text style={styles.outsiderOfTheDayCounter}>
                     {currentOutsiderIndex + 1}/{goldenOutsiders.length}
@@ -479,7 +481,7 @@ export default function HomeScreen() {
 
         {/* Categories */}
         <View style={styles.categoriesContainer}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+          <Text style={styles.sectionTitle}>{t("home.categoriesTitle")}</Text>
           <View style={styles.categoriesRow}>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
@@ -496,20 +498,20 @@ export default function HomeScreen() {
 
         {/* Top Personalities */}
         <View style={styles.topSection}>
-          <Text style={styles.sectionTitle}>Top Personalities</Text>
+          <Text style={styles.sectionTitle}>{t("home.topPersonalities")}</Text>
 
           {loading && (
             <View style={styles.center}>
               <ActivityIndicator size="large" color={PALETTE.accent2} />
-              <Text style={styles.loadingText}>Loading...</Text>
+              <Text style={styles.loadingText}>{t("common.loading")}</Text>
             </View>
           )}
 
           {error && (
             <View style={styles.center}>
-              <Text style={styles.errorText}>Error: {error}</Text>
+              <Text style={styles.errorText}>{t("common.error", { message: error })}</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={() => loadData()}>
-                <Text style={styles.retryText}>Retry</Text>
+                <Text style={styles.retryText}>{t("common.retry")}</Text>
               </TouchableOpacity>
             </View>
           )}

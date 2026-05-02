@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -37,6 +38,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function CategoryList() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ key: string }>();
   const catKey = (params.key as string) || "all";
   const [items, setItems] = useState<Person[]>([]);

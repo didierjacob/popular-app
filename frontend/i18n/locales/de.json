@@ -35,7 +35,7 @@
   "home": {
     "title": "Popularoo",
     "subtitle": "Stimme für die berühmtesten Menschen der Welt ab",
-    "searchLabel": "Gib deine Stimme ab",
+    "searchLabel": "Stimm jetzt ab",
     "searchPlaceholder": "Name eingeben",
     "searchButton": "Go",
     "personalityOfTheDay": "Persönlichkeit des Tages",
@@ -128,7 +128,7 @@
     "timeLeft": "{{time}} übrig"
   },
   "premium": {
-    "title": "Booste dein Profil",
+    "title": "Boost Yourself",
     "subtitle": "Lass dich entdecken!",
     "description": "Kauf einen Booster und dein Name erscheint im Outsiders-Ranking, sichtbar für alle. Der Golden Booster bietet zusätzlich eine bevorzugte Platzierung und Rotation auf der Startseite als Outsider des Tages.",
     "chooseBooster": "Wähle deinen Booster",

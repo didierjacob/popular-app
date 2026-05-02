@@ -6,6 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useUserEngagement } from "../hooks/useUserEngagement";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -30,6 +31,7 @@ interface VoteHistory {
 
 export default function MyVotes() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [votes, setVotes] = useState<VoteHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const { badges, streakData, totalVotes, voteStats, refreshEngagementData } = useUserEngagement();
@@ -125,11 +127,11 @@ export default function MyVotes() {
     <SafeAreaView style={styles.container}>
       <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Votes</Text>
+        <Text style={styles.title}>{t("myvotes.title")}</Text>
         {votes.length > 0 && (
           <TouchableOpacity onPress={clearHistory} style={styles.clearButton}>
             <Ionicons name="trash-outline" size={20} color={PALETTE.accent} />
-            <Text style={styles.clearText}>Clear</Text>
+            <Text style={styles.clearText}>{t("myvotes.clear")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -137,8 +139,8 @@ export default function MyVotes() {
       {votes.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="heart-outline" size={64} color={PALETTE.subtext} />
-          <Text style={styles.emptyText}>No votes yet</Text>
-          <Text style={styles.emptySubtext}>Be the first to vote — your vote shapes the trend!</Text>
+          <Text style={styles.emptyText}>{t("myvotes.empty")}</Text>
+          <Text style={styles.emptySubtext}>{t("myvotes.emptySubtitle")}</Text>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -147,31 +149,31 @@ export default function MyVotes() {
             <View style={styles.streakHeader}>
               <Ionicons name="flame" size={32} color="#FF6B35" />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.streakTitle}>Voting streak</Text>
-                <Text style={styles.streakSubtitle}>Vote every day to increase your streak</Text>
+                <Text style={styles.streakTitle}>{t("myvotes.streak")}</Text>
+                <Text style={styles.streakSubtitle}>{t("myvotes.streakSubtitle")}</Text>
               </View>
             </View>
             <View style={styles.streakStats}>
               <View style={styles.streakStatItem}>
                 <Text style={styles.streakStatValue}>{streakData.currentStreak}</Text>
-                <Text style={styles.streakStatLabel}>Current days</Text>
+                <Text style={styles.streakStatLabel}>{t("myvotes.currentDays")}</Text>
               </View>
               <View style={styles.streakDivider} />
               <View style={styles.streakStatItem}>
                 <Text style={styles.streakStatValue}>{streakData.longestStreak}</Text>
-                <Text style={styles.streakStatLabel}>Record</Text>
+                <Text style={styles.streakStatLabel}>{t("myvotes.record")}</Text>
               </View>
               <View style={styles.streakDivider} />
               <View style={styles.streakStatItem}>
                 <Text style={styles.streakStatValue}>{totalVotes}</Text>
-                <Text style={styles.streakStatLabel}>Total votes</Text>
+                <Text style={styles.streakStatLabel}>{t("myvotes.totalVotes")}</Text>
               </View>
             </View>
           </View>
 
           {/* Badges Card */}
           <View style={styles.badgesCard}>
-            <Text style={styles.badgesTitle}>Badges</Text>
+            <Text style={styles.badgesTitle}>{t("myvotes.badges")}</Text>
             <View style={styles.badgesGrid}>
               {badges.map((badge) => (
                 <View 
@@ -211,11 +213,11 @@ export default function MyVotes() {
           {/* Statistics Card */}
           {voteStats.categoriesBreakdown.length > 0 && (
             <View style={styles.statsCard}>
-              <Text style={styles.statsTitle}>📊 Statistics</Text>
+              <Text style={styles.statsTitle}>{t("myvotes.statistics")}</Text>
               
               {/* Likes vs Dislikes */}
               <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Distribution :</Text>
+                <Text style={styles.statLabel}>{t("myvotes.distribution")}</Text>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <Text style={styles.statValue}>👍 {voteStats.totalLikes}</Text>
                   <Text style={styles.statValue}>👎 {voteStats.totalDislikes}</Text>
@@ -224,14 +226,14 @@ export default function MyVotes() {
 
               {/* Favorite Category */}
               <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Favorite category :</Text>
+                <Text style={styles.statLabel}>{t("myvotes.favoriteCategory")}</Text>
                 <Text style={[styles.statValue, { fontWeight: '700' }]}>{voteStats.favoriteCategory}</Text>
               </View>
 
               {/* Most Voted Person */}
               {voteStats.mostVotedPerson.name && (
                 <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Most voted :</Text>
+                  <Text style={styles.statLabel}>{t("myvotes.mostVoted")}</Text>
                   <Text style={[styles.statValue, { fontWeight: '700', flex: 1, textAlign: 'right' }]} numberOfLines={1}>
                     {voteStats.mostVotedPerson.name} ({voteStats.mostVotedPerson.count})
                   </Text>
@@ -239,7 +241,7 @@ export default function MyVotes() {
               )}
 
               {/* Categories Breakdown */}
-              <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>By category :</Text>
+              <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>{t("myvotes.byCategory")}</Text>
               {voteStats.categoriesBreakdown.map((cat) => (
                 <View key={cat.category} style={styles.categoryBar}>
                   <Text style={styles.categoryName}>{cat.category}</Text>
@@ -254,7 +256,7 @@ export default function MyVotes() {
 
           {/* Votes History */}
           <View style={styles.historyHeader}>
-            <Text style={styles.historyTitle}>History</Text>
+            <Text style={styles.historyTitle}>{t("myvotes.history")}</Text>
           </View>
           
           <View style={{ height: votes.length * 80 + 24 }}>

@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
 import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import type { Product, ProductPurchase } from 'react-native-iap';
+import { useTranslation } from "react-i18next";
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -66,6 +67,7 @@ function getDurationLabel(hours: number): string {
 }
 
 export default function Premium() {
+  const { t } = useTranslation();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -309,33 +311,33 @@ export default function Premium() {
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="rocket" size={32} color={PALETTE.gold} />
-            <Text style={styles.title}>Boost Yourself</Text>
+            <Text style={styles.title}>{t("premium.title")}</Text>
           </View>
 
           {/* Hero */}
           <View style={styles.heroCard}>
             <Ionicons name="megaphone" size={48} color={PALETTE.gold} />
-            <Text style={styles.heroTitle}>Get Noticed!</Text>
+            <Text style={styles.heroTitle}>{t("premium.subtitle")}</Text>
             <Text style={styles.heroText}>
-              Purchase a Booster and your name will appear in the Outsiders ranking for everyone to see. Golden Booster also gets priority placement and rotates on the Home page as Outsider of the Day.
+              {t("premium.description")}
             </Text>
           </View>
 
           {/* Tier Selection */}
-          <Text style={styles.sectionTitle}>Choose Your Booster</Text>
+          <Text style={styles.sectionTitle}>{t("premium.chooseBooster")}</Text>
 
           {/* Payment notice */}
           <View style={styles.paymentNotice}>
             <Ionicons name="shield-checkmark" size={16} color={PALETTE.green} />
             <Text style={styles.paymentNoticeText}>
-              Secure payment via {Platform.OS === 'ios' ? 'Apple' : Platform.OS === 'android' ? 'Google Play' : 'App Store'}
+              {t("premium.securePayment")}
             </Text>
           </View>
 
           {iapLoading && (
             <View style={styles.iapLoadingContainer}>
               <ActivityIndicator size="small" color={PALETTE.gold} />
-              <Text style={styles.iapLoadingText}>Loading prices...</Text>
+              <Text style={styles.iapLoadingText}>{t("premium.loadingPrices")}</Text>
             </View>
           )}
 
@@ -360,7 +362,7 @@ export default function Premium() {
               >
                 {tier.id === 'golden_booster' && (
                   <View style={[styles.bestBadge, { backgroundColor: color }]}>
-                    <Text style={styles.bestBadgeText}>BEST VALUE</Text>
+                    <Text style={styles.bestBadgeText}>{t("premium.bestValue")}</Text>
                   </View>
                 )}
 
@@ -414,20 +416,20 @@ export default function Premium() {
           {/* Form - Only show when a tier is selected */}
           {selectedTier && (
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Your Information</Text>
+              <Text style={styles.sectionTitle}>{t("premium.yourInfo")}</Text>
 
               <View style={styles.formCard}>
-                <Text style={styles.inputLabel}>Your Name *</Text>
+                <Text style={styles.inputLabel}>{t("premium.yourName")}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your full name"
+                  placeholder={t("premium.enterName")}
                   placeholderTextColor={PALETTE.subtext}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
                 />
 
-                <Text style={styles.inputLabel}>Email (for confirmation)</Text>
+                <Text style={styles.inputLabel}>{t("premium.email")}</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="your@email.com"
@@ -439,7 +441,7 @@ export default function Premium() {
                 />
 
                 <Text style={[styles.inputLabel, { marginTop: 12 }]}>
-                  Social Media (optional)
+                  {t("premium.socialMedia")}
                 </Text>
 
                 <View style={styles.socialRow}>
@@ -522,7 +524,7 @@ export default function Premium() {
           )}
 
           {/* History Section */}
-          <Text style={styles.sectionTitle}>History</Text>
+          <Text style={styles.sectionTitle}>{t("premium.historyTitle")}</Text>
 
           {loadingHistory ? (
             <View style={styles.card}>
@@ -530,26 +532,26 @@ export default function Premium() {
             </View>
           ) : transactions.length === 0 ? (
             <View style={styles.card}>
-              <Text style={styles.emptyText}>No transactions yet</Text>
+              <Text style={styles.emptyText}>{t("premium.noTransactions")}</Text>
             </View>
           ) : (
             <View style={styles.card}>
-              {transactions.map((t) => (
-                <View key={t._id} style={styles.transactionRow}>
+              {transactions.map((tx) => (
+                <View key={tx._id} style={styles.transactionRow}>
                   <View style={styles.transactionIcon}>
                     <Ionicons
-                      name={t.type === 'purchase' ? 'rocket' : 'time'}
+                      name={tx.type === 'purchase' ? 'rocket' : 'time'}
                       size={24}
-                      color={t.type === 'purchase' ? PALETTE.green : PALETTE.subtext}
+                      color={tx.type === 'purchase' ? PALETTE.green : PALETTE.subtext}
                     />
                   </View>
                   <View style={styles.transactionInfo}>
-                    <Text style={styles.transactionDesc}>{t.description}</Text>
-                    <Text style={styles.transactionDate}>{formatDate(t.timestamp)}</Text>
+                    <Text style={styles.transactionDesc}>{tx.description}</Text>
+                    <Text style={styles.transactionDate}>{formatDate(tx.timestamp)}</Text>
                   </View>
-                  {t.price !== undefined && (
+                  {tx.price !== undefined && (
                     <Text style={[styles.transactionAmount, { color: PALETTE.green }]}>
-                      €{t.price?.toFixed(2)}
+                      €{tx.price?.toFixed(2)}
                     </Text>
                   )}
                 </View>
@@ -570,7 +572,7 @@ export default function Premium() {
             ) : (
               <>
                 <Ionicons name="refresh-outline" size={18} color={PALETTE.accent2} />
-                <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                <Text style={styles.restoreButtonText}>{t("premium.restorePurchases")}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -578,11 +580,11 @@ export default function Premium() {
           {/* Legal Links - Required by Apple */}
           <View style={styles.legalSection}>
             <TouchableOpacity onPress={() => Linking.openURL(getLegalUrl('terms'))}>
-              <Text style={styles.legalLink}>Terms of Use</Text>
+              <Text style={styles.legalLink}>{t("premium.termsOfUse")}</Text>
             </TouchableOpacity>
             <Text style={styles.legalSeparator}>|</Text>
             <TouchableOpacity onPress={() => Linking.openURL(getLegalUrl('privacy'))}>
-              <Text style={styles.legalLink}>Privacy Policy</Text>
+              <Text style={styles.legalLink}>{t("premium.privacyPolicy")}</Text>
             </TouchableOpacity>
           </View>
 

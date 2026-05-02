@@ -16,6 +16,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, type OutsiderData } from "../services/creditsService";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -107,6 +108,7 @@ function SocialLinksRow({ links }: { links: any }) {
 
 export default function Outsiders() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -161,12 +163,12 @@ export default function Outsiders() {
         <View style={styles.slotCounterLeft}>
           <Ionicons name="people" size={18} color={PALETTE.accent2} />
           <Text style={styles.slotCounterText}>
-            {filledSlots} / {MAX_SLOTS} active slots
+            {t("outsiders.activeSlots", { filled: filledSlots, max: MAX_SLOTS })}
           </Text>
         </View>
         <View style={[styles.slotCounterBadge, filledSlots >= MAX_SLOTS && { backgroundColor: PALETTE.accent + '20' }]}>
           <Text style={[styles.slotCounterBadgeText, filledSlots >= MAX_SLOTS && { color: PALETTE.accent }]}>
-            {filledSlots >= MAX_SLOTS ? 'FULL' : `${emptySlots} open`}
+            {filledSlots >= MAX_SLOTS ? t("outsiders.full") : t("outsiders.open", { count: emptySlots })}
           </Text>
         </View>
       </View>
@@ -180,9 +182,9 @@ export default function Outsiders() {
           <Ionicons name="rocket" size={20} color={PALETTE.gold} />
         </View>
         <View style={styles.promoText}>
-          <Text style={styles.promoTitle}>Want to appear here?</Text>
+          <Text style={styles.promoTitle}>{t("outsiders.wantToAppear")}</Text>
           <Text style={styles.promoSub}>
-            Get a Booster and join the ranking!
+            {t("outsiders.getBooster")}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={PALETTE.gold} />
@@ -235,7 +237,7 @@ export default function Outsiders() {
             )}
             {isOwn && (
               <View style={styles.youBadge}>
-                <Text style={styles.youBadgeText}>YOU</Text>
+                <Text style={styles.youBadgeText}>{t("outsiders.you")}</Text>
               </View>
             )}
           </View>
@@ -261,7 +263,7 @@ export default function Outsiders() {
                 }}
               >
                 <Ionicons name="refresh" size={13} color="#FFF" />
-                <Text style={styles.renewBtnText}>Renew</Text>
+                <Text style={styles.renewBtnText}>{t("outsiders.renew")}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -277,16 +279,16 @@ export default function Outsiders() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="people-outline" size={48} color={PALETTE.subtext} />
-      <Text style={styles.emptyTitle}>No outsiders yet</Text>
+      <Text style={styles.emptyTitle}>{t("outsiders.noOutsiders")}</Text>
       <Text style={styles.emptySub}>
-        Be the first to get a Booster and appear here!
+        {t("outsiders.noOutsidersSubtitle")}
       </Text>
       <TouchableOpacity
         style={styles.emptyBtn}
         onPress={() => router.push("/premium")}
       >
         <Ionicons name="rocket" size={16} color="#FFF" />
-        <Text style={styles.emptyBtnText}>Get a Booster</Text>
+        <Text style={styles.emptyBtnText}>{t("outsiders.getBoosterBtn")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -307,8 +309,8 @@ export default function Outsiders() {
                 <Ionicons name="add" size={20} color={PALETTE.subtext} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.emptySlotTitle}>Slot available</Text>
-                <Text style={styles.emptySlotSub}>Boost yourself to claim this spot</Text>
+                <Text style={styles.emptySlotTitle}>{t("outsiders.slotAvailable")}</Text>
+                <Text style={styles.emptySlotSub}>{t("outsiders.slotBoost")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={PALETTE.subtext} />
             </TouchableOpacity>
@@ -319,18 +321,18 @@ export default function Outsiders() {
       <View style={styles.bullRunnerSection}>
         <View style={styles.bullRunnerHeader}>
           <Ionicons name="rocket" size={18} color={PALETTE.gold} />
-          <Text style={styles.bullRunnerTitle}>Daily Run Leaders</Text>
+          <Text style={styles.bullRunnerTitle}>{t("outsiders.dailyRunLeaders")}</Text>
         </View>
         <View style={styles.bullRunnerPlaceholder}>
           <Ionicons name="trophy-outline" size={32} color={PALETTE.gold + '60'} />
           <Text style={styles.bullRunnerPlaceholderText}>
-            Activate a Golden Booster to join the Daily Run
+            {t("outsiders.goldenBoosterCta")}
           </Text>
           <TouchableOpacity
             style={styles.bullRunnerCta}
             onPress={() => router.push("/premium")}
           >
-            <Text style={styles.bullRunnerCtaText}>Learn more</Text>
+            <Text style={styles.bullRunnerCtaText}>{t("outsiders.learnMore")}</Text>
             <Ionicons name="arrow-forward" size={14} color={PALETTE.gold} />
           </TouchableOpacity>
         </View>

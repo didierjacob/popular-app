@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { fetchWithCache } from "../services/cacheService";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -132,6 +133,7 @@ interface VotesChartRes { id: string; name: string; points: VotesChartPoint[] }
 
 export default function Person() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const id = params.id as string;
   const [name, setName] = useState(params.name || "");
@@ -322,7 +324,7 @@ export default function Person() {
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.push('/')} style={styles.homeBtn}>
               <Ionicons name="home-outline" size={20} color={PALETTE.text} />
-              <Text style={styles.homeText}>Home</Text>
+              <Text style={styles.homeText}>{t("person.home")}</Text>
             </TouchableOpacity>
             <Text style={styles.title}>{name}</Text>
             <Text style={styles.meta}>
@@ -344,15 +346,15 @@ export default function Person() {
                 styles.popularityText, 
                 { color: (person?.score || 50) >= 50 ? "#009B4D" : "#8B0000" }
               ]}>
-                {(person?.score || 50) >= 50 ? "Popular" : "Unpopular"}
+                {(person?.score || 50) >= 50 ? t("person.popular") : t("person.unpopular")}
               </Text>
             </View>
-            <Text style={styles.gaugeVotes}>{formatNumber(person?.total_votes || 0)} total votes</Text>
+            <Text style={styles.gaugeVotes}>{t("person.totalVotes", { count: formatNumber(person?.total_votes || 0) })}</Text>
           </View>
 
           {/* Live Ratings Chart */}
           <View style={styles.card}>
-            <Text style={styles.section}>Live ratings</Text>
+            <Text style={styles.section}>{t("person.liveRatings")}</Text>
             {lineData.length > 0 ? (
               <LineChart
                 areaChart
@@ -373,13 +375,13 @@ export default function Person() {
                 formatYLabel={(val) => Math.round(Number(val)).toString()}
               />
             ) : (
-              <Text style={styles.noData}>Your vote shapes the trend — be the first to vote!</Text>
+              <Text style={styles.noData}>{t("person.emptyChart")}</Text>
             )}
           </View>
 
           {/* Votes History Chart */}
           <View style={styles.card}>
-            <Text style={styles.section}>Vote history (24h)</Text>
+            <Text style={styles.section}>{t("person.voteHistory")}</Text>
             {votesLineData.length > 1 ? (
               <LineChart
                 areaChart
@@ -402,9 +404,9 @@ export default function Person() {
             ) : (
               <View style={styles.votesChartPlaceholder}>
                 <Ionicons name="bar-chart-outline" size={40} color={PALETTE.subtext} />
-                <Text style={styles.noData}>Vote history will appear as votes come in</Text>
+                <Text style={styles.noData}>{t("person.voteHistoryEmpty")}</Text>
                 <Text style={styles.currentVotesText}>
-                  Current: {formatNumber(person?.total_votes || 0)} votes
+                  {t("person.currentVotes", { count: formatNumber(person?.total_votes || 0) })}
                 </Text>
               </View>
             )}
@@ -420,7 +422,7 @@ export default function Person() {
                   onPress={() => like(1)}
                 >
                   <Ionicons name="heart" size={18} color="#0F2F22" />
-                  <Text style={[styles.ctaText, { color: "#0F2F22" }]}>Vote for {name?.split(' ')[0] || ''}</Text>
+                  <Text style={[styles.ctaText, { color: "#0F2F22" }]}>{t("person.voteFor", { name: name?.split(' ')[0] || '' })}</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -433,7 +435,7 @@ export default function Person() {
                   onPress={() => like(1)}
                 >
                   <Ionicons name="thumbs-up" size={18} color="#fff" />
-                  <Text style={styles.ctaText}>Like</Text>
+                  <Text style={styles.ctaText}>{t("person.like")}</Text>
                 </TouchableOpacity>
               </Animated.View>
               <Animated.View style={{ transform: [{ scale: dislikeScaleAnim }], flex: 1, marginLeft: 6 }}>
@@ -442,7 +444,7 @@ export default function Person() {
                   onPress={() => like(-1)}
                 >
                   <Ionicons name="thumbs-down" size={18} color="#fff" />
-                  <Text style={styles.ctaText}>Dislike</Text>
+                  <Text style={styles.ctaText}>{t("person.dislike")}</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -466,23 +468,23 @@ export default function Person() {
           ) : (
             /* Celebrity: Classic share buttons */
             <View style={[styles.card, { marginBottom: 30 }]}>
-              <Text style={styles.section}>Share</Text>
+              <Text style={styles.section}>{t("person.share")}</Text>
               <View style={styles.shareGrid}>
                 <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1877F2' }]} onPress={shareToFacebook}>
                   <Ionicons name="logo-facebook" size={22} color="white" />
-                  <Text style={styles.shareText}>Facebook</Text>
+                  <Text style={styles.shareText}>{t("person.facebook")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#1DA1F2' }]} onPress={shareToTwitter}>
                   <Ionicons name="logo-twitter" size={22} color="white" />
-                  <Text style={styles.shareText}>Twitter</Text>
+                  <Text style={styles.shareText}>{t("person.twitter")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shareButton, { backgroundColor: '#E4405F' }]} onPress={shareToInstagram}>
                   <Ionicons name="logo-instagram" size={22} color="white" />
-                  <Text style={styles.shareText}>Instagram</Text>
+                  <Text style={styles.shareText}>{t("person.instagram")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shareButton, { backgroundColor: PALETTE.accent }]} onPress={shareGeneric}>
                   <Ionicons name="share-outline" size={22} color="white" />
-                  <Text style={styles.shareText}>More</Text>
+                  <Text style={styles.shareText}>{t("person.more")}</Text>
                 </TouchableOpacity>
               </View>
             </View>

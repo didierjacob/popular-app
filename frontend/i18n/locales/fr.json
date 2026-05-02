@@ -64,7 +64,7 @@
     "voteHistory": "Historique des votes (24h)",
     "voteHistoryEmpty": "L'historique apparaîtra dès les premiers votes",
     "currentVotes": "Actuel : {{count}} votes",
-    "voteFor": "Voter pour {{name}}",
+    "voteFor": "Vote pour {{name}}",
     "like": "Like",
     "dislike": "Dislike",
     "dailyRun": "Daily Run",
@@ -123,7 +123,7 @@
     "slotAvailable": "Place disponible",
     "slotBoost": "Booste-toi pour prendre cette place",
     "dailyRunLeaders": "Daily Run Leaders",
-    "goldenBoosterCta": "Active un Golden Booster pour rejoindre le Daily Run",
+    "goldenBoosterCta": "Active un Golden Booster pour lancer ton Daily Run",
     "learnMore": "En savoir plus",
     "timeLeft": "{{time}} restant"
   },

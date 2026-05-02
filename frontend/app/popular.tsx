@@ -4,6 +4,7 @@ import { ActivityIndicator, Animated, RefreshControl, ScrollView, StyleSheet, Te
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22", // greener
@@ -68,6 +69,7 @@ async function getDeviceId() {
 
 export default function Popular() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [items, setItems] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -152,7 +154,7 @@ export default function Popular() {
       ) : (
         <>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Instant polling</Text>
+            <Text style={styles.headerTitle}>{t("popular.title")}</Text>
           </View>
           <FilterBar filter={filter} setFilter={setFilter} />
           <FlatList

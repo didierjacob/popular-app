@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import "../i18n"; // Initialize i18n on app start
 import SplashScreen from "./splash";
 
 export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
+  const { t } = useTranslation();
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
@@ -24,7 +27,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("tabs.home"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -39,7 +42,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="list"
         options={{
-          title: "List",
+          title: t("tabs.list"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" size={size} color={color} />
           ),
@@ -48,7 +51,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="outsiders"
         options={{
-          title: "Outsiders",
+          title: t("tabs.outsiders"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
           ),
@@ -57,7 +60,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="myvotes"
         options={{
-          title: "My Votes",
+          title: t("tabs.myvotes"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="heart-outline" size={size} color={color} />
           ),
@@ -66,7 +69,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="premium"
         options={{
-          title: "Boost",
+          title: t("tabs.boost"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="rocket-outline" size={size} color={color} />
           ),
@@ -75,7 +78,7 @@ export default function RootLayout() {
       <Tabs.Screen
         name="account"
         options={{
-          title: "Account",
+          title: t("tabs.account"),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),

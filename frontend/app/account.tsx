@@ -16,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, type Transaction } from "../services/creditsService";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -44,6 +45,7 @@ interface AccountInfo {
 type Screen = "main" | "billing" | "invoices" | "help";
 
 export default function AccountScreen() {
+  const { t } = useTranslation();
   const [accountInfo, setAccountInfo] = useState<AccountInfo>({
     name: "",
     email: "",
@@ -296,7 +298,7 @@ export default function AccountScreen() {
           <TouchableOpacity onPress={() => setScreen("main")} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
           </TouchableOpacity>
-          <Text style={styles.subTitle}>Help Center</Text>
+          <Text style={styles.subTitle}>{t("helpCenter.title")}</Text>
           <View style={{ width: 32 }} />
         </View>
 
@@ -308,11 +310,11 @@ export default function AccountScreen() {
 
             <View style={styles.helpFooter}>
               <Text style={styles.helpFooterText}>
-                Can't find what you're looking for?
+                {t("helpCenter.cantFind")}
               </Text>
               <TouchableOpacity style={styles.contactBtn} onPress={contactSupport}>
                 <Ionicons name="mail-outline" size={18} color={PALETTE.text} />
-                <Text style={styles.contactBtnText}>Contact Support</Text>
+                <Text style={styles.contactBtnText}>{t("helpCenter.contactSupport")}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -330,13 +332,13 @@ export default function AccountScreen() {
         <View style={isTablet ? { maxWidth: 600, width: '100%' } : {}}>
         <View style={styles.header}>
           <Ionicons name="person-circle-outline" size={80} color={PALETTE.accent2} />
-          <Text style={styles.title}>My Account</Text>
+          <Text style={styles.title}>{t("account.title")}</Text>
         </View>
 
         {/* Personal Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
+            <Text style={styles.sectionTitle}>{t("account.personalInfo")}</Text>
             <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
               <Ionicons
                 name={isEditing ? "close" : "create-outline"}
@@ -348,24 +350,24 @@ export default function AccountScreen() {
 
           <View style={styles.card}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>{t("account.fullName")}</Text>
               <TextInput
                 style={[styles.input, !isEditing && styles.inputDisabled]}
                 value={accountInfo.name}
                 onChangeText={(v) => handleChange("name", v)}
-                placeholder="Enter your name"
+                placeholder={t("account.enterName")}
                 placeholderTextColor={PALETTE.subtext}
                 editable={isEditing}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t("account.emailLabel")}</Text>
               <TextInput
                 style={[styles.input, !isEditing && styles.inputDisabled]}
                 value={accountInfo.email}
                 onChangeText={(v) => handleChange("email", v)}
-                placeholder="Enter your email"
+                placeholder={t("account.enterEmail")}
                 placeholderTextColor={PALETTE.subtext}
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -374,12 +376,12 @@ export default function AccountScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Address</Text>
+              <Text style={styles.label}>{t("account.address")}</Text>
               <TextInput
                 style={[styles.input, !isEditing && styles.inputDisabled]}
                 value={accountInfo.address}
                 onChangeText={(v) => handleChange("address", v)}
-                placeholder="Enter your address"
+                placeholder={t("account.enterAddress")}
                 placeholderTextColor={PALETTE.subtext}
                 editable={isEditing}
               />
@@ -387,23 +389,23 @@ export default function AccountScreen() {
 
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>City</Text>
+                <Text style={styles.label}>{t("account.city")}</Text>
                 <TextInput
                   style={[styles.input, !isEditing && styles.inputDisabled]}
                   value={accountInfo.city}
                   onChangeText={(v) => handleChange("city", v)}
-                  placeholder="City"
+                  placeholder={t("account.city")}
                   placeholderTextColor={PALETTE.subtext}
                   editable={isEditing}
                 />
               </View>
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.label}>Country</Text>
+                <Text style={styles.label}>{t("account.country")}</Text>
                 <TextInput
                   style={[styles.input, !isEditing && styles.inputDisabled]}
                   value={accountInfo.country}
                   onChangeText={(v) => handleChange("country", v)}
-                  placeholder="Country"
+                  placeholder={t("account.country")}
                   placeholderTextColor={PALETTE.subtext}
                   editable={isEditing}
                 />
@@ -417,7 +419,7 @@ export default function AccountScreen() {
                 disabled={isSaving}
               >
                 <Text style={styles.saveButtonText}>
-                  {isSaving ? "Saving..." : "Save Changes"}
+                  {isSaving ? t("account.saving") : t("account.saveChanges")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -426,23 +428,23 @@ export default function AccountScreen() {
 
         {/* Billing & Payment */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Billing & Payment</Text>
+          <Text style={styles.sectionTitle}>{t("account.billing")}</Text>
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() =>
                 Alert.alert(
-                  "Payment Methods",
+                  t("account.paymentMethods"),
                   "Purchases are handled securely through the App Store (iOS) or Google Play (Android). No credit card is stored in the app.",
-                  [{ text: "OK" }]
+                  [{ text: t("common.ok") }]
                 )
               }
             >
               <Ionicons name="card-outline" size={24} color={PALETTE.text} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.menuItemText}>Payment Methods</Text>
+                <Text style={styles.menuItemText}>{t("account.paymentMethods")}</Text>
                 <Text style={styles.menuItemSubtext}>
-                  Via App Store / Google Play
+                  {t("account.viaStore")}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
@@ -452,7 +454,7 @@ export default function AccountScreen() {
 
             <TouchableOpacity style={styles.menuItem} onPress={openBilling}>
               <Ionicons name="receipt-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>Billing History</Text>
+              <Text style={styles.menuItemText}>{t("account.billingHistory")}</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
 
@@ -460,7 +462,7 @@ export default function AccountScreen() {
 
             <TouchableOpacity style={styles.menuItem} onPress={openInvoices}>
               <Ionicons name="document-text-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>Invoices</Text>
+              <Text style={styles.menuItemText}>{t("account.invoices")}</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
@@ -468,14 +470,14 @@ export default function AccountScreen() {
 
         {/* Support */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
+          <Text style={styles.sectionTitle}>{t("account.support")}</Text>
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => setScreen("help")}
             >
               <Ionicons name="help-circle-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>Help Center</Text>
+              <Text style={styles.menuItemText}>{t("account.helpCenter")}</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
 
@@ -484,7 +486,7 @@ export default function AccountScreen() {
             <TouchableOpacity style={styles.menuItem} onPress={contactSupport}>
               <Ionicons name="mail-outline" size={24} color={PALETTE.text} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.menuItemText}>Contact Us</Text>
+                <Text style={styles.menuItemText}>{t("account.contactUs")}</Text>
                 <Text style={styles.menuItemSubtext}>{SUPPORT_EMAIL}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
@@ -495,9 +497,9 @@ export default function AccountScreen() {
         {/* App Info */}
         <View style={[styles.section, { marginBottom: 40 }]}>
           <View style={styles.appInfo}>
-            <Text style={styles.appVersion}>Popularoo v2.0.0</Text>
+            <Text style={styles.appVersion}>{t("account.appVersion")}</Text>
             <Text style={styles.appCopyright}>
-              © 2026 Popularoo App. All rights reserved.
+              {t("account.copyright")}
             </Text>
           </View>
         </View>

@@ -35,7 +35,7 @@
   "home": {
     "title": "Popularoo",
     "subtitle": "Vota por las personas más famosas del mundo",
-    "searchLabel": "Emite tu voto",
+    "searchLabel": "Tu turno de votar",
     "searchPlaceholder": "Escribe un nombre",
     "searchButton": "Go",
     "personalityOfTheDay": "Personalidad del día",
@@ -123,7 +123,7 @@
     "slotAvailable": "Plaza disponible",
     "slotBoost": "Impulsa tu perfil para ocupar esta plaza",
     "dailyRunLeaders": "Daily Run Leaders",
-    "goldenBoosterCta": "Activa un Golden Booster para unirte al Daily Run",
+    "goldenBoosterCta": "Activa un Golden Booster para lanzar tu Daily Run",
     "learnMore": "Más información",
     "timeLeft": "{{time}} restante"
   },

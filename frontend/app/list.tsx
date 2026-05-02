@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -50,6 +51,7 @@ const CATEGORIES = [
 
 export default function List() {
   const router = useRouter();
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ category?: string }>();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +159,7 @@ export default function List() {
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
         <View style={styles.header}>
-          <Text style={styles.title}>Top 100 Popularoo</Text>
+          <Text style={styles.title}>{t("list.title")}</Text>
         </View>
         <FlatList
           data={filteredPeople}
