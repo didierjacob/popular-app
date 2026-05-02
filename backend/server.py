@@ -3184,6 +3184,116 @@ async def admin_delete_duplicate(person_id: str):
     return {"success": True, "deleted": name, "person_id": person_id}
 
 
+@api_router.post("/admin/bulk-import-personalities")
+async def admin_bulk_import_personalities():
+    """
+    Import new personalities from the validated personality_tags_v2.json file.
+    Only inserts NEW entries (status='new') that don't already exist in the DB.
+    Idempotent: safe to run multiple times.
+    """
+    import json as json_lib
+    json_path = os.path.join(os.path.dirname(__file__), "static", "personality_tags_v2.json")
+    if not os.path.exists(json_path):
+        raise HTTPException(status_code=404, detail="Tags V2 file not found.")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        tags_data = json_lib.load(f)
+
+    inserted = 0
+    skipped = 0
+    updated_tags = 0
+    now = now_utc()
+
+    for entry in tags_data:
+        name = entry.get("name", "").strip()
+        if not name:
+            continue
+
+        # Parse tags
+        country_tags = [t.strip() for t in entry.get("tags", "").split(",") if t.strip()]
+        is_international = entry.get("is_international") == "YES"
+        primary_country = entry.get("primary_country")
+        if primary_country == "??":
+            primary_country = None
+        category = entry.get("category", "other")
+        validation = entry.get("validation", "").strip()
+
+        # Skip entries explicitly rejected by human reviewer
+        if validation == "❌":
+            skipped += 1
+            continue
+
+        if entry.get("status") == "new":
+            # Check if already exists
+            existing = await db.persons.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+            if existing:
+                # Update tags on existing entry
+                await db.persons.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {
+                        "country_tags": country_tags,
+                        "is_international": is_international,
+                        "primary_country": primary_country,
+                    }}
+                )
+                updated_tags += 1
+                continue
+
+            # Insert new personality
+            import random
+            base_votes = random.randint(8000, 15000)
+            likes_ratio = random.uniform(0.55, 0.75)
+            likes = int(base_votes * likes_ratio)
+            dislikes = base_votes - likes
+
+            person_doc = {
+                "name": name,
+                "category": category,
+                "approved": True,
+                "score": round(100 * (likes / max(1, base_votes)), 2),
+                "likes": likes,
+                "dislikes": dislikes,
+                "superlikes": 0,
+                "total_votes": base_votes,
+                "popularoo_index": 0.0,
+                "active_strikes": 0,
+                "source": "seed",
+                "country_tags": country_tags,
+                "is_international": is_international,
+                "primary_country": primary_country,
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.persons.insert_one(person_doc)
+            inserted += 1
+
+        elif entry.get("status") == "existing" and entry.get("person_id"):
+            # Update geo-tags on existing personality
+            try:
+                oid = ObjectId(entry["person_id"])
+                await db.persons.update_one(
+                    {"_id": oid},
+                    {"$set": {
+                        "country_tags": country_tags,
+                        "is_international": is_international,
+                        "primary_country": primary_country,
+                        "category": category,
+                    }}
+                )
+                updated_tags += 1
+            except Exception:
+                pass
+
+    logger.info(f"📦 Bulk import: {inserted} new, {updated_tags} updated, {skipped} skipped")
+    return {
+        "success": True,
+        "inserted": inserted,
+        "updated_tags": updated_tags,
+        "skipped": skipped,
+        "total_processed": len(tags_data),
+    }
+
+
 @api_router.get("/people/{person_id}/index-detail")
 async def get_person_index_detail(person_id: str):
     """Get detailed Popularoo Index breakdown for a person."""
