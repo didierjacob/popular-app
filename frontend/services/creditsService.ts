@@ -33,8 +33,8 @@ export interface BoosterTier {
 
 export interface SocialLinks {
   instagram?: string;
-  twitter?: string;
-  facebook?: string;
+  tiktok?: string;
+  x?: string;
 }
 
 export interface OutsiderData {
@@ -235,6 +235,37 @@ export class CreditsService {
   }
   static async useCreditForVote(personId: string, personName: string, vote: number): Promise<any> {
     return { success: true };
+  }
+
+  static async getActiveBoostDetails(): Promise<any> {
+    try {
+      const userId = await getUserId();
+      const response = await fetch(API(`/credits/balance/${userId}`));
+      if (!response.ok) throw new Error('Failed to get balance');
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get active boost details error:', error);
+      return { active_boosts: 0, boost_details: [] };
+    }
+  }
+
+  static async updateSocialLinks(boostId: string, links: SocialLinks): Promise<any> {
+    try {
+      const response = await fetch(API(`/outsiders/${boostId}/social-links`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(links),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update social links');
+      }
+      return await response.json();
+    } catch (error: any) {
+      console.error('Update social links error:', error);
+      throw error;
+    }
   }
 }
 

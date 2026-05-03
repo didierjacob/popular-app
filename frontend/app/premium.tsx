@@ -102,6 +102,7 @@ export default function Premium() {
   const [iapReady, setIapReady] = useState(false);
   const [iapLoading, setIapLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
+  const [showPurchaseStep, setShowPurchaseStep] = useState(false);
 
   useEffect(() => {
     loadHistory();
@@ -378,7 +379,10 @@ export default function Premium() {
                   styles.tierCard,
                   isSelected && { borderColor: color, borderWidth: 2 },
                 ]}
-                onPress={() => setSelectedTier(tier.id)}
+                onPress={() => {
+                  setSelectedTier(tier.id);
+                  setShowPurchaseStep(false);
+                }}
                 activeOpacity={0.7}
               >
                 {tier.id === 'golden_booster' && (
@@ -464,14 +468,17 @@ export default function Premium() {
 
               {/* Social Accounts Configuration — Chantier 1I */}
               <View style={styles.socialSection}>
-                <Text style={styles.socialTitle}>{t("socialConfig.title")}</Text>
+                <View style={styles.socialHeader}>
+                  <Ionicons name="people-circle" size={28} color={PALETTE.gold} />
+                  <Text style={styles.socialTitle}>{t("socialConfig.title")}</Text>
+                </View>
                 <Text style={styles.socialSubtitle}>{t("socialConfig.subtitle")}</Text>
                 <Text style={styles.socialOptional}>{t("socialConfig.optional")}</Text>
 
                 {/* Instagram field */}
                 <View style={styles.socialInputRow}>
-                  <View style={[styles.socialIconBadge, { backgroundColor: '#E1306C20' }]}>
-                    <Ionicons name="logo-instagram" size={20} color="#E1306C" />
+                  <View style={[styles.socialIconBadge, styles.instagramBadge]}>
+                    <Ionicons name="logo-instagram" size={20} color="#fff" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <TextInput
@@ -487,22 +494,22 @@ export default function Premium() {
                   {instagram.trim() ? (
                     <View style={styles.validationBadge}>
                       {isValidUsername('instagram', instagram) ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                        <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
                       ) : (
-                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                        <Ionicons name="close-circle" size={22} color="#F44336" />
                       )}
                     </View>
                   ) : (
                     <View style={styles.validationBadge}>
-                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                      <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
                     </View>
                   )}
                 </View>
 
                 {/* TikTok field */}
                 <View style={styles.socialInputRow}>
-                  <View style={[styles.socialIconBadge, { backgroundColor: '#00000020' }]}>
-                    <Ionicons name="logo-tiktok" size={20} color="#EAEAEA" />
+                  <View style={[styles.socialIconBadge, styles.tiktokBadge]}>
+                    <Ionicons name="logo-tiktok" size={20} color="#fff" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <TextInput
@@ -518,22 +525,22 @@ export default function Premium() {
                   {tiktok.trim() ? (
                     <View style={styles.validationBadge}>
                       {isValidUsername('tiktok', tiktok) ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                        <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
                       ) : (
-                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                        <Ionicons name="close-circle" size={22} color="#F44336" />
                       )}
                     </View>
                   ) : (
                     <View style={styles.validationBadge}>
-                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                      <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
                     </View>
                   )}
                 </View>
 
                 {/* X (Twitter) field */}
                 <View style={styles.socialInputRow}>
-                  <View style={[styles.socialIconBadge, { backgroundColor: '#00000020' }]}>
-                    <Text style={{ color: '#EAEAEA', fontWeight: '800', fontSize: 16 }}>𝕏</Text>
+                  <View style={[styles.socialIconBadge, styles.xBadge]}>
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>𝕏</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <TextInput
@@ -549,14 +556,14 @@ export default function Premium() {
                   {xAccount.trim() ? (
                     <View style={styles.validationBadge}>
                       {isValidUsername('x', xAccount) ? (
-                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                        <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
                       ) : (
-                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                        <Ionicons name="close-circle" size={22} color="#F44336" />
                       )}
                     </View>
                   ) : (
                     <View style={styles.validationBadge}>
-                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                      <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
                     </View>
                   )}
                 </View>
@@ -564,42 +571,74 @@ export default function Premium() {
                 <Text style={styles.socialEncouragement}>{t("socialConfig.encouragement")}</Text>
               </View>
 
-              {/* Purchase Button */}
-              <TouchableOpacity
-                style={[
-                  styles.purchaseButton,
-                  { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
-                  purchasing && { opacity: 0.6 },
-                ]}
-                onPress={handlePurchase}
-                disabled={purchasing}
-              >
-                {purchasing ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <>
-                    <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#000" />
-                    <Text style={styles.purchaseButtonText}>
-                      {t("premium.buyVia", {
-                        store: Platform.OS === 'ios' ? 'Apple' : 'Google',
-                        price: (() => {
-                          const productId = iapService.getProductIdForTier(selectedTier);
-                          const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-                          return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(bt => bt.id === selectedTier)?.price.toFixed(2)}`;
-                        })()
-                      })}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {/* Continue button — always active, acts as skip if no social accounts */}
+              {!showPurchaseStep && (
+                <TouchableOpacity
+                  style={styles.continueButton}
+                  onPress={() => {
+                    if (!name.trim()) {
+                      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
+                      return;
+                    }
+                    Keyboard.dismiss();
+                    setShowPurchaseStep(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.continueButtonText}>{t("socialConfig.continue")}</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#000" />
+                </TouchableOpacity>
+              )}
 
-              <Text style={styles.purchaseDisclaimer}>
-                {Platform.OS === 'ios'
-                  ? 'Payment will be charged to your Apple ID account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Apple.'
-                  : Platform.OS === 'android'
-                  ? 'Payment will be charged to your Google account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Google Play.'
-                  : 'Payment processed securely through the App Store or Google Play. One-time purchase, non-recurring.'}
-              </Text>
+              {/* Purchase Section — only shown after Continue */}
+              {showPurchaseStep && (
+                <View style={styles.purchaseSection}>
+                  <TouchableOpacity
+                    style={[
+                      styles.purchaseButton,
+                      { backgroundColor: TIER_COLORS[selectedTier] || PALETTE.gold },
+                      purchasing && { opacity: 0.6 },
+                    ]}
+                    onPress={handlePurchase}
+                    disabled={purchasing}
+                  >
+                    {purchasing ? (
+                      <ActivityIndicator color="#000" />
+                    ) : (
+                      <>
+                        <Ionicons name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google-playstore'} size={20} color="#000" />
+                        <Text style={styles.purchaseButtonText}>
+                          {t("premium.buyVia", {
+                            store: Platform.OS === 'ios' ? 'Apple' : 'Google',
+                            price: (() => {
+                              const productId = iapService.getProductIdForTier(selectedTier);
+                              const storeProduct = storeProducts.find((p: any) => p.productId === productId);
+                              return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(bt => bt.id === selectedTier)?.price.toFixed(2)}`;
+                            })()
+                          })}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Edit social links link */}
+                  <TouchableOpacity
+                    style={styles.editSocialLink}
+                    onPress={() => setShowPurchaseStep(false)}
+                  >
+                    <Ionicons name="create-outline" size={16} color={PALETTE.subtext} />
+                    <Text style={styles.editSocialLinkText}>{t("socialConfig.editSocial")}</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.purchaseDisclaimer}>
+                    {Platform.OS === 'ios'
+                      ? 'Payment will be charged to your Apple ID account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Apple.'
+                      : Platform.OS === 'android'
+                      ? 'Payment will be charged to your Google account at the price displayed above when you confirm the purchase. This is a one-time, non-recurring purchase processed securely by Google Play.'
+                      : 'Payment processed securely through the App Store or Google Play. One-time purchase, non-recurring.'}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -961,5 +1000,122 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 16,
     lineHeight: 16,
+  },
+  // Social section styles (Chantier 1I)
+  socialSection: {
+    backgroundColor: PALETTE.card,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.gold + '40',
+  },
+  socialHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  socialTitle: {
+    color: PALETTE.gold,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  socialSubtitle: {
+    color: PALETTE.text,
+    fontSize: 14,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  socialOptional: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  socialInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  socialIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  instagramBadge: {
+    backgroundColor: '#C13584',
+  },
+  tiktokBadge: {
+    backgroundColor: '#010101',
+    borderWidth: 1,
+    borderColor: '#25F4EE',
+  },
+  xBadge: {
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  socialInput: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: PALETTE.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  socialInputError: {
+    borderColor: '#F44336',
+  },
+  validationBadge: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  socialEncouragement: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: PALETTE.gold,
+  },
+  continueButtonText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  purchaseSection: {
+    marginTop: 16,
+  },
+  editSocialLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  editSocialLinkText: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });

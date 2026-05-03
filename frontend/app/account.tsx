@@ -13,6 +13,9 @@ import {
   ActivityIndicator,
   FlatList,
   useWindowDimensions,
+  Modal,
+  KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -34,6 +37,20 @@ const PALETTE = {
 
 const SUPPORT_EMAIL = "popularoo@popularoo.com";
 const ACCOUNT_KEY = "popular_account_info";
+
+// Social validation patterns (matching Chantier 1I backend)
+const SOCIAL_PATTERNS: Record<string, RegExp> = {
+  instagram: /^[a-zA-Z0-9._]{1,30}$/,
+  tiktok: /^[a-zA-Z0-9._]{2,24}$/,
+  x: /^[a-zA-Z0-9_]{4,15}$/,
+};
+
+function isValidSocialUsername(platform: string, value: string): boolean {
+  const cleaned = value.trim().replace(/^@/, '');
+  if (!cleaned) return true;
+  const pattern = SOCIAL_PATTERNS[platform];
+  return pattern ? pattern.test(cleaned) : false;
+}
 
 interface AccountInfo {
   name: string;
@@ -61,6 +78,14 @@ export default function AccountScreen() {
   const [screen, setScreen] = useState<Screen>("main");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(false);
+  // Social links edit state (Chantier 1I)
+  const [activeBoostId, setActiveBoostId] = useState<string | null>(null);
+  const [socialModalVisible, setSocialModalVisible] = useState(false);
+  const [editInsta, setEditInsta] = useState('');
+  const [editTiktok, setEditTiktok] = useState('');
+  const [editX, setEditX] = useState('');
+  const [savingSocial, setSavingSocial] = useState(false);
+  const [currentSocial, setCurrentSocial] = useState<{instagram?: string; tiktok?: string; x?: string}>({});
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
   const tabletWrapper = isTablet ? { flex: 1 as const, maxWidth: 600, width: '100%' as const, alignSelf: 'center' as const } : { flex: 1 as const };
@@ -68,7 +93,44 @@ export default function AccountScreen() {
   useEffect(() => {
     loadAccountInfo();
     loadTransactions();
+    loadActiveBoostSocial();
   }, []);
+
+  const loadActiveBoostSocial = async () => {
+    try {
+      const data = await CreditsService.getActiveBoostDetails();
+      if (data.boost_details && data.boost_details.length > 0) {
+        const boost = data.boost_details[0];
+        setActiveBoostId(boost.id);
+        const social = boost.social_links || {};
+        setCurrentSocial(social);
+        setEditInsta(social.instagram || '');
+        setEditTiktok(social.tiktok || '');
+        setEditX(social.x || '');
+      }
+    } catch (e) {
+      console.error("Failed to load active boost social:", e);
+    }
+  };
+
+  const handleSaveSocial = async () => {
+    if (!activeBoostId) return;
+    setSavingSocial(true);
+    try {
+      const payload: any = {};
+      if (editInsta.trim()) payload.instagram = editInsta.trim().replace(/^@/, '');
+      if (editTiktok.trim()) payload.tiktok = editTiktok.trim().replace(/^@/, '');
+      if (editX.trim()) payload.x = editX.trim().replace(/^@/, '');
+      await CreditsService.updateSocialLinks(activeBoostId, payload);
+      setCurrentSocial(payload);
+      setSocialModalVisible(false);
+      Alert.alert(t("socialConfig.editSocial"), "✓");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to update social links");
+    } finally {
+      setSavingSocial(false);
+    }
+  };
 
   const loadAccountInfo = async () => {
     try {
@@ -464,6 +526,66 @@ export default function AccountScreen() {
           </View>
         </View>
 
+        {/* Social Accounts — Chantier 1I */}
+        {activeBoostId && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t("socialConfig.editSocial")}</Text>
+            <View style={styles.card}>
+              {/* Show current linked accounts */}
+              {(currentSocial.instagram || currentSocial.tiktok || currentSocial.x) ? (
+                <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+                  {currentSocial.instagram && (
+                    <View style={scStyles.socialRow}>
+                      <View style={[scStyles.socialBadge, { backgroundColor: '#C13584' }]}>
+                        <Ionicons name="logo-instagram" size={16} color="#fff" />
+                      </View>
+                      <Text style={scStyles.socialHandle}>@{currentSocial.instagram}</Text>
+                      <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                    </View>
+                  )}
+                  {currentSocial.tiktok && (
+                    <View style={scStyles.socialRow}>
+                      <View style={[scStyles.socialBadge, { backgroundColor: '#010101', borderWidth: 1, borderColor: '#25F4EE' }]}>
+                        <Ionicons name="logo-tiktok" size={16} color="#fff" />
+                      </View>
+                      <Text style={scStyles.socialHandle}>@{currentSocial.tiktok}</Text>
+                      <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                    </View>
+                  )}
+                  {currentSocial.x && (
+                    <View style={scStyles.socialRow}>
+                      <View style={[scStyles.socialBadge, { backgroundColor: '#000', borderWidth: 1, borderColor: '#333' }]}>
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>𝕏</Text>
+                      </View>
+                      <Text style={scStyles.socialHandle}>@{currentSocial.x}</Text>
+                      <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+                  <Text style={{ color: PALETTE.subtext, fontSize: 13, fontStyle: 'italic' }}>
+                    {t("socialConfig.optional")}
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={scStyles.editBtn}
+                onPress={() => {
+                  setEditInsta(currentSocial.instagram || '');
+                  setEditTiktok(currentSocial.tiktok || '');
+                  setEditX(currentSocial.x || '');
+                  setSocialModalVisible(true);
+                }}
+              >
+                <Ionicons name="create-outline" size={20} color={PALETTE.gold} />
+                <Text style={scStyles.editBtnText}>{t("socialConfig.editSocial")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Settings */}
         <View style={styles.section}>
           <View style={styles.card}>
@@ -515,6 +637,119 @@ export default function AccountScreen() {
         </View>
         </View>
       </ScrollView>
+
+      {/* Social Edit Modal — Chantier 1I */}
+      <Modal
+        visible={socialModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSocialModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={scStyles.modalOverlay}>
+            <View style={scStyles.modalContent}>
+              <View style={scStyles.modalHeader}>
+                <Text style={scStyles.modalTitle}>{t("socialConfig.editSocial")}</Text>
+                <TouchableOpacity onPress={() => setSocialModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={PALETTE.text} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={scStyles.modalHint}>{t("socialConfig.optional")}</Text>
+
+              {/* Instagram */}
+              <View style={scStyles.inputRow}>
+                <View style={[scStyles.iconBadge, { backgroundColor: '#C13584' }]}>
+                  <Ionicons name="logo-instagram" size={20} color="#fff" />
+                </View>
+                <TextInput
+                  style={[scStyles.input, editInsta.trim() && !isValidSocialUsername('instagram', editInsta) && scStyles.inputError]}
+                  placeholder={t("socialConfig.placeholderInsta")}
+                  placeholderTextColor={PALETTE.subtext}
+                  value={editInsta}
+                  onChangeText={(text) => setEditInsta(text.replace(/^@/, ''))}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {editInsta.trim() ? (
+                  isValidSocialUsername('instagram', editInsta) ? (
+                    <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                  ) : (
+                    <Ionicons name="close-circle" size={22} color="#F44336" />
+                  )
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
+                )}
+              </View>
+
+              {/* TikTok */}
+              <View style={scStyles.inputRow}>
+                <View style={[scStyles.iconBadge, { backgroundColor: '#010101', borderWidth: 1, borderColor: '#25F4EE' }]}>
+                  <Ionicons name="logo-tiktok" size={20} color="#fff" />
+                </View>
+                <TextInput
+                  style={[scStyles.input, editTiktok.trim() && !isValidSocialUsername('tiktok', editTiktok) && scStyles.inputError]}
+                  placeholder={t("socialConfig.placeholderTiktok")}
+                  placeholderTextColor={PALETTE.subtext}
+                  value={editTiktok}
+                  onChangeText={(text) => setEditTiktok(text.replace(/^@/, ''))}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {editTiktok.trim() ? (
+                  isValidSocialUsername('tiktok', editTiktok) ? (
+                    <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                  ) : (
+                    <Ionicons name="close-circle" size={22} color="#F44336" />
+                  )
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
+                )}
+              </View>
+
+              {/* X */}
+              <View style={scStyles.inputRow}>
+                <View style={[scStyles.iconBadge, { backgroundColor: '#000', borderWidth: 1, borderColor: '#333' }]}>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>𝕏</Text>
+                </View>
+                <TextInput
+                  style={[scStyles.input, editX.trim() && !isValidSocialUsername('x', editX) && scStyles.inputError]}
+                  placeholder={t("socialConfig.placeholderX")}
+                  placeholderTextColor={PALETTE.subtext}
+                  value={editX}
+                  onChangeText={(text) => setEditX(text.replace(/^@/, ''))}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {editX.trim() ? (
+                  isValidSocialUsername('x', editX) ? (
+                    <Ionicons name="checkmark-circle" size={22} color="#4CAF50" />
+                  ) : (
+                    <Ionicons name="close-circle" size={22} color="#F44336" />
+                  )
+                ) : (
+                  <Ionicons name="ellipse-outline" size={20} color={PALETTE.subtext} />
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[scStyles.saveBtn, savingSocial && { opacity: 0.6 }]}
+                onPress={handleSaveSocial}
+                disabled={savingSocial}
+              >
+                {savingSocial ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={scStyles.saveBtnText}>{t("common.save")}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -736,4 +971,110 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   contactBtnText: { color: PALETTE.text, fontSize: 16, fontWeight: "600" },
+});
+
+// Social config styles (Chantier 1I)
+const scStyles = StyleSheet.create({
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  socialBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  socialHandle: {
+    flex: 1,
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.border,
+    marginTop: 8,
+  },
+  editBtnText: {
+    color: PALETTE.gold,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: PALETTE.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    color: PALETTE.gold,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalHint: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: PALETTE.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  inputError: {
+    borderColor: '#F44336',
+  },
+  saveBtn: {
+    backgroundColor: PALETTE.gold,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveBtnText: {
+    color: '#000',
+    fontSize: 17,
+    fontWeight: '700',
+  },
 });

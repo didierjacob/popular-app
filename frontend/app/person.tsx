@@ -450,6 +450,56 @@ export default function Person() {
             </View>
           )}
 
+          {/* Social Follow Buttons — only for Outsiders with social links */}
+          {person?.source === "self_boosted" && person?.social_links && (
+            (person.social_links.instagram || person.social_links.tiktok || person.social_links.x) ? (
+              <View style={styles.followSection}>
+                <Text style={styles.followSectionTitle}>{t("socialConfig.followOn")}</Text>
+                <View style={styles.followButtons}>
+                  {person.social_links.instagram && (
+                    <TouchableOpacity
+                      style={styles.followBtnInstagram}
+                      onPress={() => {
+                        const u = person.social_links.instagram.replace('@', '');
+                        Linking.openURL(`https://instagram.com/${u}`).catch(() => {});
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="logo-instagram" size={20} color="#fff" />
+                      <Text style={styles.followBtnText}>Instagram</Text>
+                    </TouchableOpacity>
+                  )}
+                  {person.social_links.tiktok && (
+                    <TouchableOpacity
+                      style={styles.followBtnTiktok}
+                      onPress={() => {
+                        const u = person.social_links.tiktok.replace('@', '');
+                        Linking.openURL(`https://tiktok.com/@${u}`).catch(() => {});
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="logo-tiktok" size={20} color="#fff" />
+                      <Text style={styles.followBtnText}>TikTok</Text>
+                    </TouchableOpacity>
+                  )}
+                  {person.social_links.x && (
+                    <TouchableOpacity
+                      style={styles.followBtnX}
+                      onPress={() => {
+                        const u = person.social_links.x.replace('@', '');
+                        Linking.openURL(`https://x.com/${u}`).catch(() => {});
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16, marginRight: 6 }}>𝕏</Text>
+                      <Text style={styles.followBtnText}>X</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            ) : null
+          )}
+
           {/* Personality Trends */}
           <Trends />
 
@@ -586,4 +636,60 @@ const styles = StyleSheet.create({
   shareGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   shareButton: { flex: 1, minWidth: '45%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8 },
   shareText: { color: 'white', fontWeight: '600', fontSize: 13 },
+  // Follow buttons (Chantier 1I)
+  followSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  followSectionTitle: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  followButtons: {
+    gap: 8,
+  },
+  followBtnInstagram: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#C13584',
+  },
+  followBtnTiktok: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#010101',
+    borderWidth: 1,
+    borderColor: '#25F4EE',
+  },
+  followBtnX: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  followBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

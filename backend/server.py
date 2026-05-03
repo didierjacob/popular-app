@@ -239,6 +239,10 @@ class PersonOut(BaseModel):
     country_tags: Optional[List[str]] = None       # ["FR", "US", "international"]
     is_international: Optional[bool] = False
     primary_country: Optional[str] = None           # Main country code (e.g. "FR")
+    # Social links (Chantier 1I)
+    social_links: Optional[Dict[str, str]] = None   # {"instagram": "user", "tiktok": "user", "x": "user"}
+    avatar_initials: Optional[str] = None
+    avatar_color: Optional[str] = None
 
 
 class VoteIn(BaseModel):
@@ -664,6 +668,9 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
         country_tags=doc.get("country_tags"),
         is_international=doc.get("is_international", False),
         primary_country=doc.get("primary_country"),
+        social_links=doc.get("social_links") or None,
+        avatar_initials=doc.get("avatar_initials"),
+        avatar_color=doc.get("avatar_color"),
     )
 
 
@@ -1735,14 +1742,22 @@ async def get_credit_balance(user_id: str):
 
     boost_details = []
     for b in active_boosts:
+        # Fetch social_links from the person doc
+        person_social = {}
+        if b.get("person_id"):
+            person_doc = await db.persons.find_one({"_id": b["person_id"]})
+            if person_doc:
+                person_social = person_doc.get("social_links", {})
         detail = {
             "id": str(b["_id"]),
+            "person_id": str(b["person_id"]) if b.get("person_id") else None,
             "tier": b.get("tier", "booster"),
             "name": b.get("name", ""),
             "start_time": b.get("start_time", "").isoformat() if hasattr(b.get("start_time", ""), "isoformat") else str(b.get("start_time", "")),
             "end_time": b.get("end_time", "").isoformat() if hasattr(b.get("end_time", ""), "isoformat") else str(b.get("end_time", "")),
             "daily_runs_used": b.get("daily_runs_used", 0),
             "daily_runs_total": b.get("daily_runs_total", 0),
+            "social_links": person_social or {},
         }
         boost_details.append(detail)
 

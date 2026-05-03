@@ -115,17 +115,18 @@ function getTimeBadgeColor(hours: number): string {
 
 function SocialLinksRow({ links }: { links: any }) {
   if (!links) return null;
-  const hasAny = links.instagram || links.twitter || links.facebook;
+  const hasAny = links.instagram || links.tiktok || links.x;
   if (!hasAny) return null;
 
   const openLink = (platform: string, value: string) => {
     let url = "";
+    const clean = value.replace("@", "");
     if (platform === "instagram") {
-      url = `https://instagram.com/${value.replace("@", "")}`;
-    } else if (platform === "twitter") {
-      url = `https://x.com/${value.replace("@", "")}`;
-    } else if (platform === "facebook") {
-      url = value.startsWith("http") ? value : `https://facebook.com/${value}`;
+      url = `https://instagram.com/${clean}`;
+    } else if (platform === "tiktok") {
+      url = `https://tiktok.com/@${clean}`;
+    } else if (platform === "x") {
+      url = `https://x.com/${clean}`;
     }
     if (url) Linking.openURL(url).catch(() => {});
   };
@@ -140,20 +141,20 @@ function SocialLinksRow({ links }: { links: any }) {
           <Ionicons name="logo-instagram" size={14} color="#E1306C" />
         </TouchableOpacity>
       )}
-      {links.twitter && (
+      {links.tiktok && (
         <TouchableOpacity
-          onPress={() => openLink("twitter", links.twitter)}
+          onPress={() => openLink("tiktok", links.tiktok)}
           style={styles.socialBtn}
         >
-          <Ionicons name="logo-twitter" size={14} color="#1DA1F2" />
+          <Ionicons name="logo-tiktok" size={14} color="#EAEAEA" />
         </TouchableOpacity>
       )}
-      {links.facebook && (
+      {links.x && (
         <TouchableOpacity
-          onPress={() => openLink("facebook", links.facebook)}
+          onPress={() => openLink("x", links.x)}
           style={styles.socialBtn}
         >
-          <Ionicons name="logo-facebook" size={14} color="#1877F2" />
+          <Text style={{ color: '#EAEAEA', fontWeight: '800', fontSize: 11 }}>𝕏</Text>
         </TouchableOpacity>
       )}
     </View>
