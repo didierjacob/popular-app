@@ -62,6 +62,15 @@ async def startup_event():
     """Initialize scheduler and Popularoo Index on application startup"""
     logger.info("🚀 Starting Popularoo API...")
     
+    # Connect email service to database for error logging
+    email_service.set_db(db)
+    logger.info("📧 Email service connected to DB for error logging")
+    
+    # Ensure admin_notifications collection has TTL index (auto-cleanup after 90 days)
+    await db.admin_notifications.create_index(
+        "timestamp", expireAfterSeconds=90 * 24 * 3600
+    )
+    
     # Ensure Popularoo Index database indexes
     await ensure_index_indexes(db)
     
@@ -3873,6 +3882,100 @@ async def test_email_endpoint(
         return {"success": True, "email_type": email_type, "lang": lang, "to": to_email}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/test-all-emails")
+async def test_all_emails_endpoint(
+    to_email: str = Query(default="popularoo@popularoo.com"),
+    lang: str = Query(default="fr"),
+    password: str = Query(default=""),
+):
+    """Admin: Send ALL 9 transactional email variants at once for testing."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    email_types = [
+        "welcome", "booster", "booster_golden",
+        "victory_standard", "victory_underdog", "victory_legendary",
+        "going_viral", "legend_mode", "expiration",
+    ]
+
+    results = []
+    for etype in email_types:
+        try:
+            # Re-use the single-email endpoint logic inline
+            test_user_id = f"test_email_{lang}"
+            await db.user_settings.update_one(
+                {"device_id": test_user_id},
+                {"$set": {"device_id": test_user_id, "language": lang}},
+                upsert=True,
+            )
+            if etype == "welcome":
+                await send_welcome(db, email_service, to_email, test_user_id, "Test User")
+            elif etype == "booster":
+                await send_booster_confirmation(db, email_service, to_email, test_user_id,
+                                                "Test User", "Super Booster", "24 hours", is_golden=False)
+            elif etype == "booster_golden":
+                await send_booster_confirmation(db, email_service, to_email, test_user_id,
+                                                "Test User", "Golden Booster", "1 week", is_golden=True)
+            elif etype == "victory_standard":
+                await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                              "Test User", "Elon Musk", 12, "Standard Win", 847)
+            elif etype == "victory_underdog":
+                await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                              "Test User", "Taylor Swift", 35, "Underdog Win", 2340,
+                                              strikes_count=3, highest_strike="Trending")
+            elif etype == "victory_legendary":
+                await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                              "Test User", "Cristiano Ronaldo", 72, "Legendary Strike", 8921,
+                                              strikes_count=5, highest_strike="Legend Mode")
+            elif etype == "going_viral":
+                await send_strike_going_viral(db, email_service, to_email, test_user_id, "Test User")
+            elif etype == "legend_mode":
+                await send_strike_legend_mode(db, email_service, to_email, test_user_id, "Test User")
+            elif etype == "expiration":
+                await send_booster_expiration(db, email_service, to_email, test_user_id,
+                                              "Test User", "Super Booster", "3 hours",
+                                              total_votes=1247, best_rank=3, daily_runs_count=2)
+            results.append({"type": etype, "status": "sent"})
+        except Exception as e:
+            results.append({"type": etype, "status": "failed", "error": str(e)})
+
+    sent_count = sum(1 for r in results if r["status"] == "sent")
+    failed_count = sum(1 for r in results if r["status"] == "failed")
+    return {
+        "success": failed_count == 0,
+        "lang": lang,
+        "to": to_email,
+        "sent": sent_count,
+        "failed": failed_count,
+        "details": results,
+    }
+
+
+@api_router.get("/admin/email-errors")
+async def get_email_errors(
+    password: str = Query(default=""),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """Admin: View recent email delivery errors logged in admin_notifications."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    errors = await db.admin_notifications.find(
+        {"type": "email_error"}
+    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
+
+    # Serialize ObjectId
+    for err in errors:
+        err["_id"] = str(err["_id"])
+        if err.get("timestamp"):
+            err["timestamp"] = err["timestamp"].isoformat()
+
+    return {
+        "total": len(errors),
+        "errors": errors,
+    }
 
 
 # Include API router AFTER all endpoints are defined on it
