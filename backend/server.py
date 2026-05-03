@@ -3814,6 +3814,67 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# -------------------- Admin Email Test Endpoint --------------------
+from email_sender import (
+    send_booster_confirmation, send_welcome, send_daily_run_victory,
+    send_strike_going_viral, send_strike_legend_mode, send_booster_expiration,
+)
+
+@api_router.post("/admin/test-email")
+async def test_email_endpoint(
+    email_type: str = Query(..., description="Type: welcome, booster, victory_standard, victory_underdog, victory_legendary, going_viral, legend_mode, expiration"),
+    to_email: str = Query(default="popularoo@proton.me"),
+    lang: str = Query(default="fr"),
+    password: str = Query(default=""),
+):
+    """Admin: test transactional emails manually. Requires admin password."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    # Create a temporary user setting for the test language
+    test_user_id = f"test_email_{lang}"
+    await db.user_settings.update_one(
+        {"device_id": test_user_id},
+        {"$set": {"device_id": test_user_id, "language": lang}},
+        upsert=True,
+    )
+
+    try:
+        if email_type == "welcome":
+            await send_welcome(db, email_service, to_email, test_user_id, "Test User")
+        elif email_type == "booster":
+            await send_booster_confirmation(db, email_service, to_email, test_user_id,
+                                            "Test User", "Super Booster", "24 hours", is_golden=False)
+        elif email_type == "booster_golden":
+            await send_booster_confirmation(db, email_service, to_email, test_user_id,
+                                            "Test User", "Golden Booster", "1 week", is_golden=True)
+        elif email_type == "victory_standard":
+            await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                          "Test User", "Elon Musk", 12, "Standard Win", 847)
+        elif email_type == "victory_underdog":
+            await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                          "Test User", "Taylor Swift", 35, "Underdog Win", 2340,
+                                          strikes_count=3, highest_strike="Trending")
+        elif email_type == "victory_legendary":
+            await send_daily_run_victory(db, email_service, to_email, test_user_id,
+                                          "Test User", "Cristiano Ronaldo", 72, "Legendary Strike", 8921,
+                                          strikes_count=5, highest_strike="Legend Mode")
+        elif email_type == "going_viral":
+            await send_strike_going_viral(db, email_service, to_email, test_user_id, "Test User")
+        elif email_type == "legend_mode":
+            await send_strike_legend_mode(db, email_service, to_email, test_user_id, "Test User")
+        elif email_type == "expiration":
+            await send_booster_expiration(db, email_service, to_email, test_user_id,
+                                          "Test User", "Super Booster", "3 hours",
+                                          total_votes=1247, best_rank=3, daily_runs_count=2)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown email type: {email_type}")
+
+        return {"success": True, "email_type": email_type, "lang": lang, "to": to_email}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
