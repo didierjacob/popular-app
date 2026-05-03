@@ -19,6 +19,34 @@ from email_templates import (
 logger = logging.getLogger(__name__)
 
 
+# ──────────────────────────────────────────────────────────
+# Duration Localization — translates English duration strings
+# to the user's language for {{duration}} and {{timeRemaining}}
+# ──────────────────────────────────────────────────────────
+DURATION_TRANSLATIONS = {
+    "en": {"hour": "hour", "hours": "hours", "day": "day", "days": "days", "week": "week", "weeks": "weeks", "minute": "minute", "minutes": "minutes"},
+    "fr": {"hour": "heure", "hours": "heures", "day": "jour", "days": "jours", "week": "semaine", "weeks": "semaines", "minute": "minute", "minutes": "minutes"},
+    "es": {"hour": "hora", "hours": "horas", "day": "día", "days": "días", "week": "semana", "weeks": "semanas", "minute": "minuto", "minutes": "minutos"},
+    "pt": {"hour": "hora", "hours": "horas", "day": "dia", "days": "dias", "week": "semana", "weeks": "semanas", "minute": "minuto", "minutes": "minutos"},
+    "de": {"hour": "Stunde", "hours": "Stunden", "day": "Tag", "days": "Tage", "week": "Woche", "weeks": "Wochen", "minute": "Minute", "minutes": "Minuten"},
+    "it": {"hour": "ora", "hours": "ore", "day": "giorno", "days": "giorni", "week": "settimana", "weeks": "settimane", "minute": "minuto", "minutes": "minuti"},
+}
+
+
+def localize_duration(duration_str: str, lang: str) -> str:
+    """Translate an English duration string like '3 hours' or '1 week' to the target language."""
+    if lang == "en" or lang not in DURATION_TRANSLATIONS:
+        return duration_str
+
+    tr = DURATION_TRANSLATIONS[lang]
+    result = duration_str
+    # Replace longest keys first to avoid partial matches (e.g. "hours" before "hour")
+    for en_key in sorted(tr.keys(), key=len, reverse=True):
+        if en_key in result:
+            result = result.replace(en_key, tr[en_key])
+    return result
+
+
 def _text_to_html(text: str) -> str:
     """Convert plain text email to styled HTML."""
     # Escape HTML chars
@@ -88,11 +116,14 @@ async def send_booster_confirmation(db, email_service, email: str, user_id: str,
     lang = await _get_user_language(db, user_id)
     tpl = get_template(EMAIL_BOOSTER_CONFIRMATION, lang)
 
+    # Localize the duration string (e.g. "24 hours" → "24 heures" in FR)
+    localized_duration = localize_duration(duration, lang)
+
     golden_extra = tpl.get("goldenExtra", "") if is_golden else ""
     body = tpl["body"]
     body = body.replace("{{name}}", name)
     body = body.replace("{{tierName}}", tier_name)
-    body = body.replace("{{duration}}", duration)
+    body = body.replace("{{duration}}", localized_duration)
     body = body.replace("{{goldenExtra}}", golden_extra)
 
     subject = tpl["subject"].replace("{{tierName}}", tier_name)
@@ -202,6 +233,9 @@ async def send_booster_expiration(db, email_service, email: str, user_id: str,
     lang = await _get_user_language(db, user_id)
     tpl = get_template(EMAIL_BOOSTER_EXPIRATION, lang)
 
+    # Localize the time remaining string (e.g. "3 hours" → "3 heures" in FR)
+    localized_time = localize_duration(time_remaining, lang)
+
     daily_runs_line = ""
     if daily_runs_count > 0:
         daily_runs_line = tpl.get("dailyRunsLine", "")
@@ -210,7 +244,7 @@ async def send_booster_expiration(db, email_service, email: str, user_id: str,
     body = tpl["body"]
     body = body.replace("{{name}}", name)
     body = body.replace("{{tierName}}", tier_name)
-    body = body.replace("{{timeRemaining}}", time_remaining)
+    body = body.replace("{{timeRemaining}}", localized_time)
     body = body.replace("{{totalVotes}}", str(total_votes))
     body = body.replace("{{bestRank}}", str(best_rank))
     body = body.replace("{{dailyRunsLine}}", daily_runs_line)

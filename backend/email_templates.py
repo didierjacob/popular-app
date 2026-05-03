@@ -48,7 +48,7 @@ EMAIL_BOOSTER_CONFIRMATION = {
     "es": {
         "subject": "¡Tu {{tierName}} está activo! 🚀",
         "body": (
-            "¡Hola {{name}}!,\n\n"
+            "¡Hola {{name}}!\n\n"
             "¡Tu {{tierName}} acaba de activarse! Ya eres visible en el ranking Outsiders.\n\n"
             "Lo que está activo:\n"
             "• {{tierName}} — {{duration}}\n"
@@ -160,7 +160,7 @@ EMAIL_DAILY_RUN_VICTORY = {
             "legendary": "¡ÉPICO! ¡Acabas de hacer historia en Popularoo! ⚡",
         },
         "body": (
-            "¡Hola {{name}}!,\n\n"
+            "¡Hola {{name}}!\n\n"
             "¡{{victoryTier}}! Acabas de vencer a {{targetName}} en un Daily Run.\n\n"
             "Tus resultados:\n"
             "• Diferencia final de Popularoo Index: {{gap}} puntos\n"
@@ -255,7 +255,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
         "subject": "Going Viral! Your momentum is incredible! 🌊",
         "body": (
             "Hey {{name}},\n\n"
-            "Your Outsider just reached Going Viral — one of the highest Strike levels in Popularoo.\n\n"
+            "You just reached Going Viral — one of the highest Strike levels in Popularoo.\n\n"
             "Strike chain:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "Your community is sending a powerful wave of Superlikes. This kind of momentum is rare and puts you in a strong position.\n\n"
@@ -268,7 +268,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
         "subject": "Going Viral ! Ta dynamique est incroyable ! 🌊",
         "body": (
             "Salut {{name}},\n\n"
-            "Ton Outsider vient d'atteindre Going Viral — l'un des plus hauts niveaux de Strike sur Popularoo.\n\n"
+            "Tu viens d'atteindre Going Viral — l'un des plus hauts niveaux de Strike sur Popularoo.\n\n"
             "Chaîne de Strikes :\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "Ta communauté envoie une vague puissante de Superlikes. Ce type de dynamique est rare et te place en position de force.\n\n"
@@ -280,8 +280,8 @@ EMAIL_STRIKE_GOING_VIRAL = {
     "es": {
         "subject": "¡Going Viral! ¡Tu impulso es increíble! 🌊",
         "body": (
-            "¡Hola {{name}}!,\n\n"
-            "Tu Outsider acaba de alcanzar Going Viral — uno de los niveles de Strike más altos en Popularoo.\n\n"
+            "¡Hola {{name}}!\n\n"
+            "Acabas de alcanzar Going Viral — uno de los niveles de Strike más altos en Popularoo.\n\n"
             "Cadena de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "Tu comunidad está enviando una oleada potente de Superlikes. Este tipo de impulso es raro y te coloca en una posición fuerte.\n\n"
@@ -294,7 +294,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
         "subject": "Going Viral! Seu momentum é incrível! 🌊",
         "body": (
             "Oi {{name}},\n\n"
-            "Seu Outsider acabou de alcançar Going Viral — um dos níveis de Strike mais altos no Popularoo.\n\n"
+            "Você acabou de alcançar Going Viral — um dos níveis de Strike mais altos no Popularoo.\n\n"
             "Cadeia de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "Sua comunidade está enviando uma onda poderosa de Superlikes. Esse tipo de momentum é raro e te coloca em uma posição forte.\n\n"
@@ -307,7 +307,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
         "subject": "Going Viral! Dein Momentum ist unglaublich! 🌊",
         "body": (
             "Hey {{name}},\n\n"
-            "Dein Outsider hat gerade Going Viral erreicht — eine der höchsten Strike-Stufen bei Popularoo.\n\n"
+            "Du hast gerade Going Viral erreicht — eine der höchsten Strike-Stufen bei Popularoo.\n\n"
             "Strike-Kette:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "Deine Community sendet eine kraftvolle Welle von Superlikes. Diese Art von Momentum ist selten und bringt dich in eine starke Position.\n\n"
@@ -320,7 +320,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
         "subject": "Going Viral! Il tuo momentum è incredibile! 🌊",
         "body": (
             "Ciao {{name}},\n\n"
-            "Il tuo Outsider ha appena raggiunto Going Viral — uno dei livelli di Strike più alti su Popularoo.\n\n"
+            "Hai appena raggiunto Going Viral — uno dei livelli di Strike più alti su Popularoo.\n\n"
             "Catena di Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
             "La tua community sta inviando un'ondata potente di Superlikes. Questo tipo di momentum è raro e ti mette in una posizione forte.\n\n"
@@ -339,7 +339,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         "subject": "Legend Mode activated! You're on fire! 🔥",
         "body": (
             "Hey {{name}},\n\n"
-            "Something incredible just happened — your Outsider hit Legend Mode, the highest Strike level in Popularoo.\n\n"
+            "Something incredible just happened — you hit Legend Mode, the highest Strike level in Popularoo.\n\n"
             "Strike chain:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "Your community triggered an extraordinary wave of Superlikes. This kind of momentum is extremely rare and signals that something big is happening around your profile.\n\n"
@@ -352,7 +352,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         "subject": "Legend Mode activé ! Tu es en feu ! 🔥",
         "body": (
             "Salut {{name}},\n\n"
-            "Quelque chose d'incroyable vient de se passer — ton Outsider a atteint Legend Mode, le plus haut niveau de Strike sur Popularoo.\n\n"
+            "Quelque chose d'incroyable vient de se passer — tu as atteint Legend Mode, le plus haut niveau de Strike sur Popularoo.\n\n"
             "Chaîne de Strikes :\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "Ta communauté a déclenché une vague extraordinaire de Superlikes. Ce type de dynamique est extrêmement rare et signale que quelque chose de grand se passe autour de ton profil.\n\n"
@@ -364,8 +364,8 @@ EMAIL_STRIKE_LEGEND_MODE = {
     "es": {
         "subject": "¡Legend Mode activado! ¡Estás en llamas! 🔥",
         "body": (
-            "¡Hola {{name}}!,\n\n"
-            "Algo increíble acaba de pasar — tu Outsider alcanzó Legend Mode, el nivel de Strike más alto en Popularoo.\n\n"
+            "¡Hola {{name}}!\n\n"
+            "Algo increíble acaba de pasar — acabas de alcanzar Legend Mode, el nivel de Strike más alto en Popularoo.\n\n"
             "Cadena de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "Tu comunidad desató una oleada extraordinaria de Superlikes. Este tipo de impulso es extremadamente raro y señala que algo grande está pasando alrededor de tu perfil.\n\n"
@@ -378,7 +378,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         "subject": "Legend Mode ativado! Você está pegando fogo! 🔥",
         "body": (
             "Oi {{name}},\n\n"
-            "Algo incrível acabou de acontecer — seu Outsider atingiu Legend Mode, o nível de Strike mais alto no Popularoo.\n\n"
+            "Algo incrível acabou de acontecer — você atingiu Legend Mode, o nível de Strike mais alto no Popularoo.\n\n"
             "Cadeia de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "Sua comunidade disparou uma onda extraordinária de Superlikes. Esse tipo de momentum é extremamente raro e sinaliza que algo grande está acontecendo ao redor do seu perfil.\n\n"
@@ -391,7 +391,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         "subject": "Legend Mode aktiviert! Du bist on fire! 🔥",
         "body": (
             "Hey {{name}},\n\n"
-            "Etwas Unglaubliches ist gerade passiert — dein Outsider hat Legend Mode erreicht, die höchste Strike-Stufe bei Popularoo.\n\n"
+            "Etwas Unglaubliches ist gerade passiert — du hast Legend Mode erreicht, die höchste Strike-Stufe bei Popularoo.\n\n"
             "Strike-Kette:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "Deine Community hat eine außergewöhnliche Welle von Superlikes ausgelöst. Diese Art von Momentum ist extrem selten und zeigt, dass etwas Großes rund um dein Profil passiert.\n\n"
@@ -404,7 +404,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         "subject": "Legend Mode attivato! Sei on fire! 🔥",
         "body": (
             "Ciao {{name}},\n\n"
-            "Qualcosa di incredibile è appena successo — il tuo Outsider ha raggiunto Legend Mode, il livello di Strike più alto su Popularoo.\n\n"
+            "Qualcosa di incredibile è appena successo — hai raggiunto Legend Mode, il livello di Strike più alto su Popularoo.\n\n"
             "Catena di Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
             "La tua community ha scatenato un'ondata straordinaria di Superlikes. Questo tipo di momentum è estremamente raro e segnala che qualcosa di grande sta accadendo intorno al tuo profilo.\n\n"
@@ -453,7 +453,7 @@ EMAIL_BOOSTER_EXPIRATION = {
     "es": {
         "subject": "Tu {{tierName}} expira pronto ⏰",
         "body": (
-            "¡Hola {{name}}!,\n\n"
+            "¡Hola {{name}}!\n\n"
             "Atención — tu {{tierName}} expira en {{timeRemaining}}.\n\n"
             "Tus stats durante este boost:\n"
             "• Votos recibidos en total: {{totalVotes}}\n"
@@ -553,7 +553,7 @@ EMAIL_WELCOME = {
     "es": {
         "subject": "Bienvenido a Popularoo — your stock market of fame ✨",
         "body": (
-            "¡Hola {{name}}!,\n\n"
+            "¡Hola {{name}}!\n\n"
             "Bienvenido a Popularoo — the world's stock market of fame.\n\n"
             "Tu primer Booster acaba de activarse, y acabas de entrar oficialmente en la arena con las personas más famosas del mundo. "
             "A partir de ahora, cada voto que recibas moldea tu Popularoo Index.\n\n"
