@@ -393,7 +393,7 @@ async def ensure_indexes():
     await db.rally_cries.create_index([("user_id", 1), ("created_at", -1)])
     await db.rally_cries.create_index([("expires_at", 1), ("target_beaten", 1)])
     # User settings
-    await db.user_settings.create_index("user_id", unique=True)
+    await db.user_settings.create_index("device_id", unique=True)
 
 
 async def seed_people():
