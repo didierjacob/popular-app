@@ -1661,10 +1661,34 @@ BOOSTER_TIERS = {
     },
 }
 
+import re
+
+# ── Chantier 1I: Social accounts validation ──
+SOCIAL_REGEX = {
+    "instagram": re.compile(r'^@?[a-zA-Z0-9._]{1,30}$'),   # 1-30 chars, letters/digits/dots/underscores
+    "tiktok": re.compile(r'^@?[a-zA-Z0-9._]{2,24}$'),      # 2-24 chars, same rules
+    "x": re.compile(r'^@?[a-zA-Z0-9_]{4,15}$'),             # 4-15 chars, no dots
+}
+
+def _clean_username(username: str) -> str:
+    """Strip @ prefix and whitespace from a social username."""
+    if not username:
+        return ""
+    return username.strip().lstrip("@")
+
+def _validate_social_username(platform: str, username: str) -> bool:
+    """Validate a social username against platform-specific rules."""
+    if not username:
+        return True  # Empty = valid (optional)
+    cleaned = _clean_username(username)
+    pattern = SOCIAL_REGEX.get(platform)
+    return bool(pattern and pattern.match(cleaned))
+
+
 class SocialLinks(BaseModel):
     instagram: Optional[str] = None
-    twitter: Optional[str] = None
-    facebook: Optional[str] = None
+    tiktok: Optional[str] = None
+    x: Optional[str] = None
 
 class BoostMyselfRequest(BaseModel):
     user_id: str
@@ -1778,11 +1802,18 @@ async def boost_myself(request: BoostMyselfRequest):
             # Update social links if provided
             update_fields = {"updated_at": now}
             if request.social_links:
-                update_fields["social_links"] = {
-                    "instagram": request.social_links.instagram,
-                    "twitter": request.social_links.twitter,
-                    "facebook": request.social_links.facebook,
-                }
+                clean_social = {}
+                for platform in ["instagram", "tiktok", "x"]:
+                    raw = getattr(request.social_links, platform, None) or ""
+                    cleaned = _clean_username(raw)
+                    if cleaned:
+                        if not _validate_social_username(platform, cleaned):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Invalid {platform} username format: {cleaned}"
+                            )
+                        clean_social[platform] = cleaned
+                update_fields["social_links"] = clean_social
             if request.email:
                 update_fields["email"] = request.email
             await db.persons.update_one({"_id": person_id}, {"$set": update_fields})
@@ -1795,11 +1826,16 @@ async def boost_myself(request: BoostMyselfRequest):
             # Create new outsider person
             social = {}
             if request.social_links:
-                social = {
-                    "instagram": request.social_links.instagram,
-                    "twitter": request.social_links.twitter,
-                    "facebook": request.social_links.facebook,
-                }
+                for platform in ["instagram", "tiktok", "x"]:
+                    raw = getattr(request.social_links, platform, None) or ""
+                    cleaned = _clean_username(raw)
+                    if cleaned:
+                        if not _validate_social_username(platform, cleaned):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Invalid {platform} username format: {cleaned}"
+                            )
+                        social[platform] = cleaned
 
             person_doc = {
                 "name": name,
@@ -4028,6 +4064,60 @@ async def seed_outsiders_endpoint(password: str = Query(default="")):
     from seed_outsiders import create_seed_outsiders
     result = await create_seed_outsiders(db)
     return result
+
+
+# ── Chantier 1I: Social Links Management ──
+
+class UpdateSocialLinksRequest(BaseModel):
+    instagram: Optional[str] = None
+    tiktok: Optional[str] = None
+    x: Optional[str] = None
+
+
+@api_router.put("/outsiders/{boost_id}/social-links")
+async def update_outsider_social_links(boost_id: str, request: UpdateSocialLinksRequest):
+    """Update social links for an active Outsider boost."""
+    try:
+        boost_oid = ObjectId(boost_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid boost ID")
+
+    boost = await db.active_boosts.find_one({"_id": boost_oid})
+    if not boost:
+        raise HTTPException(status_code=404, detail="Boost not found")
+
+    now = datetime.utcnow()
+    if boost.get("end_time", now) < now:
+        raise HTTPException(status_code=400, detail="Boost has expired")
+
+    # Validate and clean each platform username
+    clean_social = {}
+    for platform in ["instagram", "tiktok", "x"]:
+        raw = getattr(request, platform, None) or ""
+        cleaned = _clean_username(raw)
+        if cleaned:
+            if not _validate_social_username(platform, cleaned):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid {platform} username: '{cleaned}'"
+                )
+            clean_social[platform] = cleaned
+
+    # Update both active_boosts and persons collections
+    await db.active_boosts.update_one(
+        {"_id": boost_oid},
+        {"$set": {"social_links": clean_social, "updated_at": now}}
+    )
+    if boost.get("person_id"):
+        await db.persons.update_one(
+            {"_id": boost["person_id"]},
+            {"$set": {"social_links": clean_social, "updated_at": now}}
+        )
+
+    return {
+        "success": True,
+        "social_links": clean_social,
+    }
 
 
 @api_router.get("/admin/seed-outsiders/status")
