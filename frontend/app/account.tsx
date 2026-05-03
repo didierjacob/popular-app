@@ -9,6 +9,7 @@ import {
   View,
   Alert,
   Linking,
+  Platform,
   ActivityIndicator,
   FlatList,
   useWindowDimensions,
@@ -17,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, type Transaction } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
+import { useRouter } from "expo-router";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -46,6 +48,7 @@ type Screen = "main" | "billing" | "invoices" | "help";
 
 export default function AccountScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [accountInfo, setAccountInfo] = useState<AccountInfo>({
     name: "",
     email: "",
@@ -64,6 +67,7 @@ export default function AccountScreen() {
 
   useEffect(() => {
     loadAccountInfo();
+    loadTransactions();
   }, []);
 
   const loadAccountInfo = async () => {
@@ -390,43 +394,86 @@ export default function AccountScreen() {
           </View>
         </View>
 
-        {/* Billing & Payment */}
+        {/* My Boosters */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t("account.billing")}</Text>
+          <Text style={styles.sectionTitle}>{t("account.myBoosters")}</Text>
+          <View style={styles.card}>
+            {/* Element 1: Active Boosters */}
+            <View style={styles.menuItem}>
+              <Ionicons name="flash" size={24} color={PALETTE.gold} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemText}>{t("account.activeBoosters")}</Text>
+                <Text style={styles.menuItemSubtext}>
+                  {t("account.noActiveBooster")}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.activateBtn}
+                onPress={() => router.push("/premium")}
+              >
+                <Text style={styles.activateBtnText}>{t("account.activateBooster")}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* Element 2: Recent Purchases */}
+            <View style={{ paddingVertical: 12, paddingHorizontal: 16 }}>
+              <Text style={[styles.menuItemText, { marginBottom: 8 }]}>{t("account.recentPurchases")}</Text>
+              {loadingTx ? (
+                <ActivityIndicator size="small" color={PALETTE.accent2} />
+              ) : transactions.length === 0 ? (
+                <Text style={styles.menuItemSubtext}>{t("account.noPurchasesYet")}</Text>
+              ) : (
+                transactions.slice(0, 5).map((tx, idx) => (
+                  <View key={idx} style={styles.purchaseRow}>
+                    <Text style={styles.purchaseDate}>{formatDate(tx.timestamp)}</Text>
+                    <Text style={styles.purchaseType}>{tx.description || tx.type}</Text>
+                    <Text style={styles.purchasePrice}>
+                      {tx.amount ? `€${Math.abs(tx.amount).toFixed(2)}` : "—"}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={styles.divider} />
+
+            {/* Element 3: Store redirect */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                if (Platform.OS === "ios") {
+                  Linking.openURL("https://apps.apple.com/account/subscriptions");
+                } else {
+                  Linking.openURL("https://play.google.com/store/account/subscriptions");
+                }
+              }}
+            >
+              <Ionicons
+                name={Platform.OS === "ios" ? "logo-apple" : "logo-google-playstore"}
+                size={24}
+                color={PALETTE.text}
+              />
+              <Text style={[styles.menuItemText, { flex: 1 }]}>
+                {Platform.OS === "ios"
+                  ? t("account.viewAppStoreHistory")
+                  : t("account.viewGooglePlayHistory")}
+              </Text>
+              <Ionicons name="open-outline" size={18} color={PALETTE.subtext} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Settings */}
+        <View style={styles.section}>
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() =>
-                Alert.alert(
-                  t("account.paymentMethods"),
-                  "Purchases are handled securely through the App Store (iOS) or Google Play (Android). No credit card is stored in the app.",
-                  [{ text: t("common.ok") }]
-                )
-              }
+              onPress={() => router.push("/settings")}
             >
-              <Ionicons name="card-outline" size={24} color={PALETTE.text} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.menuItemText}>{t("account.paymentMethods")}</Text>
-                <Text style={styles.menuItemSubtext}>
-                  {t("account.viaStore")}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.menuItem} onPress={openBilling}>
-              <Ionicons name="receipt-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>{t("account.billingHistory")}</Text>
-              <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.menuItem} onPress={openInvoices}>
-              <Ionicons name="document-text-outline" size={24} color={PALETTE.text} />
-              <Text style={styles.menuItemText}>{t("account.invoices")}</Text>
+              <Ionicons name="settings-outline" size={24} color={PALETTE.text} />
+              <Text style={styles.menuItemText}>{t("account.settings")}</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
@@ -642,6 +689,40 @@ const styles = StyleSheet.create({
   },
   faqQuestion: { color: PALETTE.text, fontSize: 15, fontWeight: "600", flex: 1, marginRight: 8 },
   faqAnswer: { color: PALETTE.subtext, fontSize: 14, lineHeight: 22, marginTop: 12 },
+
+  // My Boosters
+  purchaseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  purchaseDate: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    width: 80,
+  },
+  purchaseType: {
+    color: PALETTE.text,
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
+  purchasePrice: {
+    color: PALETTE.green,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  activateBtn: {
+    backgroundColor: PALETTE.accent2,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  activateBtnText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
 
   // Help footer
   helpFooter: { alignItems: "center", marginTop: 20, paddingVertical: 20 },

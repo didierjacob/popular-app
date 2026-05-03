@@ -222,7 +222,18 @@
     "noInvoices": "Aún no hay facturas",
     "noTransactions": "Aún no hay transacciones",
     "invoiceEmpty": "Tu historial de facturas aparecerá aquí después de tu primer boost.",
-    "paid": "Pagado"
+    "paid": "Pagado",
+    "myBoosters": "Mis Boosters",
+    "activeBoosters": "Boosters activos",
+    "noActiveBooster": "Ningún Booster activo",
+    "activateBooster": "Activar un Booster",
+    "dailyRunsUsed": "{{used}}/{{total}} Daily Runs usados",
+    "timeRemaining": "{{time}} restante",
+    "recentPurchases": "Compras recientes",
+    "noPurchasesYet": "Sin compras aún",
+    "viewAppStoreHistory": "Ver todas mis compras en el App Store",
+    "viewGooglePlayHistory": "Ver todas mis compras en Google Play",
+    "settings": "Ajustes"
   },
   "helpCenter": {
     "title": "Centro de ayuda",
@@ -264,5 +275,15 @@
     "legendDesc": "Vota 250 veces",
     "master": "Maestro",
     "masterDesc": "Vota 500 veces"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "countrySection": "País",
+    "countryDesc": "Determina tu feed local (50% local / 50% internacional)",
+    "languageSection": "Idioma",
+    "languageDesc": "Determina el idioma de la app",
+    "saved": "¡Ajustes guardados!",
+    "saveError": "No se pudieron guardar los ajustes",
+    "detectAuto": "Detección automática"
   }
 }

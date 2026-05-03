@@ -1680,15 +1680,29 @@ async def get_booster_tiers():
 
 @api_router.get("/credits/balance/{user_id}")
 async def get_credit_balance(user_id: str):
-    """Get user's active boosts"""
+    """Get user's active boosts with full details"""
     now = now_utc()
     active_boosts = await db.active_boosts.find({
         "user_id": user_id,
         "end_time": {"$gt": now},
-    }).to_list(100)
+    }).sort("end_time", -1).to_list(100)
+
+    boost_details = []
+    for b in active_boosts:
+        detail = {
+            "id": str(b["_id"]),
+            "tier": b.get("tier", "booster"),
+            "name": b.get("name", ""),
+            "start_time": b.get("start_time", "").isoformat() if hasattr(b.get("start_time", ""), "isoformat") else str(b.get("start_time", "")),
+            "end_time": b.get("end_time", "").isoformat() if hasattr(b.get("end_time", ""), "isoformat") else str(b.get("end_time", "")),
+            "daily_runs_used": b.get("daily_runs_used", 0),
+            "daily_runs_total": b.get("daily_runs_total", 0),
+        }
+        boost_details.append(detail)
 
     return {
         "active_boosts": len(active_boosts),
+        "boost_details": boost_details,
         "boosters": 0,
         "super_boosters": 0,
         "balance": 0,
