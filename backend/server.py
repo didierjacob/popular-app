@@ -1551,8 +1551,14 @@ async def get_outsiders(
     try:
         now = now_utc()
 
-        # Get all active boosts (not expired)
-        boost_filter: Dict[str, Any] = {"end_time": {"$gt": now}}
+        # Get all active boosts (not expired, excluding disabled seeds)
+        boost_filter: Dict[str, Any] = {
+            "end_time": {"$gt": now},
+            "$or": [
+                {"is_seed": {"$ne": True}},            # Real outsiders
+                {"is_seed": True, "seed_active": True}, # Active seeds only
+            ],
+        }
         active_boosts = await db.active_boosts.find(boost_filter).sort("start_time", -1).to_list(length=100)
 
         golden_outsiders = []
@@ -1590,6 +1596,13 @@ async def get_outsiders(
                 "end_time": boost["end_time"].isoformat(),
                 "hours_remaining": round(hours_remaining, 1),
                 "social_links": person.get("social_links", {}),
+                "avatar_initials": person.get("avatar_initials", ""),
+                "avatar_color": person.get("avatar_color", "#1C3A2C"),
+                "popularoo_index": person.get("popularoo_index", 0),
+                "active_strikes": person.get("active_strikes", 0),
+                "strike_emoji": person.get("strike_emoji"),
+                "strike_label": person.get("strike_label"),
+                "is_seed": bool(boost.get("is_seed", False)),
             }
 
             if boost.get("position") == "top":
@@ -1888,6 +1901,18 @@ async def boost_myself(request: BoostMyselfRequest):
                     )
             except Exception as email_err:
                 logger.warning(f"Failed to send confirmation email: {email_err}")
+
+        # Auto-disable seed Outsiders if real outsider count crosses thresholds
+        boost_country = getattr(request, 'country', None)
+        if boost_country:
+            try:
+                from seed_outsiders import auto_disable_seeds_for_country
+                disable_result = await auto_disable_seeds_for_country(db, boost_country)
+                if disable_result.get("disabled", 0) > 0:
+                    logger.info(f"🌱 Auto-disabled {disable_result['disabled']} seed(s) in {boost_country} "
+                               f"({disable_result['real_count']} real outsiders, {disable_result['remaining']} seeds remaining)")
+            except Exception as seed_err:
+                logger.warning(f"Seed auto-disable check failed: {seed_err}")
 
         success_msg = f"🎉 {tier_info['name']} activated! '{name}' is now in the Outsiders ranking."
         if tier_info["position"] == "top":
@@ -3991,6 +4016,37 @@ async def download_emails_review(password: str = Query(default="")):
         filename="EMAILS_REVIEW.md",
         media_type="text/markdown",
     )
+
+
+# ── Chantier 1J: Seed Outsiders Admin Endpoints ──
+
+@api_router.post("/admin/seed-outsiders")
+async def seed_outsiders_endpoint(password: str = Query(default="")):
+    """Admin: Create all 49 seed Outsiders. Idempotent (skips existing)."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+    from seed_outsiders import create_seed_outsiders
+    result = await create_seed_outsiders(db)
+    return result
+
+
+@api_router.get("/admin/seed-outsiders/status")
+async def seed_outsiders_status(password: str = Query(default="")):
+    """Admin: View seed Outsiders status per country."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+    from seed_outsiders import get_seed_status
+    return await get_seed_status(db)
+
+
+@api_router.delete("/admin/seed-outsiders")
+async def remove_seed_outsiders_endpoint(password: str = Query(default="")):
+    """Admin: Remove ALL seed Outsiders from the database."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+    from seed_outsiders import remove_all_seeds
+    result = await remove_all_seeds(db)
+    return {"success": True, **result}
 
 
 # Include API router AFTER all endpoints are defined on it
