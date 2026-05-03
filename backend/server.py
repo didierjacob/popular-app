@@ -1867,25 +1867,25 @@ async def boost_myself(request: BoostMyselfRequest):
         # Send confirmation email if email provided
         if request.email:
             try:
+                from email_sender import send_welcome, send_booster_confirmation
                 duration_text = "1 hour" if tier_info["duration_hours"] == 1 else \
                     "24 hours" if tier_info["duration_hours"] == 24 else "1 week"
-                position_text = "Priority placement in Outsiders + Home page rotation as Outsider of the Day" if tier_info['position'] == 'top' else "Outsiders ranking"
-                html = f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
-                    <h1 style="color: #FFD700; text-align: center;">🚀 Boost Confirmed!</h1>
-                    <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #2E6148;">
-                        <h2 style="color: #EAEAEA; margin-top: 0;">Hello {name}!</h2>
-                        <p style="color: #C9D8D2;">Your <strong style="color: #FFD700;">{tier_info['name']}</strong> is now active.</p>
-                        <ul style="color: #C9D8D2; line-height: 2;">
-                            <li>Duration: <strong>{duration_text}</strong></li>
-                            <li>Expires: <strong>{end_time.strftime('%B %d, %Y at %H:%M UTC')}</strong></li>
-                            <li>Position: <strong>{position_text}</strong></li>
-                        </ul>
-                    </div>
-                    <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Thank you for using Popularoo!</p>
-                </div>
-                """
-                await email_service.send_email(request.email, f"🚀 Your {tier_info['name']} is active!", html)
+                is_golden = (request.tier == "golden_booster")
+
+                # Check if this is the user's first purchase → Welcome email
+                prev_purchases = await db.credit_transactions.count_documents({
+                    "user_id": request.user_id,
+                    "type": "purchase",
+                    "status": "completed",
+                })
+                # prev_purchases includes the one we just inserted above, so first purchase = 1
+                if prev_purchases <= 1:
+                    await send_welcome(db, email_service, request.email, request.user_id, name)
+                else:
+                    await send_booster_confirmation(
+                        db, email_service, request.email, request.user_id,
+                        name, tier_info["name"], duration_text, is_golden=is_golden
+                    )
             except Exception as email_err:
                 logger.warning(f"Failed to send confirmation email: {email_err}")
 

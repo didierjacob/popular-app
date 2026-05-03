@@ -200,8 +200,9 @@ def init_scheduler(db, trends_service, email_svc=None):
 
 
 async def check_expiring_boosts(db):
-    """Check for boosts expiring soon and send reminder emails"""
+    """Check for boosts expiring soon and send translated reminder emails"""
     try:
+        from email_sender import send_booster_expiration
         now = datetime.utcnow()
 
         # --- Reminder 1: 24h before expiry (Golden Boosters only) ---
@@ -220,27 +221,22 @@ async def check_expiring_boosts(db):
                 continue
 
             person_name = boost.get("person_name", "Unknown")
+            user_id = boost.get("user_id", "")
             end_time = boost.get("end_time", now)
-            remaining_hours = max(0, int((end_time - now).total_seconds() / 3600))
+            remaining_hours = max(1, int((end_time - now).total_seconds() / 3600))
 
             if _email_service:
                 try:
-                    html = f"""
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
-                        <h1 style="color: #FFD700; text-align: center;">⏳ 24 Hours Left!</h1>
-                        <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #FFD700;">
-                            <h2 style="color: #EAEAEA; margin-top: 0;">Hello {person_name}!</h2>
-                            <p style="color: #C9D8D2;">Your <strong style="color: #FFD700;">Golden Booster</strong> expires in approximately <strong style="color: #FFD700;">{remaining_hours} hours</strong>.</p>
-                            <p style="color: #C9D8D2;">Don't lose your priority placement in Outsiders and Home page rotation!</p>
-                            <div style="text-align: center; margin-top: 20px;">
-                                <a href="https://popularoo.com" style="display: inline-block; background: #FFD700; color: #0F2F22; padding: 12px 30px; border-radius: 25px; text-decoration: none; font-weight: bold;">Renew Now</a>
-                            </div>
-                        </div>
-                        <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Popularoo App - Rate & rank personalities</p>
-                    </div>
-                    """
-                    await _email_service.send_email(email, f"⏳ Your Golden Booster for '{person_name}' expires in 24h!", html)
-                    logger.info(f"📧 24h reminder sent to {email} for '{person_name}'")
+                    # Gather stats for the email
+                    total_votes = await db.votes.count_documents({"person_id": boost.get("person_id")}) if boost.get("person_id") else 0
+                    daily_runs_count = await db.daily_runs.count_documents({"outsider_id": boost.get("person_id"), "status": "completed"}) if boost.get("person_id") else 0
+
+                    await send_booster_expiration(
+                        db, _email_service, email, user_id, person_name,
+                        "Golden Booster", f"{remaining_hours} hours",
+                        total_votes=total_votes, best_rank=0, daily_runs_count=daily_runs_count
+                    )
+                    logger.info(f"📧 24h reminder (translated) sent to {email} for '{person_name}'")
                 except Exception as email_err:
                     logger.warning(f"Failed to send 24h reminder: {email_err}")
 
@@ -249,47 +245,39 @@ async def check_expiring_boosts(db):
                 {"$set": {"reminder_24h_sent": True}}
             )
 
-        # --- Reminder 2: 1h before expiry (All tiers) ---
-        soon = now + timedelta(hours=1)
-        expiring = await db.active_boosts.find({
-            "end_time": {"$lte": soon, "$gt": now},
+        # --- Reminder 2: 3h before expiry (Super Boosters) ---
+        three_ahead = now + timedelta(hours=3)
+        three_window_start = now + timedelta(hours=2)
+        super_expiring = await db.active_boosts.find({
+            "end_time": {"$lte": three_ahead, "$gt": three_window_start},
             "reminder_sent": {"$ne": True},
             "email": {"$ne": ""},
+            "tier": "super_booster",
         }).to_list(100)
 
-        if not expiring and not golden_expiring:
-            return
-
-        for boost in expiring:
+        for boost in super_expiring:
             email = boost.get("email", "")
             if not email:
                 continue
 
             person_name = boost.get("person_name", "Unknown")
+            user_id = boost.get("user_id", "")
             end_time = boost.get("end_time", now)
-            remaining_mins = max(0, int((end_time - now).total_seconds() / 60))
+            remaining_hours = max(1, int((end_time - now).total_seconds() / 3600))
 
-            # Send reminder email
             if _email_service:
                 try:
-                    html = f"""
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #0F2F22; color: #EAEAEA;">
-                        <h1 style="color: #FFA500; text-align: center;">⏰ Your Boost is Expiring!</h1>
-                        <div style="background: #1C3A2C; border-radius: 12px; padding: 24px; margin: 20px 0; border: 2px solid #FFA500;">
-                            <h2 style="color: #EAEAEA; margin-top: 0;">Hello {person_name}!</h2>
-                            <p style="color: #C9D8D2;">Your visibility boost expires in approximately <strong style="color: #FFA500;">{remaining_mins} minutes</strong>.</p>
-                            <p style="color: #C9D8D2;">Want to stay visible? Open Popularoo and renew your booster!</p>
-                            <div style="text-align: center; margin-top: 20px;">
-                                <a href="https://popularoo.com" style="display: inline-block; background: #E04F5F; color: white; padding: 12px 30px; border-radius: 25px; text-decoration: none; font-weight: bold;">Renew Now</a>
-                            </div>
-                        </div>
-                        <p style="color: #C9D8D2; text-align: center; font-size: 12px;">Popularoo App - Rate & rank personalities</p>
-                    </div>
-                    """
-                    await _email_service.send_email(email, f"⏰ Your boost for '{person_name}' expires soon!", html)
-                    logger.info(f"📧 Expiration reminder sent to {email} for '{person_name}'")
+                    total_votes = await db.votes.count_documents({"person_id": boost.get("person_id")}) if boost.get("person_id") else 0
+                    daily_runs_count = await db.daily_runs.count_documents({"outsider_id": boost.get("person_id"), "status": "completed"}) if boost.get("person_id") else 0
+
+                    await send_booster_expiration(
+                        db, _email_service, email, user_id, person_name,
+                        "Super Booster", f"{remaining_hours} hours",
+                        total_votes=total_votes, best_rank=0, daily_runs_count=daily_runs_count
+                    )
+                    logger.info(f"📧 3h reminder (translated) sent to {email} for '{person_name}'")
                 except Exception as email_err:
-                    logger.warning(f"Failed to send expiration reminder: {email_err}")
+                    logger.warning(f"Failed to send 3h reminder: {email_err}")
 
             # Mark as reminded
             await db.active_boosts.update_one(
@@ -297,7 +285,7 @@ async def check_expiring_boosts(db):
                 {"$set": {"reminder_sent": True}}
             )
 
-        total_sent = len(golden_expiring) + len(expiring)
+        total_sent = len(golden_expiring) + len(super_expiring)
         if total_sent > 0:
             logger.info(f"⏰ Checked expiring boosts: {total_sent} reminders sent")
 
