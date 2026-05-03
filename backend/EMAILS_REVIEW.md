@@ -274,7 +274,7 @@ I tuoi risultati:
 *[Si Strikes:]* • Strikes attivati: {{strikesCount}} (più alto: {{highestStrike}})
 
 *[Si Legendary:]* Questa è la vittoria più rara su Popularoo. Meno dell'1% dei Run finisce così. La tua community si è mobilitata in modo straordinario.
-*[Si Underdog:]* Abbattere una personalità {{gap}} punti sopra di te non è cosa da poco. I tuoi sostenitori hanno davvero dato il massimo.
+*[Si Underdog:]* Abbattere una personalità {{gap}} punti sopra di te non è uno scherzo. I tuoi sostenitori hanno davvero dato il massimo.
 
 Condividi la tua vittoria e mantieni il momentum.
 
@@ -491,7 +491,7 @@ Mantenha a energia!
 ---
 
 ### 🇩🇪 DE
-**Subject:** Legend Mode aktiviert! Du bist on fire! 🔥
+**Subject:** Legend Mode aktiviert! Du brennst! 🔥
 
 Hey {{name}},
 
@@ -511,7 +511,7 @@ Halte die Energie aufrecht!
 ---
 
 ### 🇮🇹 IT
-**Subject:** Legend Mode attivato! Sei on fire! 🔥
+**Subject:** Legend Mode attivato! Sei in fiamme! 🔥
 
 Ciao {{name}},
 
@@ -669,8 +669,7 @@ Your first Booster just went live, and you've officially stepped into the ring w
 
 Quick tips to maximize your time as an Outsider:
 • Share your profile with your community to rally votes
-*[Si comptes sociaux connectés:]* • Connect your Instagram, TikTok and X accounts to gain followers
-*[Sinon:]* • Watch the leaderboard — your position can change at any moment
+• Watch the leaderboard — your position can change at any moment
 • Watch the Strikes — a wave of Superlikes can change everything
 
 The clock is ticking. Make it count.
@@ -690,8 +689,7 @@ Ton premier Booster vient d'être activé, et tu viens officiellement d'entrer d
 
 Quelques conseils pour maximiser ton temps en tant qu'Outsider :
 • Partage ton profil avec ta communauté pour rallier des votes
-*[Si comptes sociaux connectés:]* • Connecte tes comptes Instagram, TikTok et X pour gagner des abonnés
-*[Sinon:]* • Surveille le classement — ta position peut changer à tout moment
+• Surveille le classement — ta position peut changer à tout moment
 • Surveille les Strikes — une vague de Superlikes peut tout changer
 
 Le compte à rebours est lancé. Fais-en bon usage.
@@ -711,8 +709,7 @@ Tu primer Booster acaba de activarse, y acabas de entrar oficialmente en la aren
 
 Consejos rápidos para maximizar tu tiempo como Outsider:
 • Comparte tu perfil con tu comunidad para conseguir votos
-*[Si comptes sociaux connectés:]* • Conecta tus cuentas de Instagram, TikTok y X para ganar seguidores
-*[Sinon:]* • Vigila el ranking — tu posición puede cambiar en cualquier momento
+• Vigila el ranking — tu posición puede cambiar en cualquier momento
 • Vigila los Strikes — una oleada de Superlikes puede cambiarlo todo
 
 El reloj corre. Aprovéchalo.
@@ -732,8 +729,7 @@ Seu primeiro Booster acabou de ser ativado, e você oficialmente entrou na arena
 
 Dicas rápidas para maximizar seu tempo como Outsider:
 • Compartilhe seu perfil com sua comunidade para conseguir votos
-*[Si comptes sociaux connectés:]* • Conecte suas contas do Instagram, TikTok e X para ganhar seguidores
-*[Sinon:]* • Fique de olho no ranking — sua posição pode mudar a qualquer momento
+• Fique de olho no ranking — sua posição pode mudar a qualquer momento
 • Fique de olho nos Strikes — uma onda de Superlikes pode mudar tudo
 
 O relógio está correndo. Faça valer a pena.
@@ -753,8 +749,7 @@ Dein erster Booster wurde gerade aktiviert, und du bist offiziell in die Arena m
 
 Schnelle Tipps, um deine Zeit als Outsider zu maximieren:
 • Teile dein Profil mit deiner Community, um Stimmen zu sammeln
-*[Si comptes sociaux connectés:]* • Verbinde deine Instagram-, TikTok- und X-Konten, um Follower zu gewinnen
-*[Sinon:]* • Beobachte die Rangliste — deine Position kann sich jederzeit ändern
+• Beobachte die Rangliste — deine Position kann sich jederzeit ändern
 • Beobachte die Strikes — eine Welle von Superlikes kann alles verändern
 
 Die Uhr tickt. Nutze die Zeit.
@@ -774,8 +769,7 @@ Il tuo primo Booster è appena stato attivato, e sei ufficialmente entrato nell'
 
 Consigli rapidi per massimizzare il tuo tempo come Outsider:
 • Condividi il tuo profilo con la tua community per raccogliere voti
-*[Si comptes sociaux connectés:]* • Collega i tuoi account Instagram, TikTok e X per guadagnare follower
-*[Sinon:]* • Tieni d'occhio la classifica — la tua posizione può cambiare in qualsiasi momento
+• Tieni d'occhio la classifica — la tua posizione può cambiare in qualsiasi momento
 • Tieni d'occhio gli Strikes — un'ondata di Superlikes può cambiare tutto
 
 Il tempo scorre. Fai che conti.

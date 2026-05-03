@@ -12,7 +12,6 @@ from email_templates import (
     EMAIL_STRIKE_LEGEND_MODE,
     EMAIL_BOOSTER_EXPIRATION,
     EMAIL_WELCOME,
-    SOCIAL_ACCOUNTS_FEATURE_ENABLED,
     get_template,
 )
 
@@ -138,10 +137,8 @@ async def send_welcome(db, email_service, email: str, user_id: str, name: str):
     lang = await _get_user_language(db, user_id)
     tpl = get_template(EMAIL_WELCOME, lang)
 
-    social_tip = tpl.get("socialTipEnabled", "") if SOCIAL_ACCOUNTS_FEATURE_ENABLED else tpl.get("socialTipDefault", "")
     body = tpl["body"]
     body = body.replace("{{name}}", name)
-    body = body.replace("{{socialTip}}", social_tip)
 
     subject = tpl["subject"]
     html = _text_to_html(body)

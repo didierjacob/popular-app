@@ -242,7 +242,7 @@ EMAIL_DAILY_RUN_VICTORY = {
         ),
         "strikesLine": "• Strikes attivati: {{strikesCount}} (più alto: {{highestStrike}})\n",
         "legendaryMsg": "Questa è la vittoria più rara su Popularoo. Meno dell'1% dei Run finisce così. La tua community si è mobilitata in modo straordinario.\n\n",
-        "underdogMsg": "Abbattere una personalità {{gap}} punti sopra di te non è cosa da poco. I tuoi sostenitori hanno davvero dato il massimo.\n\n",
+        "underdogMsg": "Abbattere una personalità {{gap}} punti sopra di te non è uno scherzo. I tuoi sostenitori hanno davvero dato il massimo.\n\n",
         "standardMsg": "\n",
     },
 }
@@ -388,7 +388,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         ),
     },
     "de": {
-        "subject": "Legend Mode aktiviert! Du bist on fire! 🔥",
+        "subject": "Legend Mode aktiviert! Du brennst! 🔥",
         "body": (
             "Hey {{name}},\n\n"
             "Etwas Unglaubliches ist gerade passiert — du hast Legend Mode erreicht, die höchste Strike-Stufe bei Popularoo.\n\n"
@@ -401,7 +401,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
         ),
     },
     "it": {
-        "subject": "Legend Mode attivato! Sei on fire! 🔥",
+        "subject": "Legend Mode attivato! Sei in fiamme! 🔥",
         "body": (
             "Ciao {{name}},\n\n"
             "Qualcosa di incredibile è appena successo — hai raggiunto Legend Mode, il livello di Strike più alto su Popularoo.\n\n"
@@ -525,13 +525,11 @@ EMAIL_WELCOME = {
             "From now on, every vote you receive shapes your Popularoo Index.\n\n"
             "Quick tips to maximize your time as an Outsider:\n"
             "• Share your profile with your community to rally votes\n"
-            "{{socialTip}}"
+            "• Watch the leaderboard — your position can change at any moment\n"
             "• Watch the Strikes — a wave of Superlikes can change everything\n\n"
             "The clock is ticking. Make it count.\n\n"
             "— The Popularoo Team"
         ),
-        "socialTipEnabled": "• Connect your Instagram, TikTok and X accounts to gain followers\n",
-        "socialTipDefault": "• Watch the leaderboard — your position can change at any moment\n",
     },
     "fr": {
         "subject": "Bienvenue sur Popularoo — your stock market of fame ✨",
@@ -542,13 +540,11 @@ EMAIL_WELCOME = {
             "Désormais, chaque vote que tu reçois façonne ton Popularoo Index.\n\n"
             "Quelques conseils pour maximiser ton temps en tant qu'Outsider :\n"
             "• Partage ton profil avec ta communauté pour rallier des votes\n"
-            "{{socialTip}}"
+            "• Surveille le classement — ta position peut changer à tout moment\n"
             "• Surveille les Strikes — une vague de Superlikes peut tout changer\n\n"
             "Le compte à rebours est lancé. Fais-en bon usage.\n\n"
             "— L'équipe Popularoo"
         ),
-        "socialTipEnabled": "• Connecte tes comptes Instagram, TikTok et X pour gagner des abonnés\n",
-        "socialTipDefault": "• Surveille le classement — ta position peut changer à tout moment\n",
     },
     "es": {
         "subject": "Bienvenido a Popularoo — your stock market of fame ✨",
@@ -559,13 +555,11 @@ EMAIL_WELCOME = {
             "A partir de ahora, cada voto que recibas moldea tu Popularoo Index.\n\n"
             "Consejos rápidos para maximizar tu tiempo como Outsider:\n"
             "• Comparte tu perfil con tu comunidad para conseguir votos\n"
-            "{{socialTip}}"
+            "• Vigila el ranking — tu posición puede cambiar en cualquier momento\n"
             "• Vigila los Strikes — una oleada de Superlikes puede cambiarlo todo\n\n"
             "El reloj corre. Aprovéchalo.\n\n"
             "— El equipo Popularoo"
         ),
-        "socialTipEnabled": "• Conecta tus cuentas de Instagram, TikTok y X para ganar seguidores\n",
-        "socialTipDefault": "• Vigila el ranking — tu posición puede cambiar en cualquier momento\n",
     },
     "pt": {
         "subject": "Bem-vindo ao Popularoo — your stock market of fame ✨",
@@ -576,13 +570,11 @@ EMAIL_WELCOME = {
             "A partir de agora, cada voto que você recebe molda seu Popularoo Index.\n\n"
             "Dicas rápidas para maximizar seu tempo como Outsider:\n"
             "• Compartilhe seu perfil com sua comunidade para conseguir votos\n"
-            "{{socialTip}}"
+            "• Fique de olho no ranking — sua posição pode mudar a qualquer momento\n"
             "• Fique de olho nos Strikes — uma onda de Superlikes pode mudar tudo\n\n"
             "O relógio está correndo. Faça valer a pena.\n\n"
             "— Equipe Popularoo"
         ),
-        "socialTipEnabled": "• Conecte suas contas do Instagram, TikTok e X para ganhar seguidores\n",
-        "socialTipDefault": "• Fique de olho no ranking — sua posição pode mudar a qualquer momento\n",
     },
     "de": {
         "subject": "Willkommen bei Popularoo — your stock market of fame ✨",
@@ -593,13 +585,11 @@ EMAIL_WELCOME = {
             "Ab jetzt formt jede Stimme, die du erhältst, deinen Popularoo Index.\n\n"
             "Schnelle Tipps, um deine Zeit als Outsider zu maximieren:\n"
             "• Teile dein Profil mit deiner Community, um Stimmen zu sammeln\n"
-            "{{socialTip}}"
+            "• Beobachte die Rangliste — deine Position kann sich jederzeit ändern\n"
             "• Beobachte die Strikes — eine Welle von Superlikes kann alles verändern\n\n"
             "Die Uhr tickt. Nutze die Zeit.\n\n"
             "— Das Popularoo Team"
         ),
-        "socialTipEnabled": "• Verbinde deine Instagram-, TikTok- und X-Konten, um Follower zu gewinnen\n",
-        "socialTipDefault": "• Beobachte die Rangliste — deine Position kann sich jederzeit ändern\n",
     },
     "it": {
         "subject": "Benvenuto su Popularoo — your stock market of fame ✨",
@@ -610,13 +600,11 @@ EMAIL_WELCOME = {
             "Da ora in poi, ogni voto che ricevi plasma il tuo Popularoo Index.\n\n"
             "Consigli rapidi per massimizzare il tuo tempo come Outsider:\n"
             "• Condividi il tuo profilo con la tua community per raccogliere voti\n"
-            "{{socialTip}}"
+            "• Tieni d'occhio la classifica — la tua posizione può cambiare in qualsiasi momento\n"
             "• Tieni d'occhio gli Strikes — un'ondata di Superlikes può cambiare tutto\n\n"
             "Il tempo scorre. Fai che conti.\n\n"
             "— Il team Popularoo"
         ),
-        "socialTipEnabled": "• Collega i tuoi account Instagram, TikTok e X per guadagnare follower\n",
-        "socialTipDefault": "• Tieni d'occhio la classifica — la tua posizione può cambiare in qualsiasi momento\n",
     },
 }
 
@@ -624,7 +612,7 @@ EMAIL_WELCOME = {
 # ──────────────────────────────────────────────────────────
 # HELPER: Get email template with language fallback
 # ──────────────────────────────────────────────────────────
-SOCIAL_ACCOUNTS_FEATURE_ENABLED = False  # Set to True when Chantier 1I is deployed
+SOCIAL_ACCOUNTS_FEATURE_ENABLED = False  # Reserved for Chantier 1I — not used in V1 emails
 
 def get_template(template_dict: dict, lang: str = "en") -> dict:
     """Get email template for given language, fallback to English."""
