@@ -34,7 +34,7 @@ EMAIL_BOOSTER_CONFIRMATION = {
     "fr": {
         "subject": "Ton {{tierName}} est actif ! 🚀",
         "body": (
-            "Hey {{name}},\n\n"
+            "Salut {{name}},\n\n"
             "Ton {{tierName}} vient d'être activé ! Tu es maintenant visible dans le classement Outsiders.\n\n"
             "Ce qui est actif :\n"
             "• {{tierName}} — {{duration}}\n"
@@ -48,7 +48,7 @@ EMAIL_BOOSTER_CONFIRMATION = {
     "es": {
         "subject": "¡Tu {{tierName}} está activo! 🚀",
         "body": (
-            "Hey {{name}},\n\n"
+            "¡Hola {{name}}!,\n\n"
             "¡Tu {{tierName}} acaba de activarse! Ya eres visible en el ranking Outsiders.\n\n"
             "Lo que está activo:\n"
             "• {{tierName}} — {{duration}}\n"
@@ -62,7 +62,7 @@ EMAIL_BOOSTER_CONFIRMATION = {
     "pt": {
         "subject": "Seu {{tierName}} está ativo! 🚀",
         "body": (
-            "Hey {{name}},\n\n"
+            "Oi {{name}},\n\n"
             "Seu {{tierName}} acabou de ser ativado! Você já está visível no ranking Outsiders.\n\n"
             "O que está ativo:\n"
             "• {{tierName}} — {{duration}}\n"
@@ -90,7 +90,7 @@ EMAIL_BOOSTER_CONFIRMATION = {
     "it": {
         "subject": "Il tuo {{tierName}} è attivo! 🚀",
         "body": (
-            "Hey {{name}},\n\n"
+            "Ciao {{name}},\n\n"
             "Il tuo {{tierName}} è appena stato attivato! Ora sei visibile nella classifica Outsiders.\n\n"
             "Cosa è attivo:\n"
             "• {{tierName}} — {{duration}}\n"
@@ -134,10 +134,10 @@ EMAIL_DAILY_RUN_VICTORY = {
         "subjects": {
             "standard": "Tu as gagné ton Daily Run ! 🏆",
             "underdog": "Victoire Underdog ! Tu as tout déchiré ! 💪",
-            "legendary": "LEGENDARY ! Tu viens d'écrire l'histoire de Popularoo ! ⚡",
+            "legendary": "ÉPIQUE ! Tu viens d'écrire l'histoire de Popularoo ! ⚡",
         },
         "body": (
-            "Hey {{name}},\n\n"
+            "Salut {{name}},\n\n"
             "{{victoryTier}} ! Tu viens de battre {{targetName}} dans un Daily Run.\n\n"
             "Tes résultats :\n"
             "• Écart final de Popularoo Index : {{gap}} points\n"
@@ -157,10 +157,10 @@ EMAIL_DAILY_RUN_VICTORY = {
         "subjects": {
             "standard": "¡Ganaste tu Daily Run! 🏆",
             "underdog": "¡Victoria Underdog! ¡Lo aplastaste! 💪",
-            "legendary": "¡LEGENDARY! ¡Acabas de hacer historia en Popularoo! ⚡",
+            "legendary": "¡ÉPICO! ¡Acabas de hacer historia en Popularoo! ⚡",
         },
         "body": (
-            "Hey {{name}},\n\n"
+            "¡Hola {{name}}!,\n\n"
             "¡{{victoryTier}}! Acabas de vencer a {{targetName}} en un Daily Run.\n\n"
             "Tus resultados:\n"
             "• Diferencia final de Popularoo Index: {{gap}} puntos\n"
@@ -180,10 +180,10 @@ EMAIL_DAILY_RUN_VICTORY = {
         "subjects": {
             "standard": "Você venceu seu Daily Run! 🏆",
             "underdog": "Vitória Underdog! Você arrasou! 💪",
-            "legendary": "LEGENDARY! Você acabou de fazer história no Popularoo! ⚡",
+            "legendary": "ÉPICO! Você acabou de fazer história no Popularoo! ⚡",
         },
         "body": (
-            "Hey {{name}},\n\n"
+            "Oi {{name}},\n\n"
             "{{victoryTier}}! Você acabou de vencer {{targetName}} em um Daily Run.\n\n"
             "Seus resultados:\n"
             "• Diferença final de Popularoo Index: {{gap}} pontos\n"
@@ -203,7 +203,7 @@ EMAIL_DAILY_RUN_VICTORY = {
         "subjects": {
             "standard": "Du hast deinen Daily Run gewonnen! 🏆",
             "underdog": "Underdog-Sieg! Du hast alles gegeben! 💪",
-            "legendary": "LEGENDARY! Du hast Popularoo-Geschichte geschrieben! ⚡",
+            "legendary": "EPISCH! Du hast Popularoo-Geschichte geschrieben! ⚡",
         },
         "body": (
             "Hey {{name}},\n\n"
@@ -226,10 +226,10 @@ EMAIL_DAILY_RUN_VICTORY = {
         "subjects": {
             "standard": "Hai vinto il tuo Daily Run! 🏆",
             "underdog": "Vittoria Underdog! Hai spaccato! 💪",
-            "legendary": "LEGENDARY! Hai appena fatto la storia di Popularoo! ⚡",
+            "legendary": "EPICO! Hai appena fatto la storia di Popularoo! ⚡",
         },
         "body": (
-            "Hey {{name}},\n\n"
+            "Ciao {{name}},\n\n"
             "{{victoryTier}}! Hai appena battuto {{targetName}} in un Daily Run.\n\n"
             "I tuoi risultati:\n"
             "• Divario finale di Popularoo Index: {{gap}} punti\n"
@@ -267,7 +267,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
     "fr": {
         "subject": "Going Viral ! Ta dynamique est incroyable ! 🌊",
         "body": (
-            "Hey {{name}},\n\n"
+            "Salut {{name}},\n\n"
             "Ton Outsider vient d'atteindre Going Viral — l'un des plus hauts niveaux de Strike sur Popularoo.\n\n"
             "Chaîne de Strikes :\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
@@ -280,7 +280,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
     "es": {
         "subject": "¡Going Viral! ¡Tu impulso es increíble! 🌊",
         "body": (
-            "Hey {{name}},\n\n"
+            "¡Hola {{name}}!,\n\n"
             "Tu Outsider acaba de alcanzar Going Viral — uno de los niveles de Strike más altos en Popularoo.\n\n"
             "Cadena de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
@@ -293,7 +293,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
     "pt": {
         "subject": "Going Viral! Seu momentum é incrível! 🌊",
         "body": (
-            "Hey {{name}},\n\n"
+            "Oi {{name}},\n\n"
             "Seu Outsider acabou de alcançar Going Viral — um dos níveis de Strike mais altos no Popularoo.\n\n"
             "Cadeia de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
@@ -319,7 +319,7 @@ EMAIL_STRIKE_GOING_VIRAL = {
     "it": {
         "subject": "Going Viral! Il tuo momentum è incredibile! 🌊",
         "body": (
-            "Hey {{name}},\n\n"
+            "Ciao {{name}},\n\n"
             "Il tuo Outsider ha appena raggiunto Going Viral — uno dei livelli di Strike più alti su Popularoo.\n\n"
             "Catena di Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral 🌊\n\n"
@@ -351,7 +351,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
     "fr": {
         "subject": "Legend Mode activé ! Tu es en feu ! 🔥",
         "body": (
-            "Hey {{name}},\n\n"
+            "Salut {{name}},\n\n"
             "Quelque chose d'incroyable vient de se passer — ton Outsider a atteint Legend Mode, le plus haut niveau de Strike sur Popularoo.\n\n"
             "Chaîne de Strikes :\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
@@ -364,7 +364,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
     "es": {
         "subject": "¡Legend Mode activado! ¡Estás en llamas! 🔥",
         "body": (
-            "Hey {{name}},\n\n"
+            "¡Hola {{name}}!,\n\n"
             "Algo increíble acaba de pasar — tu Outsider alcanzó Legend Mode, el nivel de Strike más alto en Popularoo.\n\n"
             "Cadena de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
@@ -377,7 +377,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
     "pt": {
         "subject": "Legend Mode ativado! Você está pegando fogo! 🔥",
         "body": (
-            "Hey {{name}},\n\n"
+            "Oi {{name}},\n\n"
             "Algo incrível acabou de acontecer — seu Outsider atingiu Legend Mode, o nível de Strike mais alto no Popularoo.\n\n"
             "Cadeia de Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
@@ -403,7 +403,7 @@ EMAIL_STRIKE_LEGEND_MODE = {
     "it": {
         "subject": "Legend Mode attivato! Sei on fire! 🔥",
         "body": (
-            "Hey {{name}},\n\n"
+            "Ciao {{name}},\n\n"
             "Qualcosa di incredibile è appena successo — il tuo Outsider ha raggiunto Legend Mode, il livello di Strike più alto su Popularoo.\n\n"
             "Catena di Strikes:\n"
             "Heating Up → On Fire → Trending → Going Viral → Legend Mode ⚡\n\n"
@@ -438,7 +438,7 @@ EMAIL_BOOSTER_EXPIRATION = {
     "fr": {
         "subject": "Ton {{tierName}} expire bientôt ⏰",
         "body": (
-            "Hey {{name}},\n\n"
+            "Salut {{name}},\n\n"
             "Attention — ton {{tierName}} expire dans {{timeRemaining}}.\n\n"
             "Tes stats pendant ce boost :\n"
             "• Votes reçus au total : {{totalVotes}}\n"
@@ -453,7 +453,7 @@ EMAIL_BOOSTER_EXPIRATION = {
     "es": {
         "subject": "Tu {{tierName}} expira pronto ⏰",
         "body": (
-            "Hey {{name}},\n\n"
+            "¡Hola {{name}}!,\n\n"
             "Atención — tu {{tierName}} expira en {{timeRemaining}}.\n\n"
             "Tus stats durante este boost:\n"
             "• Votos recibidos en total: {{totalVotes}}\n"
@@ -468,7 +468,7 @@ EMAIL_BOOSTER_EXPIRATION = {
     "pt": {
         "subject": "Seu {{tierName}} expira em breve ⏰",
         "body": (
-            "Hey {{name}},\n\n"
+            "Oi {{name}},\n\n"
             "Atenção — seu {{tierName}} expira em {{timeRemaining}}.\n\n"
             "Suas stats durante este boost:\n"
             "• Votos recebidos no total: {{totalVotes}}\n"
@@ -498,7 +498,7 @@ EMAIL_BOOSTER_EXPIRATION = {
     "it": {
         "subject": "Il tuo {{tierName}} scade presto ⏰",
         "body": (
-            "Hey {{name}},\n\n"
+            "Ciao {{name}},\n\n"
             "Attenzione — il tuo {{tierName}} scade tra {{timeRemaining}}.\n\n"
             "Le tue stats durante questo boost:\n"
             "• Voti ricevuti in totale: {{totalVotes}}\n"
@@ -534,10 +534,10 @@ EMAIL_WELCOME = {
         "socialTipDefault": "• Watch the leaderboard — your position can change at any moment\n",
     },
     "fr": {
-        "subject": "Bienvenue sur Popularoo — ta bourse de la célébrité ✨",
+        "subject": "Bienvenue sur Popularoo — your stock market of fame ✨",
         "body": (
-            "Hey {{name}},\n\n"
-            "Bienvenue sur Popularoo — la bourse mondiale de la célébrité.\n\n"
+            "Salut {{name}},\n\n"
+            "Bienvenue sur Popularoo — the world's stock market of fame.\n\n"
             "Ton premier Booster vient d'être activé, et tu viens officiellement d'entrer dans l'arène avec les personnalités les plus célèbres du monde. "
             "Désormais, chaque vote que tu reçois façonne ton Popularoo Index.\n\n"
             "Quelques conseils pour maximiser ton temps en tant qu'Outsider :\n"
@@ -551,10 +551,10 @@ EMAIL_WELCOME = {
         "socialTipDefault": "• Surveille le classement — ta position peut changer à tout moment\n",
     },
     "es": {
-        "subject": "Bienvenido a Popularoo — tu bolsa de la fama ✨",
+        "subject": "Bienvenido a Popularoo — your stock market of fame ✨",
         "body": (
-            "Hey {{name}},\n\n"
-            "Bienvenido a Popularoo — la bolsa mundial de la fama.\n\n"
+            "¡Hola {{name}}!,\n\n"
+            "Bienvenido a Popularoo — the world's stock market of fame.\n\n"
             "Tu primer Booster acaba de activarse, y acabas de entrar oficialmente en la arena con las personas más famosas del mundo. "
             "A partir de ahora, cada voto que recibas moldea tu Popularoo Index.\n\n"
             "Consejos rápidos para maximizar tu tiempo como Outsider:\n"
@@ -568,10 +568,10 @@ EMAIL_WELCOME = {
         "socialTipDefault": "• Vigila el ranking — tu posición puede cambiar en cualquier momento\n",
     },
     "pt": {
-        "subject": "Bem-vindo ao Popularoo — sua bolsa da fama ✨",
+        "subject": "Bem-vindo ao Popularoo — your stock market of fame ✨",
         "body": (
-            "Hey {{name}},\n\n"
-            "Bem-vindo ao Popularoo — a bolsa mundial da fama.\n\n"
+            "Oi {{name}},\n\n"
+            "Bem-vindo ao Popularoo — the world's stock market of fame.\n\n"
             "Seu primeiro Booster acabou de ser ativado, e você oficialmente entrou na arena com as pessoas mais famosas do mundo. "
             "A partir de agora, cada voto que você recebe molda seu Popularoo Index.\n\n"
             "Dicas rápidas para maximizar seu tempo como Outsider:\n"
@@ -585,10 +585,10 @@ EMAIL_WELCOME = {
         "socialTipDefault": "• Fique de olho no ranking — sua posição pode mudar a qualquer momento\n",
     },
     "de": {
-        "subject": "Willkommen bei Popularoo — deine Börse des Ruhms ✨",
+        "subject": "Willkommen bei Popularoo — your stock market of fame ✨",
         "body": (
             "Hey {{name}},\n\n"
-            "Willkommen bei Popularoo — die weltweite Börse des Ruhms.\n\n"
+            "Willkommen bei Popularoo — the world's stock market of fame.\n\n"
             "Dein erster Booster wurde gerade aktiviert, und du bist offiziell in die Arena mit den berühmtesten Menschen der Welt eingetreten. "
             "Ab jetzt formt jede Stimme, die du erhältst, deinen Popularoo Index.\n\n"
             "Schnelle Tipps, um deine Zeit als Outsider zu maximieren:\n"
@@ -602,10 +602,10 @@ EMAIL_WELCOME = {
         "socialTipDefault": "• Beobachte die Rangliste — deine Position kann sich jederzeit ändern\n",
     },
     "it": {
-        "subject": "Benvenuto su Popularoo — la tua borsa della fama ✨",
+        "subject": "Benvenuto su Popularoo — your stock market of fame ✨",
         "body": (
-            "Hey {{name}},\n\n"
-            "Benvenuto su Popularoo — la borsa mondiale della fama.\n\n"
+            "Ciao {{name}},\n\n"
+            "Benvenuto su Popularoo — the world's stock market of fame.\n\n"
             "Il tuo primo Booster è appena stato attivato, e sei ufficialmente entrato nell'arena con le persone più famose del mondo. "
             "Da ora in poi, ogni voto che ricevi plasma il tuo Popularoo Index.\n\n"
             "Consigli rapidi per massimizzare il tuo tempo come Outsider:\n"
