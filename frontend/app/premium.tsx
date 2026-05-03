@@ -73,14 +73,28 @@ const TIER_DESC_KEYS: Record<string, string> = {
   golden_booster: "premium.goldenBoosterDesc",
 };
 
+// Platform-specific username validation (Chantier 1I)
+const SOCIAL_PATTERNS: Record<string, RegExp> = {
+  instagram: /^[a-zA-Z0-9._]{1,30}$/,
+  tiktok: /^[a-zA-Z0-9._]{2,24}$/,
+  x: /^[a-zA-Z0-9_]{4,15}$/,
+};
+
+function isValidUsername(platform: string, value: string): boolean {
+  const cleaned = value.trim().replace(/^@/, '');
+  if (!cleaned) return true; // empty = valid (optional)
+  const pattern = SOCIAL_PATTERNS[platform];
+  return pattern ? pattern.test(cleaned) : false;
+}
+
 export default function Premium() {
   const { t } = useTranslation();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [instagram, setInstagram] = useState('');
-  const [twitter, setTwitter] = useState('');
-  const [facebook, setFacebook] = useState('');
+  const [tiktok, setTiktok] = useState('');
+  const [xAccount, setXAccount] = useState('');
   const [purchasing, setPurchasing] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -145,9 +159,9 @@ export default function Premium() {
           }
 
           const socialLinks: any = {};
-          if (instagram.trim()) socialLinks.instagram = instagram.trim();
-          if (twitter.trim()) socialLinks.twitter = twitter.trim();
-          if (facebook.trim()) socialLinks.facebook = facebook.trim();
+          if (instagram.trim()) socialLinks.instagram = instagram.trim().replace(/^@/, '');
+          if (tiktok.trim()) socialLinks.tiktok = tiktok.trim().replace(/^@/, '');
+          if (xAccount.trim()) socialLinks.x = xAccount.trim().replace(/^@/, '');
 
           const result = await CreditsService.boostMyself(
             name.trim(),
@@ -169,8 +183,8 @@ export default function Premium() {
           setName('');
           setEmail('');
           setInstagram('');
-          setTwitter('');
-          setFacebook('');
+          setTiktok('');
+          setXAccount('');
           setSelectedTier(null);
           await loadHistory();
         } catch (error: any) {
@@ -446,52 +460,108 @@ export default function Premium() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
+              </View>
 
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>
-                  {t("premium.socialMedia")}
-                </Text>
+              {/* Social Accounts Configuration — Chantier 1I */}
+              <View style={styles.socialSection}>
+                <Text style={styles.socialTitle}>{t("socialConfig.title")}</Text>
+                <Text style={styles.socialSubtitle}>{t("socialConfig.subtitle")}</Text>
+                <Text style={styles.socialOptional}>{t("socialConfig.optional")}</Text>
 
-                <View style={styles.socialRow}>
-                  <View style={[styles.socialIcon, { backgroundColor: '#E1306C20' }]}>
-                    <Ionicons name="logo-instagram" size={18} color="#E1306C" />
+                {/* Instagram field */}
+                <View style={styles.socialInputRow}>
+                  <View style={[styles.socialIconBadge, { backgroundColor: '#E1306C20' }]}>
+                    <Ionicons name="logo-instagram" size={20} color="#E1306C" />
                   </View>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="@username"
-                    placeholderTextColor={PALETTE.subtext}
-                    value={instagram}
-                    onChangeText={setInstagram}
-                    autoCapitalize="none"
-                  />
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.socialInput, instagram.trim() && !isValidUsername('instagram', instagram) && styles.socialInputError]}
+                      placeholder={t("socialConfig.placeholderInsta")}
+                      placeholderTextColor={PALETTE.subtext}
+                      value={instagram}
+                      onChangeText={(text) => setInstagram(text.replace(/^@/, ''))}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  {instagram.trim() ? (
+                    <View style={styles.validationBadge}>
+                      {isValidUsername('instagram', instagram) ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      ) : (
+                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.validationBadge}>
+                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                    </View>
+                  )}
                 </View>
 
-                <View style={styles.socialRow}>
-                  <View style={[styles.socialIcon, { backgroundColor: '#1DA1F220' }]}>
-                    <Ionicons name="logo-twitter" size={18} color="#1DA1F2" />
+                {/* TikTok field */}
+                <View style={styles.socialInputRow}>
+                  <View style={[styles.socialIconBadge, { backgroundColor: '#00000020' }]}>
+                    <Ionicons name="logo-tiktok" size={20} color="#EAEAEA" />
                   </View>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder="@username"
-                    placeholderTextColor={PALETTE.subtext}
-                    value={twitter}
-                    onChangeText={setTwitter}
-                    autoCapitalize="none"
-                  />
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.socialInput, tiktok.trim() && !isValidUsername('tiktok', tiktok) && styles.socialInputError]}
+                      placeholder={t("socialConfig.placeholderTiktok")}
+                      placeholderTextColor={PALETTE.subtext}
+                      value={tiktok}
+                      onChangeText={(text) => setTiktok(text.replace(/^@/, ''))}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  {tiktok.trim() ? (
+                    <View style={styles.validationBadge}>
+                      {isValidUsername('tiktok', tiktok) ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      ) : (
+                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.validationBadge}>
+                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                    </View>
+                  )}
                 </View>
 
-                <View style={styles.socialRow}>
-                  <View style={[styles.socialIcon, { backgroundColor: '#1877F220' }]}>
-                    <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+                {/* X (Twitter) field */}
+                <View style={styles.socialInputRow}>
+                  <View style={[styles.socialIconBadge, { backgroundColor: '#00000020' }]}>
+                    <Text style={{ color: '#EAEAEA', fontWeight: '800', fontSize: 16 }}>𝕏</Text>
                   </View>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    placeholder={t("premium.profileUrl")}
-                    placeholderTextColor={PALETTE.subtext}
-                    value={facebook}
-                    onChangeText={setFacebook}
-                    autoCapitalize="none"
-                  />
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={[styles.socialInput, xAccount.trim() && !isValidUsername('x', xAccount) && styles.socialInputError]}
+                      placeholder={t("socialConfig.placeholderX")}
+                      placeholderTextColor={PALETTE.subtext}
+                      value={xAccount}
+                      onChangeText={(text) => setXAccount(text.replace(/^@/, ''))}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  {xAccount.trim() ? (
+                    <View style={styles.validationBadge}>
+                      {isValidUsername('x', xAccount) ? (
+                        <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      ) : (
+                        <Ionicons name="close-circle" size={20} color="#F44336" />
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.validationBadge}>
+                      <Ionicons name="ellipse-outline" size={18} color={PALETTE.subtext} />
+                    </View>
+                  )}
                 </View>
+
+                <Text style={styles.socialEncouragement}>{t("socialConfig.encouragement")}</Text>
               </View>
 
               {/* Purchase Button */}
