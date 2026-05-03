@@ -265,9 +265,28 @@ function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden
         <TimeRemainingBadge hours={outsider.hours_remaining} />
       </View>
 
-      <Text style={[styles.outsiderName, isGolden && { color: PALETTE.gold }]}>
-        {outsider.name}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+        <View
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: outsider.avatar_color || "#1C3A2C",
+            justifyContent: "center",
+            alignItems: "center",
+            marginRight: 8,
+            borderWidth: isGolden ? 1.5 : 0,
+            borderColor: isGolden ? PALETTE.gold : "transparent",
+          }}
+        >
+          <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>
+            {outsider.avatar_initials || outsider.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+          </Text>
+        </View>
+        <Text style={[styles.outsiderName, isGolden && { color: PALETTE.gold }]}>
+          {outsider.name}
+        </Text>
+      </View>
 
       <SocialLinksRow links={outsider.social_links} />
     </TouchableOpacity>
@@ -465,9 +484,29 @@ export default function HomeScreen() {
                   </Text>
                 )}
               </View>
-              <Text style={styles.outsiderOfTheDayName}>
-                {goldenOutsiders[currentOutsiderIndex]?.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: goldenOutsiders[currentOutsiderIndex]?.avatar_color || "#1C3A2C",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginRight: 10,
+                    borderWidth: 1.5,
+                    borderColor: PALETTE.gold,
+                  }}
+                >
+                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 13 }}>
+                    {goldenOutsiders[currentOutsiderIndex]?.avatar_initials ||
+                      goldenOutsiders[currentOutsiderIndex]?.name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+                  </Text>
+                </View>
+                <Text style={styles.outsiderOfTheDayName}>
+                  {goldenOutsiders[currentOutsiderIndex]?.name}
+                </Text>
+              </View>
               <View style={styles.outsiderOfTheDayMeta}>
                 <Text style={styles.outsiderOfTheDayVotes}>
                   {formatNumber(goldenOutsiders[currentOutsiderIndex]?.total_votes || 0)} votes

@@ -53,6 +53,13 @@ export interface OutsiderData {
   end_time: string;
   hours_remaining: number;
   social_links: SocialLinks;
+  avatar_initials?: string;
+  avatar_color?: string;
+  popularoo_index?: number;
+  active_strikes?: number;
+  strike_emoji?: string;
+  strike_label?: string;
+  is_seed?: boolean;
 }
 
 export interface OutsidersResponse {

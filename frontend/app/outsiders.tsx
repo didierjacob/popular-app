@@ -37,6 +37,60 @@ const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
+/** Avatar with initials on colored background (Spotify/Slack style) */
+function InitialsAvatar({
+  initials,
+  color,
+  name,
+  size = 38,
+  isGolden = false,
+}: {
+  initials?: string;
+  color?: string;
+  name: string;
+  size?: number;
+  isGolden?: boolean;
+}) {
+  // Fallback: generate initials from name if not provided by API
+  const displayInitials =
+    initials ||
+    name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  const bgColor = color || "#1C3A2C";
+  const borderColor = isGolden ? PALETTE.gold : "transparent";
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: bgColor,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: isGolden ? 2 : 0,
+        borderColor,
+        marginRight: 10,
+      }}
+    >
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: size * 0.38,
+          fontWeight: "700",
+          letterSpacing: 0.5,
+        }}
+      >
+        {displayInitials}
+      </Text>
+    </View>
+  );
+}
+
 function formatTimeRemaining(hours: number, t: any): string {
   if (hours <= 0) return t("common.expired");
   if (hours < 1) {
@@ -227,6 +281,13 @@ export default function Outsiders() {
             {index + 1}
           </Text>
         </View>
+        <InitialsAvatar
+          initials={item.avatar_initials}
+          color={item.avatar_color}
+          name={item.name}
+          size={38}
+          isGolden={isGolden}
+        />
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">

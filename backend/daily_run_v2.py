@@ -178,6 +178,7 @@ async def get_suggested_targets(db, person_id: ObjectId, limit: int = 10) -> Lis
         "_id": {"$ne": person_id},
         "popularoo_index": {"$gte": min_index, "$lte": max_index},
         "approved": True,
+        "is_seed": {"$ne": True},  # Exclude seed Outsiders from Daily Run targets
     }).sort("popularoo_index", -1).limit(limit * 2)
 
     targets = []
@@ -225,6 +226,7 @@ async def search_target(db, person_id: ObjectId, query: str, limit: int = 10) ->
     filter_q: Dict[str, Any] = {
         "_id": {"$ne": person_id},
         "approved": True,
+        "is_seed": {"$ne": True},  # Exclude seed Outsiders from Daily Run targets
     }
 
     if len(words) == 1:
