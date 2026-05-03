@@ -3823,7 +3823,7 @@ from email_sender import (
 @api_router.post("/admin/test-email")
 async def test_email_endpoint(
     email_type: str = Query(..., description="Type: welcome, booster, victory_standard, victory_underdog, victory_legendary, going_viral, legend_mode, expiration"),
-    to_email: str = Query(default="popularoo@proton.me"),
+    to_email: str = Query(default="popularoo@popularoo.com"),
     lang: str = Query(default="fr"),
     password: str = Query(default=""),
 ):
