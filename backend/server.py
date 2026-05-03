@@ -3978,6 +3978,21 @@ async def get_email_errors(
     }
 
 
+@api_router.get("/admin/download-emails-review")
+async def download_emails_review(password: str = Query(default="")):
+    """Admin: Download the EMAILS_REVIEW.md file for proofreading."""
+    if password != "fab31230":
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+    file_path = os.path.join(os.path.dirname(__file__), "EMAILS_REVIEW.md")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(
+        path=file_path,
+        filename="EMAILS_REVIEW.md",
+        media_type="text/markdown",
+    )
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
