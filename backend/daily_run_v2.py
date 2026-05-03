@@ -622,7 +622,7 @@ async def get_daily_run_status(db, user_id: str, person_id: ObjectId) -> Dict:
 
 # ==================== VICTORY DETECTION (Background Job) ====================
 
-async def check_victories(db):
+async def check_victories(db, email_service=None):
     """
     Background job: check all active Daily Runs for victory or expiration.
     Run every 5 minutes.
@@ -693,6 +693,9 @@ async def check_victories(db):
 
             # Apply rewards
             await _apply_victory_rewards(db, run, victory_type)
+
+            # Send victory email (Email 2)
+            await _send_victory_email(db, email_service, run, victory_type, max_strikes)
 
     if victories > 0 or expirations > 0:
         logger.info(f"🎯 Daily Run check: {victories} victories, {expirations} expirations")
@@ -794,6 +797,54 @@ async def _apply_victory_rewards(db, run: Dict, victory_type: str):
             {"$set": {"featured_until": now + timedelta(hours=48)}}
         )
         logger.info(f"🎁 Legendary Strike reward: 48h featured for {run.get('outsider_name')}")
+
+
+async def _send_victory_email(db, email_service, run: Dict, victory_type: str, max_strikes: int):
+    """Send translated victory email (Email 2) after a Daily Run win."""
+    if not email_service:
+        return
+
+    try:
+        from email_sender import send_daily_run_victory
+        from popularoo_index import get_strike_level
+
+        user_id = run.get("user_id", "")
+        person_id = run.get("person_id")
+
+        # Look up user's email from their active boost
+        boost = await db.active_boosts.find_one({
+            "person_id": person_id,
+            "user_id": user_id,
+        })
+        email = boost.get("email", "") if boost else ""
+        if not email:
+            logger.warning(f"No email found for victory notification: {run.get('outsider_name')}")
+            return
+
+        name = run.get("outsider_name", "User")
+        target_name = run.get("target_name", "Unknown")
+        gap = int(run.get("index_gap", 0))
+
+        # Count votes received during the run
+        votes_received = await db.votes.count_documents({
+            "person_id": person_id,
+            "created_at": {"$gte": run.get("started_at"), "$lte": _utcnow()},
+        })
+
+        # Strike info for Underdog/Legendary tiers
+        strikes_count = max_strikes if max_strikes > 0 else None
+        _, highest_label = get_strike_level(max_strikes)
+        highest_strike = highest_label if max_strikes > 0 else None
+
+        await send_daily_run_victory(
+            db, email_service, email, user_id, name,
+            target_name, gap, victory_type, votes_received,
+            strikes_count=strikes_count, highest_strike=highest_strike,
+        )
+        logger.info(f"📧 Victory email ({victory_type}) sent to {email}")
+
+    except Exception as e:
+        logger.warning(f"Failed to send victory email: {e}")
 
 
 # ==================== INDEXES ====================

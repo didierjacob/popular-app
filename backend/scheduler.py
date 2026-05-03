@@ -38,7 +38,7 @@ async def run_daily_run_check_job(db):
     """Wrapper to call the Daily Run victory/expiration check job"""
     try:
         from daily_run_v2 import check_victories
-        await check_victories(db)
+        await check_victories(db, email_service=_email_service)
     except Exception as e:
         logger.error(f"❌ Daily Run check job error: {e}")
 

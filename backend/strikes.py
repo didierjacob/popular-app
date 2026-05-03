@@ -33,7 +33,7 @@ STRIKE_SERIES = "series"        # 3 consecutive superlikes in same 1h window
 STRIKE_DURATION_HOURS = 24      # Strikes expire after 24h
 
 
-async def check_and_trigger_strikes(db, person_id: ObjectId) -> Dict[str, Any]:
+async def check_and_trigger_strikes(db, person_id: ObjectId, email_service=None) -> Dict[str, Any]:
     """
     Event-driven strike detection. Called after each superlike.
     Checks all 3 conditions and creates strikes if triggered.
@@ -96,6 +96,9 @@ async def check_and_trigger_strikes(db, person_id: ObjectId) -> Dict[str, Any]:
                 logger.info(f"🔥 Strike Série triggered for person {person_id} (3 SL in 1h)")
 
     # ---- Update person's active_strikes count ----
+    previous_count = await db.persons.find_one({"_id": person_id}, {"active_strikes": 1})
+    prev_active = previous_count.get("active_strikes", 0) if previous_count else 0
+
     active_count = await _count_active_strikes(db, person_id)
     
     from popularoo_index import get_strike_level
@@ -110,6 +113,10 @@ async def check_and_trigger_strikes(db, person_id: ObjectId) -> Dict[str, Any]:
             "strikes_updated_at": now,
         }}
     )
+
+    # ---- Send strike milestone emails (3a Going Viral, 3b Legend Mode) ----
+    if new_strikes and email_service:
+        await _send_strike_emails(db, email_service, person_id, active_count, prev_active)
 
     return {
         "new_strikes": new_strikes,
@@ -202,6 +209,71 @@ async def cleanup_expired_strikes(db):
                 "strike_label": label if label else None,
             }}
         )
+
+
+async def _send_strike_emails(db, email_service, person_id: ObjectId, active_count: int, prev_count: int):
+    """
+    Send strike milestone emails when thresholds are crossed.
+    - Email 3a (Going Viral): active_count crosses from <4 to >=4
+    - Email 3b (Legend Mode): active_count crosses from <5 to >=5
+    Includes a 6h cooldown to avoid duplicate sends.
+    """
+    try:
+        from email_sender import send_strike_going_viral, send_strike_legend_mode
+        now = _utcnow()
+
+        # Find the outsider's active boost to get email
+        boost = await db.active_boosts.find_one({
+            "person_id": person_id,
+            "end_time": {"$gt": now},
+        })
+        if not boost or not boost.get("email"):
+            return  # No email → skip silently
+
+        email = boost["email"]
+        user_id = boost.get("user_id", "")
+        person = await db.persons.find_one({"_id": person_id})
+        name = person.get("name", "User") if person else "User"
+
+        # Email 3b: Legend Mode (5+ strikes) — check this first (higher priority)
+        if active_count >= 5 and prev_count < 5:
+            # Cooldown check: don't send if already sent in last 6h
+            recent = await db.admin_notifications.find_one({
+                "type": "strike_email_sent",
+                "person_id": person_id,
+                "email_type": "legend_mode",
+                "timestamp": {"$gte": now - timedelta(hours=6)},
+            })
+            if not recent:
+                await send_strike_legend_mode(db, email_service, email, user_id, name)
+                await db.admin_notifications.insert_one({
+                    "type": "strike_email_sent",
+                    "person_id": person_id,
+                    "email_type": "legend_mode",
+                    "timestamp": now,
+                })
+                logger.info(f"📧 Legend Mode email sent to {email} for {name}")
+
+        # Email 3a: Going Viral (4 strikes) — only if not already at Legend Mode
+        elif active_count >= 4 and prev_count < 4:
+            recent = await db.admin_notifications.find_one({
+                "type": "strike_email_sent",
+                "person_id": person_id,
+                "email_type": "going_viral",
+                "timestamp": {"$gte": now - timedelta(hours=6)},
+            })
+            if not recent:
+                await send_strike_going_viral(db, email_service, email, user_id, name)
+                await db.admin_notifications.insert_one({
+                    "type": "strike_email_sent",
+                    "person_id": person_id,
+                    "email_type": "going_viral",
+                    "timestamp": now,
+                })
+                logger.info(f"📧 Going Viral email sent to {email} for {name}")
+
+    except Exception as e:
+        logger.warning(f"Failed to send strike email: {e}")
 
 
 async def ensure_strike_indexes(db):

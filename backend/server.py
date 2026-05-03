@@ -884,7 +884,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         # ---- Strike detection (event-driven) ----
         strike_result = None
         try:
-            strike_result = await check_and_trigger_strikes(db, oid)
+            strike_result = await check_and_trigger_strikes(db, oid, email_service=email_service)
             if strike_result and strike_result.get("new_strikes"):
                 logger.info(f"⚡ Strikes triggered for {updated.get('name')}: {strike_result['new_strikes']} "
                            f"(total active: {strike_result['active_count']})")
