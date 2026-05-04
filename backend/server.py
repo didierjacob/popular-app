@@ -276,111 +276,204 @@ class TrendItem(BaseModel):
 
 
 # -------------------- Startup Seed --------------------
+# 150 celebrities with primary_country — balanced across 6 target markets + global
 SEED_PEOPLE = [
-    # Business (20)
-    {"name": "Elon Musk", "category": "business"},
-    {"name": "Tim Cook", "category": "business"},
-    {"name": "Sundar Pichai", "category": "business"},
-    {"name": "Mark Zuckerberg", "category": "business"},
-    {"name": "Satya Nadella", "category": "business"},
-    {"name": "Warren Buffett", "category": "business"},
-    {"name": "Jeff Bezos", "category": "business"},
-    {"name": "Sheryl Sandberg", "category": "business"},
-    {"name": "Reed Hastings", "category": "business"},
-    {"name": "Bill Gates", "category": "business"},
-    {"name": "Larry Page", "category": "business"},
-    {"name": "Sergey Brin", "category": "business"},
-    {"name": "Jensen Huang", "category": "business"},
-    {"name": "Sam Altman", "category": "business"},
-    {"name": "Bob Iger", "category": "business"},
-    {"name": "Jamie Dimon", "category": "business"},
-    {"name": "Bernard Arnault", "category": "business"},
-    {"name": "Larry Ellison", "category": "business"},
-    {"name": "Michael Bloomberg", "category": "business"},
-    {"name": "Jack Ma", "category": "business"},
-    # Culture (30)
-    {"name": "Oprah Winfrey", "category": "culture"},
-    {"name": "Taylor Swift", "category": "culture"},
-    {"name": "Beyoncé", "category": "culture"},
-    {"name": "Greta Thunberg", "category": "culture"},
-    {"name": "Malala Yousafzai", "category": "culture"},
-    {"name": "Kanye West", "category": "culture"},
-    {"name": "Rihanna", "category": "culture"},
-    {"name": "Drake", "category": "culture"},
-    {"name": "Ariana Grande", "category": "culture"},
-    {"name": "Ed Sheeran", "category": "culture"},
-    {"name": "Billie Eilish", "category": "culture"},
-    {"name": "Bad Bunny", "category": "culture"},
-    {"name": "BTS", "category": "culture"},
-    {"name": "Dua Lipa", "category": "culture"},
-    {"name": "The Weeknd", "category": "culture"},
-    {"name": "Lady Gaga", "category": "culture"},
-    {"name": "Justin Bieber", "category": "culture"},
-    {"name": "Shakira", "category": "culture"},
-    {"name": "Adele", "category": "culture"},
-    {"name": "Bruno Mars", "category": "culture"},
-    {"name": "Tom Hanks", "category": "culture"},
-    {"name": "Leonardo DiCaprio", "category": "culture"},
-    {"name": "Meryl Streep", "category": "culture"},
-    {"name": "Denzel Washington", "category": "culture"},
-    {"name": "Jennifer Lawrence", "category": "culture"},
-    {"name": "Chris Hemsworth", "category": "culture"},
-    {"name": "Dwayne Johnson", "category": "culture"},
-    {"name": "Scarlett Johansson", "category": "culture"},
-    {"name": "Robert Downey Jr.", "category": "culture"},
-    {"name": "Zendaya", "category": "culture"},
-    # Sport (25)
-    {"name": "Lionel Messi", "category": "sport"},
-    {"name": "Cristiano Ronaldo", "category": "sport"},
-    {"name": "Serena Williams", "category": "sport"},
-    {"name": "LeBron James", "category": "sport"},
-    {"name": "Kylian Mbappé", "category": "sport"},
-    {"name": "Lewis Hamilton", "category": "sport"},
-    {"name": "Roger Federer", "category": "sport"},
-    {"name": "Tom Brady", "category": "sport"},
-    {"name": "Novak Djokovic", "category": "sport"},
-    {"name": "Rafael Nadal", "category": "sport"},
-    {"name": "Neymar Jr.", "category": "sport"},
-    {"name": "Erling Haaland", "category": "sport"},
-    {"name": "Stephen Curry", "category": "sport"},
-    {"name": "Kevin Durant", "category": "sport"},
-    {"name": "Usain Bolt", "category": "sport"},
-    {"name": "Michael Phelps", "category": "sport"},
-    {"name": "Simone Biles", "category": "sport"},
-    {"name": "Tiger Woods", "category": "sport"},
-    {"name": "Naomi Osaka", "category": "sport"},
-    {"name": "Max Verstappen", "category": "sport"},
-    {"name": "Patrick Mahomes", "category": "sport"},
-    {"name": "Conor McGregor", "category": "sport"},
-    {"name": "Mike Tyson", "category": "sport"},
-    {"name": "Mohamed Salah", "category": "sport"},
-    {"name": "Virat Kohli", "category": "sport"},
-    # Politics (25)
-    {"name": "Barack Obama", "category": "politics"},
-    {"name": "Donald Trump", "category": "politics"},
-    {"name": "Joe Biden", "category": "politics"},
-    {"name": "Kamala Harris", "category": "politics"},
-    {"name": "Emmanuel Macron", "category": "politics"},
-    {"name": "Rishi Sunak", "category": "politics"},
-    {"name": "Angela Merkel", "category": "politics"},
-    {"name": "Xi Jinping", "category": "politics"},
-    {"name": "Vladimir Putin", "category": "politics"},
-    {"name": "Volodymyr Zelenskyy", "category": "politics"},
-    {"name": "Ursula von der Leyen", "category": "politics"},
-    {"name": "Pope Francis", "category": "politics"},
-    {"name": "Justin Trudeau", "category": "politics"},
-    {"name": "Narendra Modi", "category": "politics"},
-    {"name": "Benjamin Netanyahu", "category": "politics"},
-    {"name": "Olaf Scholz", "category": "politics"},
-    {"name": "Giorgia Meloni", "category": "politics"},
-    {"name": "Pedro Sánchez", "category": "politics"},
-    {"name": "Lula da Silva", "category": "politics"},
-    {"name": "Javier Milei", "category": "politics"},
-    {"name": "King Charles III", "category": "politics"},
-    {"name": "Queen Elizabeth II", "category": "politics"},
-    {"name": "Prince William", "category": "politics"},
-    {"name": "Michelle Obama", "category": "politics"},
-    {"name": "Hillary Clinton", "category": "politics"},
+    # ══════════════════════════════════════════════════════
+    # 🇺🇸 US — Global Icons (30)
+    # ══════════════════════════════════════════════════════
+    # Business
+    {"name": "Elon Musk", "category": "business", "primary_country": "US"},
+    {"name": "Tim Cook", "category": "business", "primary_country": "US"},
+    {"name": "Mark Zuckerberg", "category": "business", "primary_country": "US"},
+    {"name": "Jeff Bezos", "category": "business", "primary_country": "US"},
+    {"name": "Bill Gates", "category": "business", "primary_country": "US"},
+    {"name": "Sam Altman", "category": "business", "primary_country": "US"},
+    {"name": "Jensen Huang", "category": "business", "primary_country": "US"},
+    {"name": "Warren Buffett", "category": "business", "primary_country": "US"},
+    {"name": "Sundar Pichai", "category": "business", "primary_country": "US"},
+    {"name": "Satya Nadella", "category": "business", "primary_country": "US"},
+    {"name": "Sheryl Sandberg", "category": "business", "primary_country": "US"},
+    {"name": "Reed Hastings", "category": "business", "primary_country": "US"},
+    {"name": "Larry Page", "category": "business", "primary_country": "US"},
+    {"name": "Sergey Brin", "category": "business", "primary_country": "US"},
+    {"name": "Bob Iger", "category": "business", "primary_country": "US"},
+    {"name": "Jamie Dimon", "category": "business", "primary_country": "US"},
+    {"name": "Larry Ellison", "category": "business", "primary_country": "US"},
+    {"name": "Michael Bloomberg", "category": "business", "primary_country": "US"},
+    # Culture
+    {"name": "Oprah Winfrey", "category": "culture", "primary_country": "US"},
+    {"name": "Taylor Swift", "category": "culture", "primary_country": "US"},
+    {"name": "Beyoncé", "category": "culture", "primary_country": "US"},
+    {"name": "Kanye West", "category": "culture", "primary_country": "US"},
+    {"name": "Rihanna", "category": "culture", "primary_country": "US"},
+    {"name": "Ariana Grande", "category": "culture", "primary_country": "US"},
+    {"name": "Billie Eilish", "category": "culture", "primary_country": "US"},
+    {"name": "Lady Gaga", "category": "culture", "primary_country": "US"},
+    {"name": "Bruno Mars", "category": "culture", "primary_country": "US"},
+    {"name": "Leonardo DiCaprio", "category": "culture", "primary_country": "US"},
+    {"name": "Dwayne Johnson", "category": "culture", "primary_country": "US"},
+    {"name": "Zendaya", "category": "culture", "primary_country": "US"},
+    {"name": "Tom Hanks", "category": "culture", "primary_country": "US"},
+    {"name": "Robert Downey Jr.", "category": "culture", "primary_country": "US"},
+    {"name": "Scarlett Johansson", "category": "culture", "primary_country": "US"},
+    {"name": "Meryl Streep", "category": "culture", "primary_country": "US"},
+    {"name": "Denzel Washington", "category": "culture", "primary_country": "US"},
+    {"name": "Jennifer Lawrence", "category": "culture", "primary_country": "US"},
+    {"name": "Bad Bunny", "category": "culture", "primary_country": "US"},
+    # Sport
+    {"name": "LeBron James", "category": "sport", "primary_country": "US"},
+    {"name": "Serena Williams", "category": "sport", "primary_country": "US"},
+    {"name": "Tom Brady", "category": "sport", "primary_country": "US"},
+    {"name": "Stephen Curry", "category": "sport", "primary_country": "US"},
+    {"name": "Simone Biles", "category": "sport", "primary_country": "US"},
+    {"name": "Patrick Mahomes", "category": "sport", "primary_country": "US"},
+    {"name": "Tiger Woods", "category": "sport", "primary_country": "US"},
+    {"name": "Michael Phelps", "category": "sport", "primary_country": "US"},
+    {"name": "Kevin Durant", "category": "sport", "primary_country": "US"},
+    {"name": "Mike Tyson", "category": "sport", "primary_country": "US"},
+    # Politics
+    {"name": "Donald Trump", "category": "politics", "primary_country": "US"},
+    {"name": "Barack Obama", "category": "politics", "primary_country": "US"},
+    {"name": "Joe Biden", "category": "politics", "primary_country": "US"},
+    {"name": "Kamala Harris", "category": "politics", "primary_country": "US"},
+    {"name": "Michelle Obama", "category": "politics", "primary_country": "US"},
+    {"name": "Hillary Clinton", "category": "politics", "primary_country": "US"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇫🇷 FR — France (12)
+    # ══════════════════════════════════════════════════════
+    {"name": "Emmanuel Macron", "category": "politics", "primary_country": "FR"},
+    {"name": "Kylian Mbappé", "category": "sport", "primary_country": "FR"},
+    {"name": "Bernard Arnault", "category": "business", "primary_country": "FR"},
+    {"name": "Zinedine Zidane", "category": "sport", "primary_country": "FR"},
+    {"name": "Antoine Griezmann", "category": "sport", "primary_country": "FR"},
+    {"name": "Teddy Riner", "category": "sport", "primary_country": "FR"},
+    {"name": "Omar Sy", "category": "culture", "primary_country": "FR"},
+    {"name": "Marion Cotillard", "category": "culture", "primary_country": "FR"},
+    {"name": "Aya Nakamura", "category": "culture", "primary_country": "FR"},
+    {"name": "Squeezie", "category": "culture", "primary_country": "FR"},
+    {"name": "Marine Le Pen", "category": "politics", "primary_country": "FR"},
+    {"name": "Thomas Pesquet", "category": "culture", "primary_country": "FR"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇩🇪 DE — Germany (10)
+    # ══════════════════════════════════════════════════════
+    {"name": "Angela Merkel", "category": "politics", "primary_country": "DE"},
+    {"name": "Olaf Scholz", "category": "politics", "primary_country": "DE"},
+    {"name": "Ursula von der Leyen", "category": "politics", "primary_country": "DE"},
+    {"name": "Toni Kroos", "category": "sport", "primary_country": "DE"},
+    {"name": "Manuel Neuer", "category": "sport", "primary_country": "DE"},
+    {"name": "Thomas Müller", "category": "sport", "primary_country": "DE"},
+    {"name": "Jürgen Klopp", "category": "sport", "primary_country": "DE"},
+    {"name": "Boris Becker", "category": "sport", "primary_country": "DE"},
+    {"name": "Heidi Klum", "category": "culture", "primary_country": "DE"},
+    {"name": "Diane Kruger", "category": "culture", "primary_country": "DE"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇪🇸 ES — Spain (10)
+    # ══════════════════════════════════════════════════════
+    {"name": "Rafael Nadal", "category": "sport", "primary_country": "ES"},
+    {"name": "Pedro Sánchez", "category": "politics", "primary_country": "ES"},
+    {"name": "Carlos Alcaraz", "category": "sport", "primary_country": "ES"},
+    {"name": "Rosalía", "category": "culture", "primary_country": "ES"},
+    {"name": "Penélope Cruz", "category": "culture", "primary_country": "ES"},
+    {"name": "Javier Bardem", "category": "culture", "primary_country": "ES"},
+    {"name": "Andrés Iniesta", "category": "sport", "primary_country": "ES"},
+    {"name": "Enrique Iglesias", "category": "culture", "primary_country": "ES"},
+    {"name": "Gavi", "category": "sport", "primary_country": "ES"},
+    {"name": "Iker Casillas", "category": "sport", "primary_country": "ES"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇮🇹 IT — Italy (10)
+    # ══════════════════════════════════════════════════════
+    {"name": "Giorgia Meloni", "category": "politics", "primary_country": "IT"},
+    {"name": "Jannik Sinner", "category": "sport", "primary_country": "IT"},
+    {"name": "Gianluigi Buffon", "category": "sport", "primary_country": "IT"},
+    {"name": "Valentino Rossi", "category": "sport", "primary_country": "IT"},
+    {"name": "Monica Bellucci", "category": "culture", "primary_country": "IT"},
+    {"name": "Laura Pausini", "category": "culture", "primary_country": "IT"},
+    {"name": "Måneskin", "category": "culture", "primary_country": "IT"},
+    {"name": "Chiara Ferragni", "category": "business", "primary_country": "IT"},
+    {"name": "Sergio Mattarella", "category": "politics", "primary_country": "IT"},
+    {"name": "Francesco Totti", "category": "sport", "primary_country": "IT"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇵🇹 PT — Portugal (8)
+    # ══════════════════════════════════════════════════════
+    {"name": "Cristiano Ronaldo", "category": "sport", "primary_country": "PT"},
+    {"name": "José Mourinho", "category": "sport", "primary_country": "PT"},
+    {"name": "Bernardo Silva", "category": "sport", "primary_country": "PT"},
+    {"name": "Bruno Fernandes", "category": "sport", "primary_country": "PT"},
+    {"name": "Diogo Jota", "category": "sport", "primary_country": "PT"},
+    {"name": "Marcelo Rebelo de Sousa", "category": "politics", "primary_country": "PT"},
+    {"name": "Sara Sampaio", "category": "culture", "primary_country": "PT"},
+    {"name": "Daniela Ruah", "category": "culture", "primary_country": "PT"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇧🇷 BR — Brazil (10)
+    # ══════════════════════════════════════════════════════
+    {"name": "Neymar Jr.", "category": "sport", "primary_country": "BR"},
+    {"name": "Lula da Silva", "category": "politics", "primary_country": "BR"},
+    {"name": "Vinicius Jr.", "category": "sport", "primary_country": "BR"},
+    {"name": "Ronaldinho", "category": "sport", "primary_country": "BR"},
+    {"name": "Anitta", "category": "culture", "primary_country": "BR"},
+    {"name": "Gisele Bündchen", "category": "culture", "primary_country": "BR"},
+    {"name": "Gabriel Medina", "category": "sport", "primary_country": "BR"},
+    {"name": "Jair Bolsonaro", "category": "politics", "primary_country": "BR"},
+    {"name": "Caetano Veloso", "category": "culture", "primary_country": "BR"},
+    {"name": "Alisson Becker", "category": "sport", "primary_country": "BR"},
+
+    # ══════════════════════════════════════════════════════
+    # 🇬🇧 GB — United Kingdom (10)
+    # ══════════════════════════════════════════════════════
+    {"name": "King Charles III", "category": "politics", "primary_country": "GB"},
+    {"name": "Prince William", "category": "politics", "primary_country": "GB"},
+    {"name": "Rishi Sunak", "category": "politics", "primary_country": "GB"},
+    {"name": "Lewis Hamilton", "category": "sport", "primary_country": "GB"},
+    {"name": "David Beckham", "category": "sport", "primary_country": "GB"},
+    {"name": "Ed Sheeran", "category": "culture", "primary_country": "GB"},
+    {"name": "Adele", "category": "culture", "primary_country": "GB"},
+    {"name": "Dua Lipa", "category": "culture", "primary_country": "GB"},
+    {"name": "Harry Styles", "category": "culture", "primary_country": "GB"},
+    {"name": "Queen Elizabeth II", "category": "politics", "primary_country": "GB"},
+
+    # ══════════════════════════════════════════════════════
+    # 🌍 Other countries (20)
+    # ══════════════════════════════════════════════════════
+    # 🇨🇦 Canada
+    {"name": "Drake", "category": "culture", "primary_country": "CA"},
+    {"name": "Justin Bieber", "category": "culture", "primary_country": "CA"},
+    {"name": "The Weeknd", "category": "culture", "primary_country": "CA"},
+    {"name": "Justin Trudeau", "category": "politics", "primary_country": "CA"},
+    # 🇦🇷 Argentina
+    {"name": "Lionel Messi", "category": "sport", "primary_country": "AR"},
+    {"name": "Pope Francis", "category": "politics", "primary_country": "AR"},
+    {"name": "Javier Milei", "category": "politics", "primary_country": "AR"},
+    # 🇮🇳 India
+    {"name": "Narendra Modi", "category": "politics", "primary_country": "IN"},
+    {"name": "Virat Kohli", "category": "sport", "primary_country": "IN"},
+    {"name": "Malala Yousafzai", "category": "culture", "primary_country": "PK"},
+    # 🇨🇳 China
+    {"name": "Xi Jinping", "category": "politics", "primary_country": "CN"},
+    {"name": "Jack Ma", "category": "business", "primary_country": "CN"},
+    # 🇷🇺 / 🇺🇦
+    {"name": "Vladimir Putin", "category": "politics", "primary_country": "RU"},
+    {"name": "Volodymyr Zelenskyy", "category": "politics", "primary_country": "UA"},
+    # 🇰🇷 / 🇯🇵
+    {"name": "BTS", "category": "culture", "primary_country": "KR"},
+    {"name": "Naomi Osaka", "category": "sport", "primary_country": "JP"},
+    # Other
+    {"name": "Shakira", "category": "culture", "primary_country": "CO"},
+    {"name": "Greta Thunberg", "category": "culture", "primary_country": "SE"},
+    {"name": "Benjamin Netanyahu", "category": "politics", "primary_country": "IL"},
+    {"name": "Mohamed Salah", "category": "sport", "primary_country": "EG"},
+    {"name": "Novak Djokovic", "category": "sport", "primary_country": "RS"},
+    {"name": "Roger Federer", "category": "sport", "primary_country": "CH"},
+    {"name": "Erling Haaland", "category": "sport", "primary_country": "NO"},
+    {"name": "Max Verstappen", "category": "sport", "primary_country": "NL"},
+    {"name": "Conor McGregor", "category": "sport", "primary_country": "IE"},
+    {"name": "Usain Bolt", "category": "sport", "primary_country": "JM"},
+    {"name": "Chris Hemsworth", "category": "culture", "primary_country": "AU"},
 ]
 
 
@@ -418,7 +511,7 @@ async def seed_people():
     now = now_utc()
     for p in SEED_PEOPLE:
         slug = slugify(p["name"])
-        docs.append({
+        doc = {
             "name": p["name"],
             "slug": slug,
             "category": p.get("category", "other"),
@@ -429,7 +522,10 @@ async def seed_people():
             "likes": 0,
             "dislikes": 0,
             "total_votes": 0,
-        })
+        }
+        if p.get("primary_country"):
+            doc["primary_country"] = p["primary_country"]
+        docs.append(doc)
     if docs:
         res = await db.persons.insert_many(docs)
         # insert initial ticks
@@ -3007,6 +3103,8 @@ async def admin_add_missing_seeds():
                     "total_votes": initial_votes,
                     "source": "seed",
                 }
+                if p.get("primary_country"):
+                    doc["primary_country"] = p["primary_country"]
                 
                 await db.persons.insert_one(doc)
                 added_count += 1
@@ -3021,6 +3119,43 @@ async def admin_add_missing_seeds():
         
     except Exception as e:
         logger.error(f"Add missing seeds error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@api_router.post("/admin/update-celebrity-countries")
+async def admin_update_celebrity_countries():
+    """Admin-only: Update primary_country for existing celebrities based on SEED_PEOPLE"""
+    try:
+        updated_count = 0
+        updated_names = []
+        not_found = []
+
+        # Build a lookup dict from SEED_PEOPLE
+        country_map = {p["name"]: p.get("primary_country") for p in SEED_PEOPLE if p.get("primary_country")}
+
+        for name, country in country_map.items():
+            result = await db.persons.update_one(
+                {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+                {"$set": {"primary_country": country, "updated_at": now_utc()}}
+            )
+            if result.modified_count > 0:
+                updated_count += 1
+                updated_names.append(f"{name} → {country}")
+            elif result.matched_count == 0:
+                not_found.append(name)
+
+        return {
+            "success": True,
+            "message": f"Updated {updated_count} celebrities with primary_country",
+            "updated_count": updated_count,
+            "updated_names": updated_names[:30],
+            "not_found_count": len(not_found),
+            "not_found": not_found[:20],
+        }
+
+    except Exception as e:
+        logger.error(f"Update celebrity countries error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
