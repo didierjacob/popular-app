@@ -597,15 +597,14 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Boost Button (FAB) */}
+      {/* Floating Boost Button (FAB) — compact round */}
       <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
         <TouchableOpacity
           style={styles.fabInner}
           onPress={() => router.push("/premium")}
           activeOpacity={0.8}
         >
-          <Ionicons name="flash" size={24} color="#000" />
-          <Text style={styles.fabText}>Boost</Text>
+          <Ionicons name="flash" size={26} color="#000" />
         </TouchableOpacity>
       </Animated.View>
     </SafeAreaView>
@@ -802,12 +801,11 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   fabInner: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
     backgroundColor: '#C8A951',
-    paddingHorizontal: 22,
-    paddingVertical: 16,
+    width: 56,
+    height: 56,
     borderRadius: 28,
   },
   fabText: {
