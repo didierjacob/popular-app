@@ -267,7 +267,7 @@
     "faq_vote_q": "Come si vota?",
     "faq_vote_a": "Cerca una personalità o tocca una delle liste. Nella sua pagina, tocca il pulsante pollice su o pollice giù. Puoi votare una volta ogni 24 ore per personalità.",
     "faq_potd_q": "Cos'è la Personalità del giorno?",
-    "faq_potd_a": "È la personalità con il Popularoo Index più alto in quel momento. Si aggiorna automaticamente in base ai voti e al coinvolgimento.",
+    "faq_potd_a": "Ogni giorno, la personalità con il Popularoo Index più alto nelle ultime 24 ore viene messa in evidenza. Cambia automaticamente ogni giorno a mezzanotte (UTC). Sia le celebrità che gli Outsiders con un Booster attivo possono ottenere questo titolo — dipende tutto dall'engagement dei votanti!",
     "faq_addPerson_q": "Posso aggiungere una nuova personalità?",
     "faq_addPerson_a": "Sì! Usa la barra di ricerca nella homepage. Se la persona non è nel nostro database, cercheremo su Wikipedia e la aggiungeremo automaticamente.",
     "faq_contact_q": "Come contatto il supporto?",

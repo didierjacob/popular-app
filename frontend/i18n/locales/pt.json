@@ -267,7 +267,7 @@
     "faq_vote_q": "Como votar?",
     "faq_vote_a": "Procure uma personalidade ou toque em uma das listas. Na página dela, toque no botão de curtir ou não curtir. Você pode votar uma vez a cada 24 horas por personalidade.",
     "faq_potd_q": "O que é a Personalidade do dia?",
-    "faq_potd_a": "É a personalidade com o Popularoo Index mais alto no momento. Se atualiza automaticamente com base nos votos e engajamento.",
+    "faq_potd_a": "Todos os dias, a personalidade com o Popularoo Index mais alto nas últimas 24 horas ganha destaque. Atualiza-se automaticamente a cada dia à meia-noite (UTC). Tanto celebridades quanto Outsiders com um Booster ativo podem conquistar esse título — tudo depende do engajamento dos votantes!",
     "faq_addPerson_q": "Posso adicionar uma nova personalidade?",
     "faq_addPerson_a": "Sim! Use a barra de pesquisa na página inicial. Se a pessoa não estiver no nosso banco de dados, buscaremos na Wikipedia e a adicionaremos automaticamente.",
     "faq_contact_q": "Como entrar em contato com o suporte?",

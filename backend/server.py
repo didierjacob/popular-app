@@ -276,31 +276,18 @@ class TrendItem(BaseModel):
 
 
 # -------------------- Startup Seed --------------------
-# 150 celebrities with primary_country — balanced across 6 target markets + global
+# ~125 celebrities with primary_country — balanced across 6 target markets + global
 SEED_PEOPLE = [
     # ══════════════════════════════════════════════════════
-    # 🇺🇸 US — Global Icons (30)
+    # 🇺🇸 US — Global Icons only (28)
     # ══════════════════════════════════════════════════════
-    # Business
+    # Business (5 — truly global figures only)
     {"name": "Elon Musk", "category": "business", "primary_country": "US"},
-    {"name": "Tim Cook", "category": "business", "primary_country": "US"},
     {"name": "Mark Zuckerberg", "category": "business", "primary_country": "US"},
     {"name": "Jeff Bezos", "category": "business", "primary_country": "US"},
     {"name": "Bill Gates", "category": "business", "primary_country": "US"},
     {"name": "Sam Altman", "category": "business", "primary_country": "US"},
-    {"name": "Jensen Huang", "category": "business", "primary_country": "US"},
-    {"name": "Warren Buffett", "category": "business", "primary_country": "US"},
-    {"name": "Sundar Pichai", "category": "business", "primary_country": "US"},
-    {"name": "Satya Nadella", "category": "business", "primary_country": "US"},
-    {"name": "Sheryl Sandberg", "category": "business", "primary_country": "US"},
-    {"name": "Reed Hastings", "category": "business", "primary_country": "US"},
-    {"name": "Larry Page", "category": "business", "primary_country": "US"},
-    {"name": "Sergey Brin", "category": "business", "primary_country": "US"},
-    {"name": "Bob Iger", "category": "business", "primary_country": "US"},
-    {"name": "Jamie Dimon", "category": "business", "primary_country": "US"},
-    {"name": "Larry Ellison", "category": "business", "primary_country": "US"},
-    {"name": "Michael Bloomberg", "category": "business", "primary_country": "US"},
-    # Culture
+    # Culture (13 — globally recognized names)
     {"name": "Oprah Winfrey", "category": "culture", "primary_country": "US"},
     {"name": "Taylor Swift", "category": "culture", "primary_country": "US"},
     {"name": "Beyoncé", "category": "culture", "primary_country": "US"},
@@ -309,35 +296,23 @@ SEED_PEOPLE = [
     {"name": "Ariana Grande", "category": "culture", "primary_country": "US"},
     {"name": "Billie Eilish", "category": "culture", "primary_country": "US"},
     {"name": "Lady Gaga", "category": "culture", "primary_country": "US"},
-    {"name": "Bruno Mars", "category": "culture", "primary_country": "US"},
     {"name": "Leonardo DiCaprio", "category": "culture", "primary_country": "US"},
     {"name": "Dwayne Johnson", "category": "culture", "primary_country": "US"},
     {"name": "Zendaya", "category": "culture", "primary_country": "US"},
     {"name": "Tom Hanks", "category": "culture", "primary_country": "US"},
     {"name": "Robert Downey Jr.", "category": "culture", "primary_country": "US"},
-    {"name": "Scarlett Johansson", "category": "culture", "primary_country": "US"},
-    {"name": "Meryl Streep", "category": "culture", "primary_country": "US"},
-    {"name": "Denzel Washington", "category": "culture", "primary_country": "US"},
-    {"name": "Jennifer Lawrence", "category": "culture", "primary_country": "US"},
-    {"name": "Bad Bunny", "category": "culture", "primary_country": "US"},
-    # Sport
+    # Sport (5 — globally known)
     {"name": "LeBron James", "category": "sport", "primary_country": "US"},
     {"name": "Serena Williams", "category": "sport", "primary_country": "US"},
-    {"name": "Tom Brady", "category": "sport", "primary_country": "US"},
-    {"name": "Stephen Curry", "category": "sport", "primary_country": "US"},
     {"name": "Simone Biles", "category": "sport", "primary_country": "US"},
-    {"name": "Patrick Mahomes", "category": "sport", "primary_country": "US"},
     {"name": "Tiger Woods", "category": "sport", "primary_country": "US"},
-    {"name": "Michael Phelps", "category": "sport", "primary_country": "US"},
-    {"name": "Kevin Durant", "category": "sport", "primary_country": "US"},
     {"name": "Mike Tyson", "category": "sport", "primary_country": "US"},
-    # Politics
+    # Politics (5 — globally known)
     {"name": "Donald Trump", "category": "politics", "primary_country": "US"},
     {"name": "Barack Obama", "category": "politics", "primary_country": "US"},
     {"name": "Joe Biden", "category": "politics", "primary_country": "US"},
     {"name": "Kamala Harris", "category": "politics", "primary_country": "US"},
     {"name": "Michelle Obama", "category": "politics", "primary_country": "US"},
-    {"name": "Hillary Clinton", "category": "politics", "primary_country": "US"},
 
     # ══════════════════════════════════════════════════════
     # 🇫🇷 FR — France (12)
@@ -1728,12 +1703,49 @@ async def get_outsiders(
 async def get_onboarding_top3(country: Optional[str] = Query(default=None)):
     """
     Returns top 3 personalities for onboarding, ordered by Popularoo Index.
-    Tries to pick one per category (politics, culture, sport) for diversity.
+    Uses curated overrides per target country for editorial control,
+    then falls back to DB-based selection.
     """
+    # ── Curated top3 per target country (editorial override) ──
+    CURATED_TOP3 = {
+        "FR": ["Kylian Mbappé", "Squeezie", "Emmanuel Macron"],      # sport, culture, politics
+        "DE": ["Toni Kroos", "Heidi Klum", "Olaf Scholz"],           # sport, culture, politics
+        "ES": ["Carlos Alcaraz", "Rosalía", "Rafael Nadal"],         # sport, culture, sport
+        "IT": ["Jannik Sinner", "Monica Bellucci", "Giorgia Meloni"],# sport, culture, politics
+        "PT": ["Cristiano Ronaldo", "Sara Sampaio", "José Mourinho"],# sport, culture, sport
+        "BR": ["Vinicius Jr.", "Anitta", "Lula da Silva"],           # sport, culture, politics
+        "GB": ["Lewis Hamilton", "Adele", "King Charles III"],       # sport, culture, politics
+        "US": ["Elon Musk", "Taylor Swift", "Donald Trump"],         # business, culture, politics
+    }
+
     try:
         country_code = country.strip().upper() if country else None
 
-        # Try country-specific first
+        # ── Try curated override first ──
+        if country_code and country_code in CURATED_TOP3:
+            curated_names = CURATED_TOP3[country_code]
+            result = []
+            for name in curated_names:
+                person = await db.persons.find_one(
+                    {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}
+                )
+                if person:
+                    result.append({
+                        "name": person.get("name", name),
+                        "category": person.get("category", "other"),
+                        "popularoo_index": round(person.get("popularoo_index", 50.0), 1),
+                    })
+                else:
+                    # Name not in DB yet: return placeholder
+                    result.append({
+                        "name": name,
+                        "category": "other",
+                        "popularoo_index": 50.0,
+                    })
+            if len(result) == 3:
+                return {"top3": result, "country": country_code}
+
+        # ── Fallback: DB-based selection ──
         if country_code:
             persons = await db.persons.find(
                 {"primary_country": country_code}

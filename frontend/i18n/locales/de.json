@@ -267,7 +267,7 @@
     "faq_vote_q": "Wie stimme ich ab?",
     "faq_vote_a": "Suche nach einer Persönlichkeit oder tippe auf eine aus den Listen. Auf ihrer Seite tippe auf den Daumen-hoch- oder Daumen-runter-Button. Du kannst einmal alle 24 Stunden pro Persönlichkeit abstimmen.",
     "faq_potd_q": "Was ist die Persönlichkeit des Tages?",
-    "faq_potd_a": "Es ist die Persönlichkeit mit dem höchsten Popularoo Index im Moment. Sie aktualisiert sich automatisch basierend auf Stimmen und Engagement.",
+    "faq_potd_a": "Jeden Tag wird die Persönlichkeit mit dem höchsten Popularoo Index der letzten 24 Stunden hervorgehoben. Sie wechselt automatisch täglich um Mitternacht (UTC). Sowohl Prominente als auch Outsiders mit einem aktiven Booster können diesen Titel erhalten — es hängt vom Engagement der Wähler ab!",
     "faq_addPerson_q": "Kann ich eine neue Persönlichkeit hinzufügen?",
     "faq_addPerson_a": "Ja! Nutze die Suchleiste auf der Startseite. Wenn die Person nicht in unserer Datenbank ist, suchen wir auf Wikipedia und fügen sie automatisch hinzu.",
     "faq_contact_q": "Wie kontaktiere ich den Support?",
