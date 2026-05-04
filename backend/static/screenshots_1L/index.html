@@ -1,76 +1,82 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chantier P1 — Refonte Onboarding V2 — Screenshots finaux</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Popularoo - Validation Onboarding V3 (5 ajustements visuels)</title>
 <style>
-  body { font-family: -apple-system, sans-serif; background: #0F2F22; color: #EAEAEA; padding: 20px; max-width: 1200px; margin: 0 auto; }
-  h1 { color: #FFD700; font-size: 22px; }
-  h2 { color: #E04F5F; font-size: 16px; margin-top: 28px; border-bottom: 1px solid #2E6148; padding-bottom: 6px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
-  .screenshot { text-align: center; }
-  .screenshot img { max-width: 100%; border: 2px solid #2E6148; border-radius: 12px; }
-  .caption { color: #C9D8D2; font-size: 11px; margin-top: 4px; }
-  .tag { display: inline-block; background: #E04F5F; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
-  .info { background: #1C3A2C; padding: 14px; border-radius: 10px; border: 1px solid #2E6148; margin: 16px 0; line-height: 1.6; font-size: 12px; }
-  .info strong { color: #FFD700; }
+body { background: #1a1a2e; color: #eee; font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; margin: 0; }
+h1 { color: #FFD700; text-align: center; font-size: 1.6em; }
+h2 { color: #009B4D; margin-top: 40px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+.section { margin-bottom: 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 16px; }
+.card { background: #16213e; border-radius: 12px; padding: 12px; text-align: center; }
+.card img { width: 100%; max-width: 390px; border-radius: 8px; border: 1px solid #333; }
+.card p { color: #ccc; font-size: 0.85em; margin-top: 8px; }
+.badge { display: inline-block; background: #FFD700; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; font-weight: 700; margin-left: 6px; }
+.check { color: #4CAF50; font-weight: 700; }
+.checklist { background: #16213e; padding: 16px 24px; border-radius: 12px; margin-top: 16px; }
+.checklist li { margin: 8px 0; line-height: 1.6; }
 </style>
 </head>
 <body>
-<h1>Chantier P1 — Refonte Onboarding V2 FINAL</h1>
+<h1>🎯 Validation Onboarding V3 — 5 Ajustements Visuels</h1>
 
-<div class="info">
-<strong>4 améliorations appliquées :</strong><br>
-1. Icône officielle de l'app (3D "P" vert)<br>
-2. Cartes riches identiques à la Home + courbe Popularoo Index animée<br>
-3. Carte YOU au rang 4 (bordure pointillée dorée, pulse 2s, avatar "?")<br>
-4. Présentation des 3 tiers Booster (informatif, sans prix, sans bouton achat)
+<div class="section">
+<h2>✅ Checklist des 5 ajustements</h2>
+<ul class="checklist">
+<li><span class="check">✓</span> <strong>Ajustement 1</strong> — Bordures dorées sur les 3 cartes de personnalités (Écrans 2 & 3)</li>
+<li><span class="check">✓</span> <strong>Ajustement 2</strong> — Graphique Popularoo Index enrichi : initiales avatar, nom, durée "7 days", variation "+50%", axes Y (100/50/0), courbe avec zone remplie (Écran 2)</li>
+<li><span class="check">✓</span> <strong>Ajustement 3</strong> — Jauges différenciées par rang : #1 = 97%, #2 = 82%, #3 = 68% (Écrans 2 & 3)</li>
+<li><span class="check">✓</span> <strong>Ajustement 4</strong> — Hiérarchie visuelle des 3 tiers Booster : taille icône, couleurs distinctes, badge "MOST POPULAR" sur Golden (Écran 4)</li>
+<li><span class="check">✓</span> <strong>Ajustement 5</strong> — Boutons au tutoiement impératif : "Commence à explorer" (FR), "Start exploring" (EN) — bouton doré distinctif (Écran 4)</li>
+</ul>
 </div>
 
-<h2>1. Écran 1 — Welcome (FR)</h2>
+<div class="section">
+<h2>📱 Écran 1 — Welcome</h2>
 <div class="grid">
-  <div class="screenshot">
-    <span class="tag">FR — WELCOME</span>
-    <img src="v2_ob1_fr.png" alt="Welcome FR">
-    <div class="caption">Icône officielle + "Bienvenue sur Popularoo" + "The world's stock market of fame."</div>
-  </div>
+<div class="card">
+<img src="v3_ob1_welcome.jpg" alt="Screen 1 Welcome">
+<p>Icône Popularoo + titre + "The world's stock market of fame." en or italique</p>
+</div>
+</div>
 </div>
 
-<h2>2. Écran 2 — Vote (FR)</h2>
+<div class="section">
+<h2>📱 Écran 2 — Vote <span class="badge">GOLD BORDERS</span> <span class="badge">ENRICHED CHART</span> <span class="badge">GAUGES</span></h2>
 <div class="grid">
-  <div class="screenshot">
-    <span class="tag">FR — VOTE + CHART</span>
-    <img src="v2_ob2_fr.png" alt="Vote FR">
-    <div class="caption">3 cartes riches (badge rang, catégorie, votes, gauge) + courbe "Popularoo Index — Live"</div>
-  </div>
+<div class="card">
+<img src="v3_ob2_vote.jpg" alt="Screen 2 Vote + Chart">
+<p>3 cartes avec bordures dorées • Jauges différenciées (#1=97%, #2=82%, #3=68%) • Graphique enrichi avec avatar, variation +50%, axes Y</p>
+</div>
+</div>
 </div>
 
-<h2>3. Écran 3 — Auto-promo + Carte YOU (FR)</h2>
+<div class="section">
+<h2>📱 Écran 3 — Promo + YOU <span class="badge">GOLD BORDERS</span> <span class="badge">GAUGES</span></h2>
 <div class="grid">
-  <div class="screenshot">
-    <span class="tag">FR — PROMO + YOU</span>
-    <img src="v2_ob3_fr.png" alt="Promo FR">
-    <div class="caption">"Quand tu es prêt, entre dans l'arène." + 3 cartes + carte YOU pulsante (rang 4)</div>
-  </div>
+<div class="card">
+<img src="v3_ob3_promo.jpg" alt="Screen 3 Promo + YOU">
+<p>3 cartes dorées + carte "YOU" pulsante (#4) avec avatar "?" doré et bordure dashed</p>
+</div>
+</div>
 </div>
 
-<h2>4. Écran 4 — Boosters (FR)</h2>
+<div class="section">
+<h2>📱 Écran 4 — Boosters <span class="badge">VISUAL HIERARCHY</span> <span class="badge">CTA DORÉ</span></h2>
 <div class="grid">
-  <div class="screenshot">
-    <span class="tag">FR — BOOSTER TIERS</span>
-    <img src="v2_ob4_fr.png" alt="Boosters FR">
-    <div class="caption">"Three ways to step into the ring" + Booster/Super/Golden + "Commencer à explorer"</div>
-  </div>
+<div class="card">
+<img src="v3_ob4_boosters.jpg" alt="Screen 4 Boosters">
+<p>Hiérarchie visuelle : Booster (vert) → Super Booster (orange) → Golden Booster (or + badge "MOST POPULAR") • CTA "Start exploring" en or</p>
+</div>
+</div>
 </div>
 
-<h2>5. Écran 3 — Auto-promo + Carte YOU (DE)</h2>
-<div class="grid">
-  <div class="screenshot">
-    <span class="tag">DE — PROMO + YOU</span>
-    <img src="v2_ob3_de.png" alt="Promo DE">
-    <div class="caption">"Wenn du bereit bist, betritt die Arena." + "Steh neben den Stars." + carte YOU + "Weiter"</div>
-  </div>
+<div class="section" style="margin-top: 50px; padding: 20px; background: #0d1b2a; border-radius: 12px;">
+<h2 style="color: #FFA500; border: none;">⚠️ Note</h2>
+<p>Les screenshots sont en <strong>anglais</strong> car l'environnement de test web utilise la locale EN. En production sur mobile, l'app affichera correctement le français (ex: "Bienvenue sur Popularoo", "Commence à explorer") grâce à la détection i18n.</p>
+<p>Les personnalités affichées (Elon Musk, Hillary Clinton, Jeff Bezos) correspondent au fallback DEFAULT/US. En France, l'API retournera : <strong>Emmanuel Macron, Squeezie, Teddy Riner</strong>.</p>
 </div>
 </body>
 </html>

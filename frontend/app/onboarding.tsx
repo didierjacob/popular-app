@@ -361,7 +361,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete?: () => vo
             <PersonCard key={i} rank={i + 1} name={p.name} category={p.category} score={p.score} />
           ))}
         </View>
-        <MiniChart />
+        <EnrichedChart name={top3[0]?.name || "Trump"} />
       </View>
       <View style={styles.bottomArea}>
         <PageDots total={4} current={1} />
