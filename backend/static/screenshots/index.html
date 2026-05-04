@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chantier 1I — Screenshots Validation</title>
+<title>Popularoo — Validation Visuelle Complète</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #0a1f14; color: #e8e8e8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; }
-h1 { color: #C8A951; font-size: 28px; text-align: center; margin-bottom: 8px; }
+h1 { color: #C8A951; font-size: 28px; text-align: center; margin-bottom: 4px; }
+h2 { color: #C8A951; font-size: 20px; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #1a3d28; }
 .subtitle { text-align: center; color: #999; font-size: 14px; margin-bottom: 32px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; max-width: 1400px; margin: 0 auto; }
 .card { background: #132d1f; border-radius: 12px; overflow: hidden; border: 1px solid #1a3d28; }
@@ -19,89 +20,94 @@ h1 { color: #C8A951; font-size: 28px; text-align: center; margin-bottom: 8px; }
 .download-bar { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .dl-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: #C8A951; color: #000; text-decoration: none; font-size: 13px; font-weight: 600; transition: opacity 0.2s; }
 .dl-btn:hover { opacity: 0.8; }
-.dl-all { display: block; max-width: 400px; margin: 32px auto 0; padding: 16px 24px; border-radius: 12px; background: #C8A951; color: #000; text-align: center; text-decoration: none; font-size: 18px; font-weight: 700; }
-.dl-all:hover { opacity: 0.85; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px; }
 .badge-fr { background: #2196F3; color: white; }
 .badge-de { background: #FF9800; color: white; }
+.badge-new { background: #4CAF50; color: white; }
 </style>
 </head>
 <body>
-<h1>📸 Chantier 1I — Validation Visuelle</h1>
-<p class="subtitle">Social Accounts Frontend • 5 scénarios de test</p>
+<h1>📸 Popularoo — Validation Visuelle</h1>
+<p class="subtitle">Chantier 1I Social Accounts + Refonte Navigation</p>
 
+<h2>🔧 Refonte Navigation (5 boutons + FAB Boost)</h2>
+<div class="grid">
+  <div class="card">
+    <a href="nav_1_home_FR.png" target="_blank"><img src="nav_1_home_FR.png" alt="Home FR"></a>
+    <div class="card-info">
+      <div class="card-title">Home + FAB Boost <span class="badge badge-fr">FR</span> <span class="badge badge-new">NEW</span></div>
+      <div class="card-desc">Barre à 5 boutons (Accueil, Classement, Outsiders, Mes votes, Compte). FAB gold flottant en bas à droite.</div>
+      <div class="download-bar"><a class="dl-btn" href="nav_1_home_FR.png" download>⬇ Télécharger</a></div>
+    </div>
+  </div>
+  <div class="card">
+    <a href="nav_2_home_DE.png" target="_blank"><img src="nav_2_home_DE.png" alt="Home DE"></a>
+    <div class="card-info">
+      <div class="card-title">Home + FAB Boost <span class="badge badge-de">DE</span> <span class="badge badge-new">NEW</span></div>
+      <div class="card-desc">Vérification que les labels allemands (Start, Ranking, Outsiders, Stimmen, Konto) ne débordent pas.</div>
+      <div class="download-bar"><a class="dl-btn" href="nav_2_home_DE.png" download>⬇ Télécharger</a></div>
+    </div>
+  </div>
+  <div class="card">
+    <a href="nav_3_account_FR.png" target="_blank"><img src="nav_3_account_FR.png" alt="Account FR"></a>
+    <div class="card-info">
+      <div class="card-title">Account → Boost + Réglages <span class="badge badge-fr">FR</span> <span class="badge badge-new">NEW</span></div>
+      <div class="card-desc">Lien Boost (⚡ gold) et Réglages (⚙) avec chevron >, point d'entrée unique depuis Account.</div>
+      <div class="download-bar"><a class="dl-btn" href="nav_3_account_FR.png" download>⬇ Télécharger</a></div>
+    </div>
+  </div>
+  <div class="card">
+    <a href="nav_4_fab_to_premium.png" target="_blank"><img src="nav_4_fab_to_premium.png" alt="FAB → Premium"></a>
+    <div class="card-info">
+      <div class="card-title">FAB Boost → Premium <span class="badge badge-new">NEW</span></div>
+      <div class="card-desc">Tap sur FAB ouvre la page Premium. Navigation fonctionnelle confirmée.</div>
+      <div class="download-bar"><a class="dl-btn" href="nav_4_fab_to_premium.png" download>⬇ Télécharger</a></div>
+    </div>
+  </div>
+</div>
+
+<h2>🔗 Chantier 1I — Social Accounts</h2>
 <div class="grid">
   <div class="card">
     <a href="1_social_FR.png" target="_blank"><img src="1_social_FR.png" alt="Social FR"></a>
     <div class="card-info">
       <div class="card-title">1. Saisie sociale <span class="badge badge-fr">FR</span></div>
-      <div class="card-desc">Hiérarchie : titre → sous-titre → mention optional → 3 champs → encouragement → Continuer</div>
-      <div class="download-bar">
-        <a class="dl-btn" href="1_social_FR.png" download>⬇ Télécharger</a>
-      </div>
+      <div class="card-desc">Titre → Sous-titre (followers) → Optional → 3 champs → Encouragement → Continuer</div>
+      <div class="download-bar"><a class="dl-btn" href="1_social_FR.png" download>⬇ Télécharger</a></div>
     </div>
   </div>
-
   <div class="card">
     <a href="2_social_DE.png" target="_blank"><img src="2_social_DE.png" alt="Social DE"></a>
     <div class="card-info">
       <div class="card-title">2. Saisie sociale <span class="badge badge-de">DE</span></div>
-      <div class="card-desc">Chaînes longues allemandes — vérifier qu'aucun texte ne déborde ou ne se superpose</div>
-      <div class="download-bar">
-        <a class="dl-btn" href="2_social_DE.png" download>⬇ Télécharger</a>
-      </div>
+      <div class="card-desc">Chaînes longues allemandes — pas de débordement</div>
+      <div class="download-bar"><a class="dl-btn" href="2_social_DE.png" download>⬇ Télécharger</a></div>
     </div>
   </div>
-
   <div class="card">
     <a href="3_follow_3accounts.png" target="_blank"><img src="3_follow_3accounts.png" alt="Follow 3"></a>
     <div class="card-info">
-      <div class="card-title">3. Profil Outsider — 3 comptes</div>
-      <div class="card-desc">Instagram (rose/violet), TikTok (noir/cyan), X (noir) — avec deep linking natif</div>
-      <div class="download-bar">
-        <a class="dl-btn" href="3_follow_3accounts.png" download>⬇ Télécharger</a>
-      </div>
+      <div class="card-title">3. Profil — 3 comptes</div>
+      <div class="card-desc">Instagram (rose), TikTok (noir/cyan), 𝕏 seul symbole (noir)</div>
+      <div class="download-bar"><a class="dl-btn" href="3_follow_3accounts.png" download>⬇ Télécharger</a></div>
     </div>
   </div>
-
   <div class="card">
     <a href="4_follow_1account.png" target="_blank"><img src="4_follow_1account.png" alt="Follow 1"></a>
     <div class="card-info">
-      <div class="card-title">4. Profil Outsider — 1 seul compte</div>
-      <div class="card-desc">Seul Instagram visible. TikTok et X absents du DOM (pas vides, pas grisés)</div>
-      <div class="download-bar">
-        <a class="dl-btn" href="4_follow_1account.png" download>⬇ Télécharger</a>
-      </div>
+      <div class="card-title">4. Profil — 1 seul compte</div>
+      <div class="card-desc">Seul Instagram visible. TikTok et 𝕏 absents du DOM.</div>
+      <div class="download-bar"><a class="dl-btn" href="4_follow_1account.png" download>⬇ Télécharger</a></div>
     </div>
   </div>
-
   <div class="card">
-    <a href="5_account_modal.png" target="_blank"><img src="5_account_modal.png" alt="Account Modal"></a>
+    <a href="5_account_modal.png" target="_blank"><img src="5_account_modal.png" alt="Modal"></a>
     <div class="card-info">
       <div class="card-title">5. Account — Modal édition</div>
-      <div class="card-desc">Bottom-sheet modal avec 3 champs pré-remplis + validation ✓/✗ + bouton Enregistrer</div>
-      <div class="download-bar">
-        <a class="dl-btn" href="5_account_modal.png" download>⬇ Télécharger</a>
-      </div>
+      <div class="card-desc">Bottom-sheet, 3 champs pré-remplis, validation ✓, bouton Enregistrer</div>
+      <div class="download-bar"><a class="dl-btn" href="5_account_modal.png" download>⬇ Télécharger</a></div>
     </div>
   </div>
 </div>
-
-<a class="dl-all" href="#" onclick="downloadAll(); return false;">⬇ Télécharger les 5 screenshots (ZIP)</a>
-
-<script>
-async function downloadAll() {
-  const files = ['1_social_FR.png','2_social_DE.png','3_follow_3accounts.png','4_follow_1account.png','5_account_modal.png'];
-  for (const f of files) {
-    const a = document.createElement('a');
-    a.href = f;
-    a.download = f;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    await new Promise(r => setTimeout(r, 500));
-  }
-}
-</script>
 </body>
 </html>

@@ -578,9 +578,19 @@ export default function HomeScreen() {
         </View>
 
         {/* Bottom spacing */}
-        <View style={{ height: 24 }} />
+        <View style={{ height: 80 }} />
         </View>
       </ScrollView>
+
+      {/* Floating Boost Button (FAB) */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push("/premium")}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="flash" size={22} color="#000" />
+        <Text style={styles.fabText}>Boost</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -761,4 +771,29 @@ const styles = StyleSheet.create({
   personName: { fontSize: 16, fontWeight: "600", color: PALETTE.text },
   personMeta: { fontSize: 13, color: PALETTE.subtext, marginTop: 2 },
   gaugeContainer: { marginLeft: 8 },
+  // FAB Boost button
+  fab: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#C8A951',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 28,
+    shadowColor: '#C8A951',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 100,
+  },
+  fabText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 });
