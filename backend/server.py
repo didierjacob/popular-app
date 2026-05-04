@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta
 from bson import ObjectId
 import re
+import random
 from unidecode import unidecode
 from trends_service import trends_service
 from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
@@ -146,8 +147,7 @@ def parse_window(window: str) -> timedelta:
 
 # -------------------- Seed Decay Configuration --------------------
 # The decay starts 90 days after this date (configurable)
-import os as _os
-DECAY_START_DATE_STR = _os.environ.get("DECAY_START_DATE", "2026-07-28")  # ~90 days from now
+DECAY_START_DATE_STR = os.environ.get("DECAY_START_DATE", "2026-07-28")  # ~90 days from now
 try:
     DECAY_START_DATE = datetime.strptime(DECAY_START_DATE_STR, "%Y-%m-%d")
 except ValueError:
@@ -1146,7 +1146,6 @@ async def get_chart(person_id: str, window: str = Query(default="24h")):
         points = []
         
         # Generate points over the last 24 hours with slight variations
-        import random
         for i in range(24, 0, -4):  # Every 4 hours
             time_point = now - timedelta(hours=i)
             # Add small random variation (±5 points) for visual effect
@@ -1487,7 +1486,6 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
                     results = [existing]
                 else:
                     # Create the person in the database
-                    import random
                     initial_votes = random.randint(100, 500)
                     like_ratio = random.uniform(0.45, 0.70)
                     initial_likes = int(initial_votes * like_ratio)
@@ -1987,8 +1985,6 @@ BOOSTER_TIERS = {
     },
 }
 
-import re
-
 # ── Chantier 1I: Social accounts validation ──
 SOCIAL_REGEX = {
     "instagram": re.compile(r'^@?[a-zA-Z0-9._]{1,30}$'),   # 1-30 chars, letters/digits/dots/underscores
@@ -2412,6 +2408,60 @@ async def extend_boost(request: ExtendBoostRequest):
         logger.error(f"Extend boost error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# -------------------- Admin Authentication --------------------
+
+import secrets
+
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+
+# In-memory token store (simple approach: tokens expire after 4 hours)
+_admin_tokens: dict = {}  # {token: expiry_datetime}
+
+def _cleanup_expired_tokens():
+    """Remove expired tokens from memory."""
+    now = datetime.utcnow()
+    expired = [t for t, exp in _admin_tokens.items() if exp < now]
+    for t in expired:
+        del _admin_tokens[t]
+
+def verify_admin_token(token: str) -> bool:
+    """Verify that a token is valid and not expired."""
+    _cleanup_expired_tokens()
+    if token in _admin_tokens:
+        return _admin_tokens[token] > datetime.utcnow()
+    return False
+
+class AdminAuthRequest(BaseModel):
+    password: str
+
+class AdminAuthResponse(BaseModel):
+    success: bool
+    token: str = ""
+    expires_in_hours: int = 4
+
+@api_router.post("/admin/auth")
+async def admin_auth(request: AdminAuthRequest):
+    """Authenticate admin and return a session token (valid 4 hours)."""
+    if not ADMIN_PASSWORD:
+        raise HTTPException(status_code=500, detail="Admin password not configured")
+    
+    if request.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+    
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+    _admin_tokens[token] = datetime.utcnow() + timedelta(hours=4)
+    
+    logger.info("🔐 Admin session created (expires in 4h)")
+    return {"success": True, "token": token, "expires_in_hours": 4}
+
+@api_router.get("/admin/verify-token")
+async def admin_verify_token(token: str = Header(None, alias="X-Admin-Token")):
+    """Verify if an admin token is still valid."""
+    if not token or not verify_admin_token(token):
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    return {"valid": True}
 
 # -------------------- Admin Endpoints --------------------
 
@@ -3104,7 +3154,6 @@ async def admin_create_demo_outsider():
 @api_router.post("/admin/add-missing-seeds")
 async def admin_add_missing_seeds():
     """Admin-only: Add any missing seed personalities to the database"""
-    import random
     try:
         added_count = 0
         added_names = []
@@ -3197,7 +3246,6 @@ async def admin_update_celebrity_countries():
 @api_router.post("/admin/initialize-votes")
 async def admin_initialize_votes():
     """Admin-only: Initialize existing personalities with realistic vote counts"""
-    import random
     try:
         # Find all personalities with 0 or very low votes
         low_vote_persons = await db.persons.find({
@@ -3442,7 +3490,6 @@ async def get_daily_stats():
 @api_router.post("/admin/init-votes")
 async def init_votes():
     """Initialize all personalities with random votes (8,500-12,000) to make the app look active"""
-    import random
     try:
         # Get all persons
         persons = await db.persons.find({}).to_list(length=1000)
@@ -3676,7 +3723,6 @@ async def admin_bulk_import_personalities():
     Only inserts NEW entries (status='new') that don't already exist in the DB.
     Idempotent: safe to run multiple times.
     """
-    import json as json_lib
     json_path = os.path.join(os.path.dirname(__file__), "static", "personality_tags_v2.json")
     if not os.path.exists(json_path):
         raise HTTPException(status_code=404, detail="Tags V2 file not found.")
@@ -3725,7 +3771,6 @@ async def admin_bulk_import_personalities():
                 continue
 
             # Insert new personality
-            import random
             base_votes = random.randint(8000, 15000)
             likes_ratio = random.uniform(0.55, 0.75)
             likes = int(base_votes * likes_ratio)
@@ -4185,7 +4230,6 @@ async def get_user_share_data(person_id: str):
 # Serve Instagram images
 import zipfile
 from io import BytesIO
-from starlette.responses import StreamingResponse
 
 INSTAGRAM_DIR = os.path.join(os.path.dirname(__file__), "static", "instagram")
 
@@ -4285,137 +4329,13 @@ from email_sender import (
     send_strike_going_viral, send_strike_legend_mode, send_booster_expiration,
 )
 
-@api_router.post("/admin/test-email")
-async def test_email_endpoint(
-    email_type: str = Query(..., description="Type: welcome, booster, victory_standard, victory_underdog, victory_legendary, going_viral, legend_mode, expiration"),
-    to_email: str = Query(default="popularoo@popularoo.com"),
-    lang: str = Query(default="fr"),
-    password: str = Query(default=""),
-):
-    """Admin: test transactional emails manually. Requires admin password."""
-    if password != "fab31230":
-        raise HTTPException(status_code=403, detail="Invalid admin password")
-
-    # Create a temporary user setting for the test language
-    test_user_id = f"test_email_{lang}"
-    await db.user_settings.update_one(
-        {"device_id": test_user_id},
-        {"$set": {"device_id": test_user_id, "language": lang}},
-        upsert=True,
-    )
-
-    try:
-        if email_type == "welcome":
-            await send_welcome(db, email_service, to_email, test_user_id, "Test User")
-        elif email_type == "booster":
-            await send_booster_confirmation(db, email_service, to_email, test_user_id,
-                                            "Test User", "Super Booster", "24 hours", is_golden=False)
-        elif email_type == "booster_golden":
-            await send_booster_confirmation(db, email_service, to_email, test_user_id,
-                                            "Test User", "Golden Booster", "1 week", is_golden=True)
-        elif email_type == "victory_standard":
-            await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                          "Test User", "Elon Musk", 12, "Standard Win", 847)
-        elif email_type == "victory_underdog":
-            await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                          "Test User", "Taylor Swift", 35, "Underdog Win", 2340,
-                                          strikes_count=3, highest_strike="Trending")
-        elif email_type == "victory_legendary":
-            await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                          "Test User", "Cristiano Ronaldo", 72, "Legendary Strike", 8921,
-                                          strikes_count=5, highest_strike="Legend Mode")
-        elif email_type == "going_viral":
-            await send_strike_going_viral(db, email_service, to_email, test_user_id, "Test User")
-        elif email_type == "legend_mode":
-            await send_strike_legend_mode(db, email_service, to_email, test_user_id, "Test User")
-        elif email_type == "expiration":
-            await send_booster_expiration(db, email_service, to_email, test_user_id,
-                                          "Test User", "Super Booster", "3 hours",
-                                          total_votes=1247, best_rank=3, daily_runs_count=2)
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown email type: {email_type}")
-
-        return {"success": True, "email_type": email_type, "lang": lang, "to": to_email}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@api_router.post("/admin/test-all-emails")
-async def test_all_emails_endpoint(
-    to_email: str = Query(default="popularoo@popularoo.com"),
-    lang: str = Query(default="fr"),
-    password: str = Query(default=""),
-):
-    """Admin: Send ALL 9 transactional email variants at once for testing."""
-    if password != "fab31230":
-        raise HTTPException(status_code=403, detail="Invalid admin password")
-
-    email_types = [
-        "welcome", "booster", "booster_golden",
-        "victory_standard", "victory_underdog", "victory_legendary",
-        "going_viral", "legend_mode", "expiration",
-    ]
-
-    results = []
-    for etype in email_types:
-        try:
-            # Re-use the single-email endpoint logic inline
-            test_user_id = f"test_email_{lang}"
-            await db.user_settings.update_one(
-                {"device_id": test_user_id},
-                {"$set": {"device_id": test_user_id, "language": lang}},
-                upsert=True,
-            )
-            if etype == "welcome":
-                await send_welcome(db, email_service, to_email, test_user_id, "Test User")
-            elif etype == "booster":
-                await send_booster_confirmation(db, email_service, to_email, test_user_id,
-                                                "Test User", "Super Booster", "24 hours", is_golden=False)
-            elif etype == "booster_golden":
-                await send_booster_confirmation(db, email_service, to_email, test_user_id,
-                                                "Test User", "Golden Booster", "1 week", is_golden=True)
-            elif etype == "victory_standard":
-                await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                              "Test User", "Elon Musk", 12, "Standard Win", 847)
-            elif etype == "victory_underdog":
-                await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                              "Test User", "Taylor Swift", 35, "Underdog Win", 2340,
-                                              strikes_count=3, highest_strike="Trending")
-            elif etype == "victory_legendary":
-                await send_daily_run_victory(db, email_service, to_email, test_user_id,
-                                              "Test User", "Cristiano Ronaldo", 72, "Legendary Strike", 8921,
-                                              strikes_count=5, highest_strike="Legend Mode")
-            elif etype == "going_viral":
-                await send_strike_going_viral(db, email_service, to_email, test_user_id, "Test User")
-            elif etype == "legend_mode":
-                await send_strike_legend_mode(db, email_service, to_email, test_user_id, "Test User")
-            elif etype == "expiration":
-                await send_booster_expiration(db, email_service, to_email, test_user_id,
-                                              "Test User", "Super Booster", "3 hours",
-                                              total_votes=1247, best_rank=3, daily_runs_count=2)
-            results.append({"type": etype, "status": "sent"})
-        except Exception as e:
-            results.append({"type": etype, "status": "failed", "error": str(e)})
-
-    sent_count = sum(1 for r in results if r["status"] == "sent")
-    failed_count = sum(1 for r in results if r["status"] == "failed")
-    return {
-        "success": failed_count == 0,
-        "lang": lang,
-        "to": to_email,
-        "sent": sent_count,
-        "failed": failed_count,
-        "details": results,
-    }
-
-
 @api_router.get("/admin/email-errors")
 async def get_email_errors(
     password: str = Query(default=""),
     limit: int = Query(default=50, ge=1, le=200),
 ):
     """Admin: View recent email delivery errors logged in admin_notifications."""
-    if password != "fab31230":
+    if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid admin password")
 
     errors = await db.admin_notifications.find(
@@ -4437,7 +4357,7 @@ async def get_email_errors(
 @api_router.get("/admin/download-emails-review")
 async def download_emails_review(password: str = Query(default="")):
     """Admin: Download the EMAILS_REVIEW.md file for proofreading."""
-    if password != "fab31230":
+    if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid admin password")
     file_path = os.path.join(os.path.dirname(__file__), "EMAILS_REVIEW.md")
     if not os.path.exists(file_path):
@@ -4454,7 +4374,7 @@ async def download_emails_review(password: str = Query(default="")):
 @api_router.post("/admin/seed-outsiders")
 async def seed_outsiders_endpoint(password: str = Query(default="")):
     """Admin: Create all 49 seed Outsiders. Idempotent (skips existing)."""
-    if password != "fab31230":
+    if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid admin password")
     from seed_outsiders import create_seed_outsiders
     result = await create_seed_outsiders(db)
@@ -4518,7 +4438,7 @@ async def update_outsider_social_links(boost_id: str, request: UpdateSocialLinks
 @api_router.get("/admin/seed-outsiders/status")
 async def seed_outsiders_status(password: str = Query(default="")):
     """Admin: View seed Outsiders status per country."""
-    if password != "fab31230":
+    if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid admin password")
     from seed_outsiders import get_seed_status
     return await get_seed_status(db)
@@ -4527,7 +4447,7 @@ async def seed_outsiders_status(password: str = Query(default="")):
 @api_router.delete("/admin/seed-outsiders")
 async def remove_seed_outsiders_endpoint(password: str = Query(default="")):
     """Admin: Remove ALL seed Outsiders from the database."""
-    if password != "fab31230":
+    if password != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid admin password")
     from seed_outsiders import remove_all_seeds
     result = await remove_all_seeds(db)

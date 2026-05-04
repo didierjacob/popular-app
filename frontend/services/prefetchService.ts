@@ -31,7 +31,7 @@ export class PrefetchService {
         this.prefetchControversialData(),
       ]);
       
-      console.log('✅ Prefetch completed');
+      // Prefetch completed silently
     } catch (error) {
       console.error('Prefetch error:', error);
     } finally {

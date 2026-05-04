@@ -94,12 +94,26 @@ export default function Admin() {
   // Settings
   const [settings, setSettings] = useState<Settings | null>(null);
 
-  const handleLogin = () => {
-    if (password === 'fab31230') {
-      setAuthenticated(true);
-      loadData();
-    } else {
-      Alert.alert('Error', 'Mot de passe incorrect');
+  const [adminToken, setAdminToken] = useState<string>('');
+
+  const handleLogin = async () => {
+    try {
+      const response = await fetch(API('/admin/auth'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAdminToken(data.token);
+        setAuthenticated(true);
+        loadData();
+      } else {
+        Alert.alert('Error', 'Mot de passe incorrect');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Impossible de se connecter au serveur');
     }
   };
 

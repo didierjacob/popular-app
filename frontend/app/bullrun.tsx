@@ -354,7 +354,7 @@ function RallyCryModal({ visible, onClose, targets }) {
                     });
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   } catch (e) {
-                    console.log("Share cancelled or failed", e);
+                    // Share cancelled or failed — no action needed
                   }
                 }}
               >
