@@ -96,6 +96,27 @@ export default function Admin() {
 
   const [adminToken, setAdminToken] = useState<string>('');
 
+  // Helper: makes authenticated admin requests. On 403, forces re-login.
+  const adminFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const headers = {
+      ...((options.headers as Record<string, string>) || {}),
+      'X-Admin-Token': adminToken,
+    };
+    const response = await fetch(url, { ...options, headers });
+    
+    if (response.status === 403 && authenticated) {
+      // Token expired — force re-login
+      setAuthenticated(false);
+      setAdminToken('');
+      Alert.alert(
+        'Session expirée',
+        'Votre session admin a expiré. Veuillez vous reconnecter.',
+        [{ text: 'OK' }]
+      );
+    }
+    return response;
+  }, [adminToken, authenticated]);
+
   const handleLogin = async () => {
     try {
       const response = await fetch(API('/admin/auth'), {
