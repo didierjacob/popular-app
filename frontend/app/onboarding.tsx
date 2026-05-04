@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getLocales } from "expo-localization";
-import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Circle, Path, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -83,36 +83,85 @@ function GaugeIcon({ score, size = 32 }: { score: number; size?: number }) {
   );
 }
 
-// ---- Animated mini chart ----
+// ---- Animated enriched chart ----
 
-function MiniChart({ width = SCREEN_W - 100, height = 50 }: { width?: number; height?: number }) {
-  const progress = useRef(new Animated.Value(0)).current;
+function EnrichedChart({ name, width = SCREEN_W - 72, height = 64 }: { name: string; width?: number; height?: number }) {
+  const drawProgress = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    Animated.timing(progress, { toValue: 1, duration: 2000, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(drawProgress, {
+      toValue: 1,
+      duration: 1800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
   }, []);
-  // Simple upward trend line points
-  const points = [0.3, 0.25, 0.4, 0.35, 0.5, 0.45, 0.6, 0.55, 0.7, 0.65, 0.8, 0.75, 0.85, 0.9];
-  const step = width / (points.length - 1);
+
+  // Realistic data points (7 days) with upward trend
+  const points = [0.52, 0.48, 0.55, 0.50, 0.58, 0.62, 0.56, 0.64, 0.60, 0.68, 0.72, 0.70, 0.76, 0.78];
+  const chartW = width - 40; // leave room for Y axis labels
+  const chartH = height - 4;
+  const step = chartW / (points.length - 1);
+
   const pathParts = points.map((p, i) => {
-    const x = i * step;
-    const y = height - p * height;
+    const x = 32 + i * step;
+    const y = chartH - p * chartH;
     return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
   });
   const pathD = pathParts.join(" ");
+
+  // Area fill path
+  const areaD = pathD + ` L ${32 + (points.length - 1) * step} ${chartH} L 32 ${chartH} Z`;
+
+  const lastX = 32 + (points.length - 1) * step;
+  const lastY = chartH - points[points.length - 1] * chartH;
+
+  // Calculate variation
+  const variation = Math.round(((points[points.length - 1] - points[0]) / points[0]) * 100);
+
+  // Initials for avatar
+  const initials = name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+
   return (
-    <Animated.View style={{ opacity: progress, marginTop: 12 }}>
-      <View style={{ backgroundColor: PALETTE.card, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: PALETTE.border }}>
-        <Text style={{ color: PALETTE.subtext, fontSize: 9, fontWeight: "600", marginBottom: 4 }}>Popularoo Index — Live</Text>
-        <Svg width={width - 16} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <Animated.View style={{ opacity: drawProgress, marginTop: 10 }}>
+      <View style={{ backgroundColor: PALETTE.card, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: PALETTE.border }}>
+        {/* Header: avatar + name + variation */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: PALETTE.gold + "20", borderWidth: 1, borderColor: PALETTE.gold, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: PALETTE.gold, fontSize: 8, fontWeight: "700" }}>{initials}</Text>
+          </View>
+          <Text style={{ color: PALETTE.subtext, fontSize: 10, fontWeight: "600", marginLeft: 6, flex: 1 }}>{name} — 7 days</Text>
+          <View style={{ backgroundColor: PALETTE.green + "20", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+            <Text style={{ color: PALETTE.green, fontSize: 10, fontWeight: "700" }}>+{variation}%</Text>
+          </View>
+        </View>
+
+        {/* Chart */}
+        <Svg width={width - 20} height={height} viewBox={`0 0 ${width} ${height}`}>
+          {/* Y-axis labels */}
+          <SvgText x={2} y={10} fill={PALETTE.subtext} fontSize={7} fontWeight="600">100</SvgText>
+          <SvgText x={8} y={chartH / 2 + 3} fill={PALETTE.subtext} fontSize={7} fontWeight="600">50</SvgText>
+          <SvgText x={14} y={chartH - 1} fill={PALETTE.subtext} fontSize={7} fontWeight="600">0</SvgText>
+
+          {/* Grid lines */}
+          <Path d={`M 32 ${chartH / 2} H ${width - 20}`} stroke={PALETTE.border} strokeWidth={0.5} strokeDasharray="3,3" />
+
+          {/* Area fill */}
+          <Path d={areaD} fill={PALETTE.green + "10"} />
+
+          {/* Trend line */}
           <Path d={pathD} stroke={PALETTE.green} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          <Circle cx={points.length * step - step} cy={height - points[points.length - 1] * height} r={3} fill={PALETTE.green} />
+
+          {/* Current point */}
+          <Circle cx={lastX} cy={lastY} r={3.5} fill={PALETTE.green} />
+          <Circle cx={lastX} cy={lastY} r={6} fill={PALETTE.green} fillOpacity={0.2} />
         </Svg>
       </View>
     </Animated.View>
   );
 }
 
-// ---- Personality card (same style as Home) ----
+// ---- Personality card (Home-matching with gold border) ----
 
 function PersonCard({ rank, name, category, score, isYou = false }: {
   rank: number; name: string; category: string; score: number; isYou?: boolean;
@@ -132,14 +181,19 @@ function PersonCard({ rank, name, category, score, isYou = false }: {
   const catLabel = isYou ? "" : (t(`categories.${category}`) || category);
   const catIcon: Record<string, string> = { politics: "people", culture: "color-palette", sport: "football", business: "briefcase" };
 
+  // Ajustement 3: Gauge differentiated by rank (95/82/68)
+  const gaugeScore = rank === 1 ? 97 : rank === 2 ? 82 : 68;
+
   return (
     <Animated.View style={[
       styles.personCard,
+      // Ajustement 1: Gold border for all personality cards
+      !isYou && { borderColor: PALETTE.gold + "50" },
       isYou && styles.youCard,
       isYou && { opacity: pulseAnim },
     ]}>
       {/* Rank badge */}
-      <View style={[styles.rankBadge, isYou && { borderColor: PALETTE.gold }]}>
+      <View style={[styles.rankBadge, isYou && { borderColor: PALETTE.gold, backgroundColor: PALETTE.gold + "15" }]}>
         <Text style={[styles.rankText, isYou && { color: PALETTE.gold }]}>{rank}</Text>
       </View>
 
@@ -155,13 +209,13 @@ function PersonCard({ rank, name, category, score, isYou = false }: {
         )}
       </View>
 
-      {/* Gauge or ? */}
+      {/* Gauge differentiated by rank, or ? for YOU */}
       {isYou ? (
         <View style={styles.youAvatarCircle}>
           <Text style={styles.youAvatarText}>?</Text>
         </View>
       ) : (
-        <GaugeIcon score={score} size={36} />
+        <GaugeIcon score={gaugeScore} size={36} />
       )}
     </Animated.View>
   );
@@ -179,19 +233,38 @@ function PageDots({ total, current }: { total: number; current: number }) {
   );
 }
 
-// ---- Booster Tier Card ----
+// ---- Booster Tier Card with visual hierarchy ----
 
-function BoosterTierCard({ icon, name, duration, desc, color }: {
-  icon: string; name: string; duration: string; desc: string; color: string;
+function BoosterTierCard({ icon, name, duration, desc, color, tier }: {
+  icon: string; name: string; duration: string; desc: string; color: string; tier: "basic" | "super" | "golden";
 }) {
+  const isGolden = tier === "golden";
+  const isSuper = tier === "super";
+
   return (
-    <View style={[styles.tierCard, { borderColor: color + "50" }]}>
-      <View style={[styles.tierIcon, { backgroundColor: color + "18" }]}>
-        <Ionicons name={icon as any} size={22} color={color} />
+    <View style={[
+      styles.tierCard,
+      { borderColor: color + (isGolden ? "70" : "40") },
+      isGolden && { backgroundColor: PALETTE.gold + "0C", borderWidth: 1.5 },
+      isSuper && { backgroundColor: PALETTE.orange + "08" },
+    ]}>
+      <View style={[
+        styles.tierIcon,
+        { backgroundColor: color + (isGolden ? "25" : "15") },
+        isGolden && { borderWidth: 1, borderColor: PALETTE.gold + "50" },
+      ]}>
+        <Ionicons name={icon as any} size={isGolden ? 24 : 22} color={color} />
       </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={[styles.tierName, { color }]}>{name}</Text>
-        <Text style={styles.tierDuration}>{duration}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={[styles.tierName, { color }, isGolden && { fontSize: 16 }]}>{name}</Text>
+          {isGolden && (
+            <View style={{ backgroundColor: PALETTE.gold + "20", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+              <Text style={{ color: PALETTE.gold, fontSize: 8, fontWeight: "800" }}>MOST POPULAR</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.tierDuration, isGolden && { fontWeight: "700" }]}>{duration}</Text>
         <Text style={styles.tierDesc}>{desc}</Text>
       </View>
     </View>
@@ -334,6 +407,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete?: () => vo
             duration={t("onboarding.booster_1h")}
             desc={t("onboarding.booster_1h_desc")}
             color={PALETTE.green}
+            tier="basic"
           />
           <BoosterTierCard
             icon="star"
@@ -341,6 +415,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete?: () => vo
             duration={t("onboarding.booster_24h")}
             desc={t("onboarding.booster_24h_desc")}
             color={PALETTE.orange}
+            tier="super"
           />
           <BoosterTierCard
             icon="trophy"
@@ -348,6 +423,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete?: () => vo
             duration={t("onboarding.booster_7d")}
             desc={t("onboarding.booster_7d_desc")}
             color={PALETTE.gold}
+            tier="golden"
           />
         </View>
       </View>
