@@ -380,8 +380,9 @@ async def auto_disable_seeds_for_country(db, country: str) -> Dict[str, Any]:
     if real_count >= 100:
         to_disable = total_active  # Disable all
     elif real_count >= 60:
-        # How many should have been disabled by now: 2 + 50% of (total - 2)
-        target_disabled = 2 + max(0, (total_active - 2) // 2)
+        # How many should have been disabled by now: 2 + ceil(50% of remaining)
+        import math
+        target_disabled = 2 + max(0, math.ceil((total_active) / 2))
         already_disabled = await db.active_boosts.count_documents({
             "is_seed": True, "seed_active": False, "country": country,
         })

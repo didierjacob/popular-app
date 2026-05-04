@@ -892,7 +892,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         raise HTTPException(status_code=404, detail="Person not found")
 
     new_val = int(body.value)
-    is_outsider = person.get("source") == "self_boosted"
+    is_outsider = person.get("source") in ("self_boosted", "seed")
 
     # Block dislikes on outsiders (anti-harassment protection)
     if new_val == -1 and is_outsider:
@@ -2204,16 +2204,36 @@ async def boost_myself(request: BoostMyselfRequest):
             if existing_boost.get("position") == "top" and new_position != "top":
                 new_position = "top"  # Keep golden position
 
+            # B5: Replace old boost — mark as replaced and create new one
             await db.active_boosts.update_one(
                 {"_id": existing_boost["_id"]},
                 {"$set": {
-                    "end_time": new_end,
-                    "tier": request.tier,
-                    "position": new_position,
+                    "status": "replaced",
+                    "replaced_at": now,
+                    "replaced_by_tier": request.tier,
+                    "end_time": now,  # Immediately expire old boost
                     "updated_at": now,
                 }}
             )
-            end_time = new_end
+            # Create new boost with fresh timing
+            end_time = now + timedelta(hours=tier_info["duration_hours"])
+            replace_doc = {
+                "person_id": person_id,
+                "person_name": name,
+                "user_id": request.user_id,
+                "email": request.email or "",
+                "tier": request.tier,
+                "position": new_position,
+                "country": getattr(request, 'country', None),
+                "start_time": now,
+                "end_time": end_time,
+                "reminder_sent": False,
+                "created_at": now,
+                "updated_at": now,
+                "replaces": str(existing_boost["_id"]),
+            }
+            replace_result = await db.active_boosts.insert_one(replace_doc)
+            active_boost_id = str(replace_result.inserted_id)
         else:
             # Create new active boost
             end_time = now + timedelta(hours=tier_info["duration_hours"])
@@ -2231,7 +2251,8 @@ async def boost_myself(request: BoostMyselfRequest):
                 "created_at": now,
                 "updated_at": now,
             }
-            await db.active_boosts.insert_one(boost_doc)
+            insert_result = await db.active_boosts.insert_one(boost_doc)
+            active_boost_id = str(insert_result.inserted_id)
 
         # Record transaction
         await db.credit_transactions.insert_one({
@@ -2291,6 +2312,7 @@ async def boost_myself(request: BoostMyselfRequest):
         return {
             "success": True,
             "person_id": str(person_id),
+            "boost_id": active_boost_id,
             "person_name": name,
             "tier": request.tier,
             "tier_name": tier_info["name"],
