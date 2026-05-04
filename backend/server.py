@@ -4157,6 +4157,9 @@ async def remove_seed_outsiders_endpoint(password: str = Query(default="")):
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
+# Serve static screenshots for validation
+app.mount("/api/screenshots", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static", "screenshots"), html=True), name="screenshots")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
