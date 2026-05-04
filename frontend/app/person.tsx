@@ -454,7 +454,6 @@ export default function Person() {
           {person?.source === "self_boosted" && person?.social_links && (
             (person.social_links.instagram || person.social_links.tiktok || person.social_links.x) ? (
               <View style={styles.followSection}>
-                <Text style={styles.followSectionTitle}>{t("socialConfig.followOn")}</Text>
                 <View style={styles.followButtons}>
                   {person.social_links.instagram && (
                     <TouchableOpacity
@@ -491,8 +490,7 @@ export default function Person() {
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16, marginRight: 6 }}>𝕏</Text>
-                      <Text style={styles.followBtnText}>X</Text>
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>𝕏</Text>
                     </TouchableOpacity>
                   )}
                 </View>
