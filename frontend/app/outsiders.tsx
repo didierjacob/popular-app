@@ -441,7 +441,7 @@ export default function OutsidersScreen() {
               </View>
             )}
             <Text style={styles.meta}>
-              {item.tier_name} • {formatNumber(item.total_votes)}
+              {sortBy === "tier" ? `${formatNumber(item.total_votes)} votes` : `${item.tier_name} • ${formatNumber(item.total_votes)}`}
             </Text>
           </View>
 
