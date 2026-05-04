@@ -205,7 +205,11 @@
     "noReceiptError": "Nessuna ricevuta di pagamento ricevuta.",
     "activateError": "Impossibile attivare il boost",
     "purchaseFailed": "Acquisto fallito",
-    "boostActivatedMsg": "{{message}}\n\nScade il: {{date}}"
+    "boostActivatedMsg": "{{message}}\n\nScade il: {{date}}",
+    "replaceTitle": "Sostituire il Booster attivo?",
+    "replaceBody": "Hai già un {{currentTier}} attivo fino al {{endDate}}. L'acquisto di un nuovo Booster sostituirà immediatamente quello attuale.",
+    "replaceNewBooster": "Nuovo Booster: {{tierName}} ({{duration}})",
+    "replaceContinue": "Sostituisci e continua"
   },
   "account": {
     "title": "Il mio account",

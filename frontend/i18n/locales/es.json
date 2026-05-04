@@ -205,7 +205,11 @@
     "noReceiptError": "No se recibió recibo de pago.",
     "activateError": "No se pudo activar el boost",
     "purchaseFailed": "Compra fallida",
-    "boostActivatedMsg": "{{message}}\n\nExpira: {{date}}"
+    "boostActivatedMsg": "{{message}}\n\nExpira: {{date}}",
+    "replaceTitle": "¿Reemplazar Booster activo?",
+    "replaceBody": "Ya tienes un {{currentTier}} activo hasta el {{endDate}}. Comprar un nuevo Booster reemplazará tu Booster actual inmediatamente.",
+    "replaceNewBooster": "Nuevo Booster: {{tierName}} ({{duration}})",
+    "replaceContinue": "Reemplazar y continuar"
   },
   "account": {
     "title": "Mi cuenta",

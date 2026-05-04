@@ -205,7 +205,11 @@
     "noReceiptError": "Kein Zahlungsbeleg erhalten.",
     "activateError": "Boost konnte nicht aktiviert werden",
     "purchaseFailed": "Kauf fehlgeschlagen",
-    "boostActivatedMsg": "{{message}}\n\nLäuft ab: {{date}}"
+    "boostActivatedMsg": "{{message}}\n\nLäuft ab: {{date}}",
+    "replaceTitle": "Aktiven Booster ersetzen?",
+    "replaceBody": "Du hast bereits einen aktiven {{currentTier}} bis {{endDate}}. Der Kauf eines neuen Booster ersetzt deinen aktuellen sofort.",
+    "replaceNewBooster": "Neuer Booster: {{tierName}} ({{duration}})",
+    "replaceContinue": "Ersetzen & fortfahren"
   },
   "account": {
     "title": "Mein Konto",

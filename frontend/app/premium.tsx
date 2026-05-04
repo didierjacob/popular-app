@@ -256,36 +256,70 @@ export default function Premium() {
     const storeProduct = storeProducts.find(p => p.productId === productId);
     const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
-    Alert.alert(
-      t('premium.confirmPurchase'),
-      t('premium.confirmBody', { tierName: tier.name, price: displayPrice }) + `\n\n` +
-      `• ${t('premium.confirmAppear', { name: name.trim() })}\n` +
-      `• ${t('premium.confirmDuration', { duration: durationLabel })}\n` +
-      (tier.id === 'golden_booster'
-        ? `• ${t('premium.confirmGoldenExtra')}\n\n`
-        : `\n`) +
-      t('premium.confirmPaymentVia', { store: Platform.OS === 'ios' ? 'Apple' : 'Google' }),
-      [
-        { text: t('premium.cancel'), style: 'cancel' },
-        {
-          text: t('premium.buyPrice', { price: displayPrice }),
-          onPress: async () => {
-            Keyboard.dismiss();
-            setPurchasing(true);
-            try {
-              await iapService.purchase(productId);
-              // The purchase listener in initIAP will handle the rest
-            } catch (error: any) {
-              console.error('[Premium] Purchase initiation error:', error);
-              if (error?.code !== 'E_USER_CANCELLED') {
-                Alert.alert(t('premium.purchaseError'), error.message || t('premium.purchaseErrorMsg'));
-              }
-              setPurchasing(false);
-            }
+    // B5: Check if user already has an active booster → show replacement warning
+    const existingBoost = await CreditsService.getExistingActiveBoost();
+
+    if (existingBoost) {
+      // Format the end time of the active boost for display
+      const endDate = new Date(existingBoost.end_time);
+      const endDateStr = endDate.toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      Alert.alert(
+        t('premium.replaceTitle'),
+        t('premium.replaceBody', {
+          currentTier: existingBoost.tier_name,
+          endDate: endDateStr,
+        }) + `\n\n` +
+        t('premium.replaceNewBooster', { tierName: tier.name, duration: durationLabel }),
+        [
+          { text: t('premium.cancel'), style: 'cancel' },
+          {
+            text: t('premium.replaceContinue'),
+            style: 'destructive',
+            onPress: () => proceedWithPurchase(productId, displayPrice, tier),
           },
-        },
-      ]
-    );
+        ]
+      );
+    } else {
+      // No existing boost — show standard confirmation
+      Alert.alert(
+        t('premium.confirmPurchase'),
+        t('premium.confirmBody', { tierName: tier.name, price: displayPrice }) + `\n\n` +
+        `• ${t('premium.confirmAppear', { name: name.trim() })}\n` +
+        `• ${t('premium.confirmDuration', { duration: durationLabel })}\n` +
+        (tier.id === 'golden_booster'
+          ? `• ${t('premium.confirmGoldenExtra')}\n\n`
+          : `\n`) +
+        t('premium.confirmPaymentVia', { store: Platform.OS === 'ios' ? 'Apple' : 'Google' }),
+        [
+          { text: t('premium.cancel'), style: 'cancel' },
+          {
+            text: t('premium.buyPrice', { price: displayPrice }),
+            onPress: () => proceedWithPurchase(productId, displayPrice, tier),
+          },
+        ]
+      );
+    }
+  };
+
+  const proceedWithPurchase = async (productId: string, displayPrice: string, tier: BoosterTier) => {
+    Keyboard.dismiss();
+    setPurchasing(true);
+    try {
+      await iapService.purchase(productId);
+      // The purchase listener in initIAP will handle the rest
+    } catch (error: any) {
+      console.error('[Premium] Purchase initiation error:', error);
+      if (error?.code !== 'E_USER_CANCELLED') {
+        Alert.alert(t('premium.purchaseError'), error.message || t('premium.purchaseErrorMsg'));
+      }
+      setPurchasing(false);
+    }
   };
 
   const formatDate = (timestamp: string) => {

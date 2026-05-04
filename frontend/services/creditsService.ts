@@ -250,6 +250,38 @@ export class CreditsService {
     }
   }
 
+  /**
+   * Check if the current user has an active boost.
+   * Returns the first active boost detail if found, or null.
+   */
+  static async getExistingActiveBoost(): Promise<{
+    tier: string;
+    tier_name: string;
+    name: string;
+    end_time: string;
+  } | null> {
+    try {
+      const userId = await getUserId();
+      const response = await fetch(API(`/credits/balance/${userId}`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (data.active_boosts > 0 && data.boost_details && data.boost_details.length > 0) {
+        const boost = data.boost_details[0];
+        const tierInfo = BOOSTER_TIERS.find(t => t.id === boost.tier);
+        return {
+          tier: boost.tier,
+          tier_name: tierInfo?.name || boost.tier,
+          name: boost.name || '',
+          end_time: boost.end_time,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Check existing boost error:', error);
+      return null;
+    }
+  }
+
   static async updateSocialLinks(boostId: string, links: SocialLinks): Promise<any> {
     try {
       const response = await fetch(API(`/outsiders/${boostId}/social-links`), {

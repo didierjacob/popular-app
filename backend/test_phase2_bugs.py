@@ -1,6 +1,13 @@
 """
-Diagnostic test for bugs B1, B2, B4, B5
-Tests the current state of the code WITHOUT modifying anything.
+Phase 2 Integration Tests - Bug Verification Suite (B1, B2, B4, B5)
+====================================================================
+Use this script to verify that the 4 critical bug fixes are functional.
+Run: python3 test_phase2_bugs.py
+
+IMPORTANT:
+- Uses DB_NAME from .env (default: test_database)
+- Route: POST /api/people/{id}/vote (NOT /api/vote/{id})
+- Cleans up all test data after execution
 """
 import asyncio
 import os
@@ -23,7 +30,6 @@ async def run_tests():
     results = {"passed": 0, "failed": 0, "errors": []}
     
     # ==================== SETUP ====================
-    # Create a test seed person
     test_seed = {
         "name": "Test Seed Person",
         "slug": "test-seed-person-diag",
@@ -42,7 +48,6 @@ async def run_tests():
     seed_id = str(seed_result.inserted_id)
     print(f"[SETUP] Seed person created: {seed_id}")
     
-    # Create a test outsider for boost tests
     test_outsider = {
         "name": "Test Outsider Diag",
         "slug": "test-outsider-diag",
@@ -61,174 +66,125 @@ async def run_tests():
     print(f"[SETUP] Outsider created: {outsider_id}")
     
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # ==================== TEST B1: Superlike on seed ====================
+        # ==================== TEST B1 ====================
         print("\n" + "="*60)
         print("TEST B1: Superlike on seed outsider")
         print("="*60)
-        
         try:
             resp = await client.post(
                 f"{BASE_URL}/people/{seed_id}/vote",
                 json={"value": 5},
                 headers={"X-Device-ID": "diag-device-001"}
             )
-            print(f"  Status: {resp.status_code}")
             body = resp.json()
-            
             if resp.status_code == 200:
-                print(f"  ✅ B1 PASS: Superlike accepted on seed")
-                print(f"     superlikes={body.get('superlikes')}, total_votes={body.get('total_votes')}")
+                print(f"  ✅ B1 PASS: superlikes={body.get('superlikes')}")
                 results["passed"] += 1
             else:
-                print(f"  ❌ B1 FAIL: {body}")
+                print(f"  ❌ B1 FAIL: {resp.status_code} - {body}")
                 results["failed"] += 1
                 results["errors"].append(f"B1: {resp.status_code} - {body}")
         except Exception as e:
             print(f"  💥 B1 ERROR: {e}")
             results["failed"] += 1
-            results["errors"].append(f"B1: Exception - {e}")
+            results["errors"].append(f"B1: {e}")
         
-        # ==================== TEST B2: boost_id in response ====================
+        # ==================== TEST B2 ====================
         print("\n" + "="*60)
-        print("TEST B2: boost_id present in /boost-myself response")
+        print("TEST B2: boost_id in /boost-myself response")
         print("="*60)
-        
         try:
-            boost_payload = {
+            resp = await client.post(f"{BASE_URL}/boost-myself", json={
                 "user_id": "diag-user-001",
                 "name": "Test Outsider Diag",
                 "tier": "booster",
                 "receipt": "test-receipt-valid-0123456789",
                 "platform": "ios",
                 "email": "diag@test.com",
-            }
-            resp = await client.post(f"{BASE_URL}/boost-myself", json=boost_payload)
-            print(f"  Status: {resp.status_code}")
+            })
             body = resp.json()
-            
             if resp.status_code == 200 and "boost_id" in body:
-                print(f"  ✅ B2 PASS: boost_id='{body['boost_id']}' present in response")
+                print(f"  ✅ B2 PASS: boost_id='{body['boost_id']}'")
                 results["passed"] += 1
-            elif resp.status_code == 200:
-                print(f"  ❌ B2 FAIL: Response 200 but 'boost_id' missing. Keys: {list(body.keys())}")
-                results["failed"] += 1
-                results["errors"].append(f"B2: boost_id missing from response")
             else:
-                print(f"  ❌ B2 FAIL: {resp.status_code} - {body}")
+                print(f"  ❌ B2 FAIL: {resp.status_code}, keys={list(body.keys())}")
                 results["failed"] += 1
-                results["errors"].append(f"B2: {resp.status_code} - {body}")
+                results["errors"].append(f"B2: boost_id missing")
         except Exception as e:
             print(f"  💥 B2 ERROR: {e}")
             results["failed"] += 1
-            results["errors"].append(f"B2: Exception - {e}")
+            results["errors"].append(f"B2: {e}")
         
-        # ==================== TEST B5: Single active booster replacement ====================
+        # ==================== TEST B5 ====================
         print("\n" + "="*60)
-        print("TEST B5: Second boost replaces first (only 1 active)")
+        print("TEST B5: Second boost replaces first")
         print("="*60)
-        
         try:
-            # Check current active boosts
-            now_check = datetime.now(timezone.utc)
-            active_before = await db.active_boosts.count_documents({
-                "person_id": outsider_result.inserted_id,
-                "end_time": {"$gt": now_check}
-            })
-            print(f"  Active boosts before 2nd purchase: {active_before}")
-            
-            # Second purchase (should replace the first)
-            boost_payload2 = {
+            resp = await client.post(f"{BASE_URL}/boost-myself", json={
                 "user_id": "diag-user-001",
                 "name": "Test Outsider Diag",
                 "tier": "super_booster",
                 "receipt": "test-receipt-valid-9876543210",
                 "platform": "ios",
                 "email": "diag@test.com",
-            }
-            resp = await client.post(f"{BASE_URL}/boost-myself", json=boost_payload2)
-            print(f"  2nd boost status: {resp.status_code}")
+            })
             body = resp.json()
-            
-            if resp.status_code != 200:
-                print(f"  ❌ B5 FAIL: 2nd purchase failed: {body}")
-                results["failed"] += 1
-                results["errors"].append(f"B5: 2nd purchase failed - {body}")
-            else:
-                print(f"  2nd boost response: success={body.get('success')}, boost_id={body.get('boost_id')}")
-                
-                # Count active boosts now
+            if resp.status_code == 200:
                 now_after = datetime.now(timezone.utc)
                 active_after = await db.active_boosts.count_documents({
                     "person_id": outsider_result.inserted_id,
                     "end_time": {"$gt": now_after}
                 })
-                total_docs = await db.active_boosts.count_documents({
-                    "person_id": outsider_result.inserted_id
-                })
-                
-                # Check replaced status
                 replaced_count = await db.active_boosts.count_documents({
                     "person_id": outsider_result.inserted_id,
                     "status": "replaced"
                 })
-                
-                print(f"  Active boosts after 2nd purchase: {active_after} (expected: 1)")
-                print(f"  Total boost documents: {total_docs} (expected: 2)")
-                print(f"  Replaced boosts: {replaced_count} (expected: 1)")
-                
                 if active_after == 1 and replaced_count == 1:
-                    print(f"  ✅ B5 PASS: Exactly 1 active boost, 1 replaced")
+                    print(f"  ✅ B5 PASS: 1 active, 1 replaced")
                     results["passed"] += 1
                 else:
                     print(f"  ❌ B5 FAIL: active={active_after}, replaced={replaced_count}")
                     results["failed"] += 1
                     results["errors"].append(f"B5: active={active_after}, replaced={replaced_count}")
+            else:
+                print(f"  ❌ B5 FAIL: {resp.status_code} - {body}")
+                results["failed"] += 1
+                results["errors"].append(f"B5: {resp.status_code}")
         except Exception as e:
             print(f"  💥 B5 ERROR: {e}")
             results["failed"] += 1
-            results["errors"].append(f"B5: Exception - {e}")
+            results["errors"].append(f"B5: {e}")
     
-    # ==================== TEST B4: math.ceil in seed_outsiders.py ====================
+    # ==================== TEST B4 ====================
     print("\n" + "="*60)
-    print("TEST B4: math.ceil used in seed deactivation threshold")
+    print("TEST B4: math.ceil in seed_outsiders.py")
     print("="*60)
-    
     try:
         with open("seed_outsiders.py", "r") as f:
-            content = f.read()
-        
-        if "math.ceil" in content:
-            print(f"  ✅ B4 PASS: math.ceil found in seed_outsiders.py")
-            results["passed"] += 1
-        else:
-            print(f"  ❌ B4 FAIL: math.ceil NOT found in seed_outsiders.py")
-            results["failed"] += 1
-            results["errors"].append("B4: math.ceil not found")
+            if "math.ceil" in f.read():
+                print(f"  ✅ B4 PASS")
+                results["passed"] += 1
+            else:
+                print(f"  ❌ B4 FAIL: math.ceil not found")
+                results["failed"] += 1
     except Exception as e:
         print(f"  💥 B4 ERROR: {e}")
         results["failed"] += 1
-        results["errors"].append(f"B4: Exception - {e}")
     
     # ==================== CLEANUP ====================
-    print("\n" + "="*60)
-    print("CLEANUP")
-    print("="*60)
-    
-    await db.persons.delete_many({"slug": {"$in": ["test-seed-person-diag", "test-outsider-diag"]}})
+    slugs = ["test-seed-person-diag", "test-outsider-diag"]
+    await db.persons.delete_many({"slug": {"$in": slugs}})
     await db.active_boosts.delete_many({"user_id": "diag-user-001"})
     await db.superlike_votes.delete_many({"device_id": "diag-device-001"})
     await db.superlike_events.delete_many({"device_id": "diag-device-001"})
     await db.credit_transactions.delete_many({"user_id": "diag-user-001"})
-    print("  ✅ All test data cleaned up")
     
-    # ==================== SUMMARY ====================
     print("\n" + "="*60)
-    print(f"RÉSUMÉ: {results['passed']} PASS / {results['failed']} FAIL")
+    print(f"RÉSULTAT: {results['passed']}/4 PASS | {results['failed']}/4 FAIL")
     print("="*60)
     if results["errors"]:
-        print("Erreurs détaillées:")
         for e in results["errors"]:
-            print(f"  - {e}")
+            print(f"  ⚠️  {e}")
     
     mongo_client.close()
 
