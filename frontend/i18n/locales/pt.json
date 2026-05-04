@@ -321,11 +321,18 @@
     "vote_subtitle": "Acompanhe a popularidade delas em tempo real.",
     "promo_title": "Quando estiver pronto, entre na arena.",
     "promo_subtitle": "Fique ao lado das estrelas.",
-    "action_title": "The market is open.",
-    "action_subtitle": "Your move.",
+    "action_title": "Three ways to step into the ring",
+    "action_subtitle": "Quando estiver pronto, escolha seu caminho.",
     "continue": "Continuar",
     "start_voting": "Começar a votar",
     "you": "YOU",
-    "replay": "Rever o onboarding"
+    "replay": "Rever o onboarding",
+    "start_exploring": "Começar a explorar",
+    "booster_1h": "1 hora",
+    "booster_1h_desc": "Visibilidade instantânea",
+    "booster_24h": "24 horas",
+    "booster_24h_desc": "1 Daily Run incluído",
+    "booster_7d": "7 dias",
+    "booster_7d_desc": "7 Daily Runs, posição premium"
   }
 }

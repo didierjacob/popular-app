@@ -321,11 +321,18 @@
     "vote_subtitle": "Suis leur popularité en temps réel.",
     "promo_title": "Quand tu es prêt, entre dans l'arène.",
     "promo_subtitle": "Prends ta place à côté des stars.",
-    "action_title": "The market is open.",
-    "action_subtitle": "Your move.",
+    "action_title": "Three ways to step into the ring",
+    "action_subtitle": "Quand tu es prêt, choisis ton chemin.",
     "continue": "Continuer",
     "start_voting": "Commencer à voter",
     "you": "YOU",
-    "replay": "Revoir l'onboarding"
+    "replay": "Revoir l'onboarding",
+    "start_exploring": "Commencer à explorer",
+    "booster_1h": "1 heure",
+    "booster_1h_desc": "Visibilité instantanée",
+    "booster_24h": "24 heures",
+    "booster_24h_desc": "1 Daily Run inclus",
+    "booster_7d": "7 jours",
+    "booster_7d_desc": "7 Daily Runs, placement premium"
   }
 }

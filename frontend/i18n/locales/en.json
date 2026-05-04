@@ -321,11 +321,18 @@
     "vote_subtitle": "Track their popularity in real time.",
     "promo_title": "When you're ready, step into the ring.",
     "promo_subtitle": "Stand next to the stars.",
-    "action_title": "The market is open.",
-    "action_subtitle": "Your move.",
+    "action_title": "Three ways to step into the ring",
+    "action_subtitle": "When you're ready, choose your path.",
     "continue": "Continue",
     "start_voting": "Start voting",
     "you": "YOU",
-    "replay": "Replay onboarding"
+    "replay": "Replay onboarding",
+    "start_exploring": "Start exploring",
+    "booster_1h": "1 hour",
+    "booster_1h_desc": "Instant visibility",
+    "booster_24h": "24 hours",
+    "booster_24h_desc": "1 Daily Run included",
+    "booster_7d": "7 days",
+    "booster_7d_desc": "7 Daily Runs, top placement"
   }
 }
