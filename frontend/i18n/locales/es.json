@@ -50,7 +50,11 @@
     "topPersonalities": "Top personalidades",
     "timeLeft_minutes": "{{count}}min restantes",
     "timeLeft_hours": "{{count}}h restantes",
-    "timeLeft_days": "{{count}}d restantes"
+    "timeLeft_days": "{{count}}d restantes",
+    "baseline": "Vota por las personalidades más famosas del mundo. Conviértete en una de ellas.",
+    "spot_title": "Your spot is waiting",
+    "spot_subtitle": "Ponte al lado de las estrellas. Activa un Booster para entrar en el ranking Outsiders.",
+    "spot_you": "YOU"
   },
   "popular": {
     "title": "Encuesta en vivo"
@@ -309,5 +313,19 @@
     "invalidFormat": "Formato inválido",
     "editSocial": "Editar cuentas sociales",
     "followOn": "Seguir en"
+  },
+  "onboarding": {
+    "welcome_title": "Bienvenido a Popularoo",
+    "welcome_subtitle": "The world's stock market of fame.",
+    "vote_title": "Vota por las personalidades más famosas del mundo.",
+    "vote_subtitle": "Sigue su popularidad en tiempo real.",
+    "promo_title": "Cuando estés listo, entra en el ring.",
+    "promo_subtitle": "Ponte al lado de las estrellas.",
+    "action_title": "The market is open.",
+    "action_subtitle": "Your move.",
+    "continue": "Continuar",
+    "start_voting": "Empezar a votar",
+    "you": "YOU",
+    "replay": "Repetir onboarding"
   }
 }

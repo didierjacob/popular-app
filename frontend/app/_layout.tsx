@@ -1,16 +1,52 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import "../i18n"; // Initialize i18n on app start
 import SplashScreen from "./splash";
+import OnboardingScreen from "./onboarding";
+
+const ONBOARDING_KEY = "@popularoo_onboarding_done";
 
 export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const done = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (done !== "true") {
+          setShowOnboarding(true);
+        }
+      } catch (e) {
+        // If error reading, skip onboarding
+      }
+      setCheckingOnboarding(false);
+    };
+    checkOnboarding();
+  }, []);
 
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
+
+  if (!checkingOnboarding && showOnboarding) {
+    return (
+      <OnboardingScreen
+        onComplete={() => {
+          AsyncStorage.setItem(ONBOARDING_KEY, "true");
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
+
+  if (checkingOnboarding) {
+    return null; // Brief blank while checking
   }
 
   return (
@@ -113,6 +149,12 @@ export default function RootLayout() {
       />
       <Tabs.Screen
         name="bullrun"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="onboarding"
         options={{
           href: null,
         }}

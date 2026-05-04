@@ -3,83 +3,105 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chantier 1L — Screenshots FINAL (4 ajustements appliqués)</title>
+<title>Chantier P1 — Refonte Onboarding — 9 Screenshots de validation</title>
 <style>
   body { font-family: -apple-system, sans-serif; background: #0F2F22; color: #EAEAEA; padding: 20px; max-width: 1200px; margin: 0 auto; }
   h1 { color: #FFD700; font-size: 22px; }
-  h2 { color: #E04F5F; font-size: 16px; margin-top: 32px; border-bottom: 1px solid #2E6148; padding-bottom: 6px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 16px; }
+  h2 { color: #E04F5F; font-size: 16px; margin-top: 28px; border-bottom: 1px solid #2E6148; padding-bottom: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
   .screenshot { text-align: center; }
   .screenshot img { max-width: 100%; border: 2px solid #2E6148; border-radius: 12px; }
-  .caption { color: #C9D8D2; font-size: 12px; margin-top: 6px; }
+  .caption { color: #C9D8D2; font-size: 11px; margin-top: 4px; }
   .tag { display: inline-block; background: #E04F5F; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
-  .info { background: #1C3A2C; padding: 14px; border-radius: 10px; border: 1px solid #2E6148; margin: 20px 0; line-height: 1.6; font-size: 13px; }
+  .info { background: #1C3A2C; padding: 14px; border-radius: 10px; border: 1px solid #2E6148; margin: 16px 0; line-height: 1.6; font-size: 12px; }
   .info strong { color: #FFD700; }
 </style>
 </head>
 <body>
-<h1>🏗️ Chantier 1L — Validation FINALE (4 ajustements appliqués)</h1>
+<h1>🏗️ Chantier P1 — Refonte Onboarding — Validation</h1>
 
 <div class="info">
-<strong>Ajustements appliqués :</strong><br>
-✅ 1. Baseline "Propulsés par la communauté" supprimée (toutes langues)<br>
-✅ 2. Ronds classement + initiales harmonisés (même taille 36px, même style bordure)<br>
-✅ 3. Rotation auto pausée si interaction < 60s (pattern Airbnb/Booking)<br>
-✅ 4. Badges contextuels selon tri actif (PI pour Index, Momentum pour 24h, Tier icon pour Tier, ❤️ pour Votes)
+<strong>Note :</strong> Les noms affichés dans le classement de l'onboarding sont Elon Musk / Hillary Clinton / Jeff Bezos car le navigateur web a une locale US. Sur un iPhone FR, l'API <code>/api/onboarding/top3?country=FR</code> renverrait les vrais top FR (Macron, Squeezie, etc.). La localisation est dynamique selon le pays de l'appareil.
 </div>
 
-<h2>Tri par Index — Badge PI contextuel (doré)</h2>
+<h2>1. Écran 1 — Welcome (FR)</h2>
 <div class="grid">
   <div class="screenshot">
-    <span class="tag">FR — TRI INDEX</span>
-    <img src="5_FR_final_index.png" alt="FR Index sort">
-    <div class="caption">Badge contextuel "⚡ PI 68" en doré à côté de chaque carte. Ronds harmonisés. Pas de baseline.</div>
+    <span class="tag">ONBOARDING FR — ÉCRAN 1</span>
+    <img src="ob1_fr_welcome.png" alt="Welcome FR">
+    <div class="caption">Logo P doré + "Bienvenue sur Popularoo" + "The world's stock market of fame." + dots ● ○ ○ ○</div>
   </div>
 </div>
 
-<h2>Tri par Votes — Badge ❤️ contextuel</h2>
+<h2>2. Écran 2 — Vote (FR)</h2>
 <div class="grid">
   <div class="screenshot">
-    <span class="tag">FR — TRI VOTES</span>
-    <img src="6_FR_sort_votes.png" alt="FR Votes sort">
-    <div class="caption">Badge contextuel "❤️ 13,200 votes" en rouge. Pilule "Votes" active en doré.</div>
+    <span class="tag">ONBOARDING FR — ÉCRAN 2</span>
+    <img src="ob2_fr_vote.png" alt="Vote FR">
+    <div class="caption">"Vote pour les personnalités les plus célèbres du monde." + 3 cartes de ranking (API dynamique)</div>
   </div>
 </div>
 
-<h2>Tri par Tier — Badge 🏆 contextuel</h2>
+<h2>3. Écran 3 — Auto-promo avec carte YOU (FR)</h2>
 <div class="grid">
   <div class="screenshot">
-    <span class="tag">FR — TRI TIER</span>
-    <img src="7_FR_sort_tier.png" alt="FR Tier sort">
-    <div class="caption">Badge contextuel "🏆 Golden Booster" (doré) / "Super Booster" (orange). Pilule "Tier" active.</div>
+    <span class="tag">ONBOARDING FR — ÉCRAN 3 (LE PLUS IMPORTANT)</span>
+    <img src="ob3_fr_promo.png" alt="Promo FR">
+    <div class="caption">"Quand tu es prêt, entre dans l'arène." + 3 cartes + carte YOU (bordure pointillée dorée, avatar ?, pulsation)</div>
   </div>
 </div>
 
-<h2>Tri par 24h Momentum — Badge ↑/↓ contextuel</h2>
+<h2>4. Écran 4 — Action (FR)</h2>
 <div class="grid">
   <div class="screenshot">
-    <span class="tag">FR — TRI 24H</span>
-    <img src="8_FR_sort_momentum.png" alt="FR 24h sort">
-    <div class="caption">Badge contextuel "↑ +0" / "↓ -X" en vert/rouge. Pilule "24h" active.</div>
+    <span class="tag">ONBOARDING FR — ÉCRAN 4</span>
+    <img src="ob4_fr_action.png" alt="Action FR">
+    <div class="caption">🚀 "The market is open." + "Your move." en doré italique + "Commencer à voter" bouton doré</div>
   </div>
 </div>
 
-<h2>Versions précédentes (avant ajustements)</h2>
+<h2>5. Écran 3 — Auto-promo avec carte YOU (DE)</h2>
 <div class="grid">
   <div class="screenshot">
-    <span class="tag">AVANT — FR</span>
-    <img src="1_FR_default.png" alt="Before FR">
-    <div class="caption">Avant : baseline visible, ronds non harmonisés, badges permanents</div>
+    <span class="tag">ONBOARDING DE — ÉCRAN 3</span>
+    <img src="ob3_de_promo.png" alt="Promo DE">
+    <div class="caption">"Wenn du bereit bist, betritt die Arena." + "Steh neben den Stars." + carte YOU + "Weiter"</div>
   </div>
+</div>
+
+<h2>6. Home — Nouvelle baseline (FR)</h2>
+<div class="grid">
   <div class="screenshot">
-    <span class="tag">AVANT — DE</span>
-    <img src="2_DE_layout.png" alt="Before DE">
-    <div class="caption">Allemand : layout stable, pilules compactes</div>
+    <span class="tag">HOME FR — BASELINE</span>
+    <img src="home_fr_baseline.png" alt="Home FR">
+    <div class="caption">"Vote pour les personnalités les plus célèbres du monde. Et deviens-en une."</div>
   </div>
+</div>
+
+<h2>7. Home — Section "Your spot is waiting" (FR)</h2>
+<div class="grid">
   <div class="screenshot">
-    <span class="tag">RECHERCHE</span>
-    <img src="3_FR_search_lea.png" alt="Search lea">
-    <div class="caption">Recherche "lea" → Léa Morin (accent-insensible)</div>
+    <span class="tag">HOME FR — YOUR SPOT IS WAITING</span>
+    <img src="home_fr_spot.png" alt="Spot FR">
+    <div class="caption">Carte "YOU" avec avatar ? doré + bordure pointillée + "Your spot is waiting" + sous-titre CTA → /premium</div>
+  </div>
+</div>
+
+<h2>8. Home — Nouvelle baseline (DE)</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">HOME DE — BASELINE</span>
+    <img src="home_de_baseline.png" alt="Home DE">
+    <div class="caption">"Stimme über die berühmtesten Persönlichkeiten der Welt ab. Werde eine davon."</div>
+  </div>
+</div>
+
+<h2>9. Account — Bouton "Revoir l'onboarding" (FR)</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">ACCOUNT FR — REVOIR ONBOARDING</span>
+    <img src="account_fr_replay.png" alt="Account FR">
+    <div class="caption">Bouton discret "Revoir l'onboarding" sous Settings, avec icône refresh</div>
   </div>
 </div>
 </body>

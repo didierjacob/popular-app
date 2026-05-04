@@ -1628,7 +1628,79 @@ async def get_outsiders(
         return {"golden": [], "regular": [], "total_active": 0}
 
 
-@api_router.get("/outsiders/paginated")
+@api_router.get("/onboarding/top3")
+async def get_onboarding_top3(country: Optional[str] = Query(default=None)):
+    """
+    Returns top 3 personalities for onboarding, ordered by Popularoo Index.
+    Tries to pick one per category (politics, culture, sport) for diversity.
+    """
+    try:
+        country_code = country.strip().upper() if country else None
+
+        # Try country-specific first
+        if country_code:
+            persons = await db.persons.find(
+                {"primary_country": country_code}
+            ).sort("popularoo_index", -1).to_list(length=20)
+        else:
+            persons = []
+
+        # Pick diverse categories: one politics, one culture, one sport
+        result = []
+        categories_wanted = ["politics", "sport", "culture"]
+        categories_found = set()
+
+        for p in persons:
+            cat = p.get("category", "other")
+            if cat in categories_wanted and cat not in categories_found:
+                result.append({
+                    "name": p.get("name", ""),
+                    "category": cat,
+                    "popularoo_index": round(p.get("popularoo_index", 0), 1),
+                })
+                categories_found.add(cat)
+                if len(result) == 3:
+                    break
+
+        # Fill remaining slots from same country (any category)
+        if len(result) < 3:
+            existing_names = {r["name"] for r in result}
+            for p in persons:
+                if p.get("name") not in existing_names:
+                    result.append({
+                        "name": p.get("name", ""),
+                        "category": p.get("category", "other"),
+                        "popularoo_index": round(p.get("popularoo_index", 0), 1),
+                    })
+                    existing_names.add(p.get("name"))
+                    if len(result) == 3:
+                        break
+
+        # Still less than 3? Fill with global top
+        if len(result) < 3:
+            global_top = await db.persons.find({}).sort("popularoo_index", -1).to_list(length=10)
+            existing_names = {r["name"] for r in result}
+            for p in global_top:
+                if p.get("name") not in existing_names:
+                    result.append({
+                        "name": p.get("name", ""),
+                        "category": p.get("category", "other"),
+                        "popularoo_index": round(p.get("popularoo_index", 0), 1),
+                    })
+                    if len(result) == 3:
+                        break
+
+        # Sort result by popularoo_index descending
+        result.sort(key=lambda x: x["popularoo_index"], reverse=True)
+
+        return {"top3": result, "country": country_code or "global"}
+
+    except Exception as e:
+        logger.error(f"Onboarding top3 error: {e}")
+        return {"top3": [], "country": country or "global"}
+
+
+
 async def get_outsiders_paginated(
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(default=20, ge=1, le=50, description="Items per page"),

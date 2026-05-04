@@ -419,7 +419,7 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={handleTitleTap} activeOpacity={0.8}>
             <Text style={styles.title}>Popularoo</Text>
           </TouchableOpacity>
-          <Text style={styles.subtitle}>{t("home.subtitle")}</Text>
+          <Text style={styles.subtitle}>{t("home.baseline")}</Text>
         </View>
 
         {/* Search Box */}
@@ -577,6 +577,23 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Your Spot is Waiting — CTA Section */}
+        <TouchableOpacity
+          style={styles.spotSection}
+          onPress={() => router.push("/premium")}
+          activeOpacity={0.8}
+        >
+          {/* YOU card */}
+          <View style={styles.spotCard}>
+            <View style={styles.spotAvatarCircle}>
+              <Text style={styles.spotAvatarText}>?</Text>
+            </View>
+            <Text style={styles.spotYou}>{t("home.spot_you")}</Text>
+          </View>
+          <Text style={styles.spotTitle}>{t("home.spot_title")}</Text>
+          <Text style={styles.spotSub}>{t("home.spot_subtitle")}</Text>
+        </TouchableOpacity>
 
         {/* Bottom spacing */}
         <View style={{ height: 80 }} />
@@ -762,4 +779,58 @@ const styles = StyleSheet.create({
   personName: { fontSize: 16, fontWeight: "600", color: PALETTE.text },
   personMeta: { fontSize: 13, color: PALETTE.subtext, marginTop: 2 },
   gaugeContainer: { marginLeft: 8 },
+
+  // "Your Spot is Waiting" section
+  spotSection: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 8,
+    padding: 24,
+    borderRadius: 16,
+    backgroundColor: "#FFD70008",
+    borderWidth: 1.5,
+    borderColor: "#FFD70050",
+    borderStyle: "dashed",
+    alignItems: "center",
+  },
+  spotCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+  },
+  spotAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FFD70020",
+    borderWidth: 1.5,
+    borderColor: "#FFD700",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spotAvatarText: {
+    color: "#FFD700",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  spotYou: {
+    color: "#FFD700",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+  spotTitle: {
+    color: "#EAEAEA",
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  spotSub: {
+    color: "#C9D8D2",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+  },
 });
