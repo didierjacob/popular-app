@@ -1809,6 +1809,7 @@ async def get_onboarding_top3(country: Optional[str] = Query(default=None)):
 
 
 
+@api_router.get("/outsiders/paginated")
 async def get_outsiders_paginated(
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     limit: int = Query(default=20, ge=1, le=50, description="Items per page"),
