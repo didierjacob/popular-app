@@ -3,56 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chantier 1L — Screenshots de validation</title>
+<title>Chantier 1L — Screenshots FINAL (4 ajustements appliqués)</title>
 <style>
-  body { font-family: -apple-system, sans-serif; background: #0F2F22; color: #EAEAEA; padding: 20px; max-width: 900px; margin: 0 auto; }
-  h1 { color: #FFD700; font-size: 24px; }
-  h2 { color: #E04F5F; font-size: 18px; margin-top: 40px; border-bottom: 1px solid #2E6148; padding-bottom: 8px; }
-  .screenshot { margin: 16px 0; text-align: center; }
-  .screenshot img { max-width: 390px; border: 2px solid #2E6148; border-radius: 12px; }
-  .caption { color: #C9D8D2; font-size: 14px; margin-top: 8px; }
-  .info { background: #1C3A2C; padding: 16px; border-radius: 10px; border: 1px solid #2E6148; margin: 16px 0; line-height: 1.6; }
+  body { font-family: -apple-system, sans-serif; background: #0F2F22; color: #EAEAEA; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  h1 { color: #FFD700; font-size: 22px; }
+  h2 { color: #E04F5F; font-size: 16px; margin-top: 32px; border-bottom: 1px solid #2E6148; padding-bottom: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 16px; }
+  .screenshot { text-align: center; }
+  .screenshot img { max-width: 100%; border: 2px solid #2E6148; border-radius: 12px; }
+  .caption { color: #C9D8D2; font-size: 12px; margin-top: 6px; }
+  .tag { display: inline-block; background: #E04F5F; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
+  .info { background: #1C3A2C; padding: 14px; border-radius: 10px; border: 1px solid #2E6148; margin: 20px 0; line-height: 1.6; font-size: 13px; }
   .info strong { color: #FFD700; }
-  a { color: #E04F5F; }
 </style>
 </head>
 <body>
-<h1>🏗️ Chantier 1L — Validation visuelle</h1>
-<p>Capacité 1000 Outsiders + Rotation + Recherche + Tri</p>
-
-<h2>1. Page Outsiders FR — Vue par défaut (tri Index)</h2>
-<div class="screenshot">
-  <img src="1_FR_default.png" alt="FR Default">
-  <div class="caption">58 Outsiders actifs / 1000 • Barre de recherche • 4 pilules de tri • CTA promo • Cartes avec PI + temps restant</div>
-</div>
-
-<h2>2. Page Outsiders DE — Vérification layout allemand</h2>
-<div class="screenshot">
-  <img src="2_DE_layout.png" alt="DE Layout">
-  <div class="caption">"Von der Community gepusht" • "Willst du hier erscheinen?" • Pilules de tri compactes • Layout intact</div>
-</div>
-
-<h2>3. Recherche accent-insensible — "lea" → Léa Morin</h2>
-<div class="screenshot">
-  <img src="3_FR_search_lea.png" alt="Search lea">
-  <div class="caption">Recherche "lea" → Léa Morin (accent-insensible ✅) • Compteur filtré "1 Outsiders actifs" • Bouton clear (×)</div>
-</div>
-
-<h2>4. Pagination en bas</h2>
-<div class="screenshot">
-  <img src="4_FR_pagination.png" alt="Pagination">
-  <div class="caption">Navigation ◀ page 1/3 ▶ • "Rotation auto toutes les 10 min"</div>
-</div>
+<h1>🏗️ Chantier 1L — Validation FINALE (4 ajustements appliqués)</h1>
 
 <div class="info">
-<strong>CTA Promo — Formulations par langue :</strong><br>
-🇫🇷 FR : "Tu veux apparaître ici ? — Obtiens un Booster et rejoins le classement !"<br>
-🇬🇧 EN : "Want to appear here? — Get a Booster and join the ranking!"<br>
-🇩🇪 DE : "Willst du hier erscheinen? — Hol dir einen Booster und steig ins Ranking ein!"<br>
-🇪🇸 ES : "¿Quieres aparecer aquí? — ¡Consigue un Booster y únete al ranking!"<br>
-🇮🇹 IT : "Vuoi apparire qui? — Prendi un Booster e unisciti alla classifica!"<br>
-🇵🇹 PT : "Quer aparecer aqui? — Obtenha um Booster e junte-se ao ranking!"<br><br>
-<strong>Position :</strong> Banner séparé au-dessus de la liste (après les pilules de tri, avant le premier Outsider). Icône 🚀 dorée + chevron →. Redirige vers /premium.
+<strong>Ajustements appliqués :</strong><br>
+✅ 1. Baseline "Propulsés par la communauté" supprimée (toutes langues)<br>
+✅ 2. Ronds classement + initiales harmonisés (même taille 36px, même style bordure)<br>
+✅ 3. Rotation auto pausée si interaction < 60s (pattern Airbnb/Booking)<br>
+✅ 4. Badges contextuels selon tri actif (PI pour Index, Momentum pour 24h, Tier icon pour Tier, ❤️ pour Votes)
+</div>
+
+<h2>Tri par Index — Badge PI contextuel (doré)</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">FR — TRI INDEX</span>
+    <img src="5_FR_final_index.png" alt="FR Index sort">
+    <div class="caption">Badge contextuel "⚡ PI 68" en doré à côté de chaque carte. Ronds harmonisés. Pas de baseline.</div>
+  </div>
+</div>
+
+<h2>Tri par Votes — Badge ❤️ contextuel</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">FR — TRI VOTES</span>
+    <img src="6_FR_sort_votes.png" alt="FR Votes sort">
+    <div class="caption">Badge contextuel "❤️ 13,200 votes" en rouge. Pilule "Votes" active en doré.</div>
+  </div>
+</div>
+
+<h2>Tri par Tier — Badge 🏆 contextuel</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">FR — TRI TIER</span>
+    <img src="7_FR_sort_tier.png" alt="FR Tier sort">
+    <div class="caption">Badge contextuel "🏆 Golden Booster" (doré) / "Super Booster" (orange). Pilule "Tier" active.</div>
+  </div>
+</div>
+
+<h2>Tri par 24h Momentum — Badge ↑/↓ contextuel</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">FR — TRI 24H</span>
+    <img src="8_FR_sort_momentum.png" alt="FR 24h sort">
+    <div class="caption">Badge contextuel "↑ +0" / "↓ -X" en vert/rouge. Pilule "24h" active.</div>
+  </div>
+</div>
+
+<h2>Versions précédentes (avant ajustements)</h2>
+<div class="grid">
+  <div class="screenshot">
+    <span class="tag">AVANT — FR</span>
+    <img src="1_FR_default.png" alt="Before FR">
+    <div class="caption">Avant : baseline visible, ronds non harmonisés, badges permanents</div>
+  </div>
+  <div class="screenshot">
+    <span class="tag">AVANT — DE</span>
+    <img src="2_DE_layout.png" alt="Before DE">
+    <div class="caption">Allemand : layout stable, pilules compactes</div>
+  </div>
+  <div class="screenshot">
+    <span class="tag">RECHERCHE</span>
+    <img src="3_FR_search_lea.png" alt="Search lea">
+    <div class="caption">Recherche "lea" → Léa Morin (accent-insensible)</div>
+  </div>
 </div>
 </body>
 </html>

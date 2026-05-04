@@ -85,18 +85,22 @@ const ROTATION_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 // ---- Sub-components ----
 
-function InitialsAvatar({ initials, color, name, size = 38, isGolden = false }: {
-  initials?: string; color?: string; name: string; size?: number; isGolden?: boolean;
+// Unified circle size for rank and avatar
+const CIRCLE_SIZE = 36;
+
+function InitialsAvatar({ initials, name, isGolden = false }: {
+  initials?: string; name: string; isGolden?: boolean;
 }) {
   const displayInitials = initials || name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
   return (
     <View style={{
-      width: size, height: size, borderRadius: size / 2,
-      backgroundColor: color || "#1C3A2C",
+      width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2,
+      backgroundColor: PALETTE.card,
       justifyContent: "center", alignItems: "center",
-      borderWidth: isGolden ? 2 : 0, borderColor: isGolden ? PALETTE.gold : "transparent",
+      borderWidth: 1.5,
+      borderColor: isGolden ? PALETTE.gold : PALETTE.border,
     }}>
-      <Text style={{ color: "#FFF", fontSize: size * 0.38, fontWeight: "700" }}>{displayInitials}</Text>
+      <Text style={{ color: isGolden ? PALETTE.gold : PALETTE.text, fontSize: 13, fontWeight: "700", letterSpacing: 0.5 }}>{displayInitials}</Text>
     </View>
   );
 }
@@ -181,9 +185,16 @@ export default function OutsidersScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [currentUserId, setCurrentUserId] = useState("");
 
-  // Rotation timer
+  // Rotation timer with interaction-based pause
   const rotationTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastInteractionRef = useRef<number>(Date.now());
+  const INACTIVITY_THRESHOLD = 60_000; // 60 seconds
   const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Track user interactions to pause rotation
+  const recordInteraction = useCallback(() => {
+    lastInteractionRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(USER_ID_KEY).then((id) => { if (id) setCurrentUserId(id); });
@@ -224,9 +235,14 @@ export default function OutsidersScreen() {
     fetchOutsiders(currentPage, sortBy, searchActive ? searchQuery : undefined);
   }, [currentPage, sortBy]);
 
-  // Auto-rotation every 10 minutes: go to next page
+  // Auto-rotation every 10 minutes, paused if interaction < 60s ago
   useEffect(() => {
     rotationTimer.current = setInterval(() => {
+      const timeSinceLastInteraction = Date.now() - lastInteractionRef.current;
+      if (timeSinceLastInteraction < INACTIVITY_THRESHOLD) {
+        // User active recently — skip this rotation cycle
+        return;
+      }
       setCurrentPage((prev) => {
         const nextPage = pagination.has_next ? prev + 1 : 1;
         return nextPage;
@@ -236,11 +252,13 @@ export default function OutsidersScreen() {
   }, [pagination.has_next]);
 
   const onRefresh = useCallback(() => {
+    recordInteraction();
     setRefreshing(true);
     fetchOutsiders(currentPage, sortBy, searchActive ? searchQuery : undefined, true);
-  }, [currentPage, sortBy, searchQuery, searchActive, fetchOutsiders]);
+  }, [currentPage, sortBy, searchQuery, searchActive, fetchOutsiders, recordInteraction]);
 
   const handleSearch = () => {
+    recordInteraction();
     if (!searchQuery.trim()) {
       setSearchActive(false);
       setCurrentPage(1);
@@ -253,6 +271,7 @@ export default function OutsidersScreen() {
   };
 
   const clearSearch = () => {
+    recordInteraction();
     setSearchQuery("");
     setSearchActive(false);
     setCurrentPage(1);
@@ -260,12 +279,14 @@ export default function OutsidersScreen() {
   };
 
   const handleSortChange = (newSort: SortMode) => {
+    recordInteraction();
     if (newSort === sortBy) return;
     setSortBy(newSort);
     setCurrentPage(1);
   };
 
   const goNextPage = () => {
+    recordInteraction();
     if (pagination.has_next) {
       const next = currentPage + 1;
       setCurrentPage(next);
@@ -273,6 +294,7 @@ export default function OutsidersScreen() {
   };
 
   const goPrevPage = () => {
+    recordInteraction();
     if (pagination.has_prev) {
       const prev = currentPage - 1;
       setCurrentPage(prev);
@@ -373,9 +395,7 @@ export default function OutsidersScreen() {
         {/* Avatar */}
         <InitialsAvatar
           initials={item.avatar_initials}
-          color={item.avatar_color}
           name={item.name}
-          size={36}
           isGolden={isGolden}
         />
 
@@ -390,19 +410,43 @@ export default function OutsidersScreen() {
               </View>
             )}
           </View>
+
+          {/* Contextual primary metric based on sort mode */}
           <View style={styles.metaRow}>
-            <Text style={styles.meta}>
-              {item.tier_name} • {formatNumber(item.total_votes)} votes
-            </Text>
-            <MomentumBadge value={item.momentum_24h} />
-          </View>
-          <View style={styles.bottomRow}>
-            <TimeRemainingBadge hours={item.hours_remaining} />
-            {item.popularoo_index > 0 && (
-              <View style={styles.indexBadge}>
-                <Text style={styles.indexText}>PI {Math.round(item.popularoo_index)}</Text>
+            {sortBy === "index" && item.popularoo_index > 0 && (
+              <View style={styles.contextBadge}>
+                <Ionicons name="speedometer" size={11} color={PALETTE.gold} />
+                <Text style={[styles.contextBadgeText, { color: PALETTE.gold }]}>
+                  PI {Math.round(item.popularoo_index)}
+                </Text>
               </View>
             )}
+            {sortBy === "momentum" && (
+              <MomentumBadge value={item.momentum_24h} />
+            )}
+            {sortBy === "tier" && (
+              <View style={styles.contextBadge}>
+                <Ionicons name="trophy" size={11} color={item.tier_priority >= 3 ? PALETTE.gold : item.tier_priority >= 2 ? PALETTE.orange : PALETTE.subtext} />
+                <Text style={[styles.contextBadgeText, { color: item.tier_priority >= 3 ? PALETTE.gold : item.tier_priority >= 2 ? PALETTE.orange : PALETTE.subtext }]}>
+                  {item.tier_name}
+                </Text>
+              </View>
+            )}
+            {sortBy === "votes" && (
+              <View style={styles.contextBadge}>
+                <Ionicons name="heart" size={11} color={PALETTE.accent2} />
+                <Text style={[styles.contextBadgeText, { color: PALETTE.accent2 }]}>
+                  {formatNumber(item.total_votes)} votes
+                </Text>
+              </View>
+            )}
+            <Text style={styles.meta}>
+              {item.tier_name} • {formatNumber(item.total_votes)}
+            </Text>
+          </View>
+
+          <View style={styles.bottomRow}>
+            <TimeRemainingBadge hours={item.hours_remaining} />
             <SocialLinksRow links={item.social_links} />
           </View>
         </View>
@@ -478,7 +522,6 @@ export default function OutsidersScreen() {
         {/* Fixed Header */}
         <View style={styles.header}>
           <Text style={styles.title}>{t("outsiders.title")}</Text>
-          <Text style={styles.subtitle}>{t("outsiders.subtitle")}</Text>
         </View>
 
         {/* List */}
@@ -573,12 +616,12 @@ const styles = StyleSheet.create({
   goldenRow: { backgroundColor: PALETTE.gold + "08" },
   ownRow: { backgroundColor: PALETTE.green + "10", borderLeftWidth: 3, borderLeftColor: PALETTE.green },
   rank: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: PALETTE.card, borderWidth: 1, borderColor: PALETTE.border,
+    width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2,
+    backgroundColor: PALETTE.card, borderWidth: 1.5, borderColor: PALETTE.border,
     alignItems: "center", justifyContent: "center",
   },
-  goldenRank: { borderColor: PALETTE.gold, backgroundColor: PALETTE.gold + "15" },
-  rankText: { color: PALETTE.accent2, fontWeight: "700", fontSize: 12 },
+  goldenRank: { borderColor: PALETTE.gold },
+  rankText: { color: PALETTE.text, fontWeight: "700", fontSize: 13, letterSpacing: 0.5 },
   name: { color: PALETTE.text, fontSize: 15, fontWeight: "600", flexShrink: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   meta: { color: PALETTE.subtext, fontSize: 11 },
@@ -601,6 +644,12 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.border, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6,
   },
   indexText: { color: PALETTE.subtext, fontSize: 9, fontWeight: "700" },
+  contextBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: PALETTE.bg, paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 8, borderWidth: 1, borderColor: PALETTE.border,
+  },
+  contextBadgeText: { fontSize: 11, fontWeight: "700" },
 
   // Social
   socialRow: { flexDirection: "row", gap: 5 },
