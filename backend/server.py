@@ -211,7 +211,7 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
-Category = Literal["politics", "culture", "business", "sport", "other"]
+Category = Literal["politics", "culture", "business", "sport", "other", "outsider"]
 
 
 class PersonCreate(BaseModel):
@@ -4297,6 +4297,7 @@ app.include_router(api_router)
 
 # Serve static screenshots for validation
 app.mount("/api/screenshots", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static", "screenshots"), html=True), name="screenshots")
+app.mount("/api/screenshots-1l", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static", "screenshots_1L"), html=True), name="screenshots_1l")
 
 
 @app.on_event("shutdown")
