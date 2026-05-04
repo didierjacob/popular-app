@@ -590,14 +590,6 @@ export default function AccountScreen() {
         <View style={styles.section}>
           <View style={styles.card}>
             <TouchableOpacity
-              style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: PALETTE.border }]}
-              onPress={() => router.push("/premium")}
-            >
-              <Ionicons name="flash" size={24} color="#C8A951" />
-              <Text style={styles.menuItemText}>{t("tabs.boost")}</Text>
-              <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
-            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => router.push("/settings")}
             >

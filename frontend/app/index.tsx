@@ -308,6 +308,21 @@ export default function HomeScreen() {
   const [searchName, setSearchName] = useState("");
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // FAB pulse animation
+  const fabScale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(fabScale, { toValue: 1.08, duration: 600, useNativeDriver: true }),
+        Animated.timing(fabScale, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]).start();
+    };
+    const interval = setInterval(pulse, 8000);
+    // Initial pulse after 3 seconds
+    const timeout = setTimeout(pulse, 3000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, []);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async (silent = false) => {
@@ -583,14 +598,16 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* Floating Boost Button (FAB) */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/premium")}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="flash" size={22} color="#000" />
-        <Text style={styles.fabText}>Boost</Text>
-      </TouchableOpacity>
+      <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
+        <TouchableOpacity
+          style={styles.fabInner}
+          onPress={() => router.push("/premium")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="flash" size={24} color="#000" />
+          <Text style={styles.fabText}>Boost</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -774,25 +791,28 @@ const styles = StyleSheet.create({
   // FAB Boost button
   fab: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 90,
     right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#C8A951',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
     borderRadius: 28,
     shadowColor: '#C8A951',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10,
     zIndex: 100,
+  },
+  fabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#C8A951',
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    borderRadius: 28,
   },
   fabText: {
     color: '#000',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
