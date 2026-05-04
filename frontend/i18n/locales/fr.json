@@ -131,7 +131,16 @@
     "dailyRunLeaders": "Daily Run Leaders",
     "goldenBoosterCta": "Active un Golden Booster pour lancer ton Daily Run",
     "learnMore": "En savoir plus",
-    "timeLeft": "{{time}} restant"
+    "timeLeft": "{{time}} restant",
+    "activeLabel": "actifs",
+    "searchPlaceholder": "Rechercher un Outsider...",
+    "sort_index": "Index",
+    "sort_momentum": "24h",
+    "sort_tier": "Tier",
+    "sort_votes": "Votes",
+    "rotationHint": "Rotation auto toutes les 10 min",
+    "noResults": "Aucun résultat",
+    "tryAnotherSearch": "Essaie un autre nom ou efface la recherche."
   },
   "premium": {
     "title": "Booste-toi",

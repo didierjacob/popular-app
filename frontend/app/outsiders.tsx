@@ -1,21 +1,22 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Linking,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  FlatList,
   useWindowDimensions,
-  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CreditsService, type OutsiderData } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 
 const PALETTE = {
@@ -31,751 +32,608 @@ const PALETTE = {
   orange: "#FFA500",
 };
 
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
+const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 const USER_ID_KEY = "popular_user_id";
 
-const capitalize = (str: string) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
-/** Avatar with initials on colored background (Spotify/Slack style) */
-function InitialsAvatar({
-  initials,
-  color,
-  name,
-  size = 38,
-  isGolden = false,
-}: {
-  initials?: string;
-  color?: string;
-  name: string;
-  size?: number;
-  isGolden?: boolean;
-}) {
-  // Fallback: generate initials from name if not provided by API
-  const displayInitials =
-    initials ||
-    name
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  const bgColor = color || "#1C3A2C";
-  const borderColor = isGolden ? PALETTE.gold : "transparent";
+// ---- Types ----
 
+interface OutsiderItem {
+  id: string;
+  boost_id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  score: number;
+  total_votes: number;
+  tier: string;
+  tier_name: string;
+  tier_priority: number;
+  position: string;
+  hours_remaining: number;
+  social_links: { instagram?: string; tiktok?: string; x?: string };
+  avatar_initials?: string;
+  avatar_color?: string;
+  popularoo_index: number;
+  momentum_24h: number;
+  is_seed?: boolean;
+  country?: string;
+}
+
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+type SortMode = "index" | "momentum" | "tier" | "votes";
+
+const SORT_OPTIONS: { key: SortMode; icon: string }[] = [
+  { key: "index", icon: "speedometer" },
+  { key: "momentum", icon: "trending-up" },
+  { key: "tier", icon: "trophy" },
+  { key: "votes", icon: "heart" },
+];
+
+const PAGE_SIZE = 20;
+const ROTATION_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+// ---- Sub-components ----
+
+function InitialsAvatar({ initials, color, name, size = 38, isGolden = false }: {
+  initials?: string; color?: string; name: string; size?: number; isGolden?: boolean;
+}) {
+  const displayInitials = initials || name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: bgColor,
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: isGolden ? 2 : 0,
-        borderColor,
-        marginRight: 10,
-      }}
-    >
-      <Text
-        style={{
-          color: "#FFFFFF",
-          fontSize: size * 0.38,
-          fontWeight: "700",
-          letterSpacing: 0.5,
-        }}
-      >
-        {displayInitials}
-      </Text>
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      backgroundColor: color || "#1C3A2C",
+      justifyContent: "center", alignItems: "center",
+      borderWidth: isGolden ? 2 : 0, borderColor: isGolden ? PALETTE.gold : "transparent",
+    }}>
+      <Text style={{ color: "#FFF", fontSize: size * 0.38, fontWeight: "700" }}>{displayInitials}</Text>
     </View>
   );
-}
-
-function formatTimeRemaining(hours: number, t: any): string {
-  if (hours <= 0) return t("common.expired");
-  if (hours < 1) {
-    const mins = Math.round(hours * 60);
-    return t("common.timeLeft_m", { m: mins });
-  }
-  if (hours < 24) {
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
-    return m > 0 ? t("common.timeLeft_hm", { h, m }) : t("common.timeLeft_h", { h });
-  }
-  const days = Math.floor(hours / 24);
-  const remainHours = Math.round(hours - days * 24);
-  return remainHours > 0 ? t("common.timeLeft_dh", { d: days, h: remainHours }) : t("common.timeLeft_d", { d: days });
-}
-
-function getTimeBadgeColor(hours: number): string {
-  if (hours <= 1) return PALETTE.accent2; // Red - expiring very soon
-  if (hours <= 6) return PALETTE.orange;  // Orange - expiring soon
-  return PALETTE.green;                    // Green - plenty of time
 }
 
 function SocialLinksRow({ links }: { links: any }) {
   if (!links) return null;
   const hasAny = links.instagram || links.tiktok || links.x;
   if (!hasAny) return null;
-
   const openLink = (platform: string, value: string) => {
-    let url = "";
     const clean = value.replace("@", "");
-    if (platform === "instagram") {
-      url = `https://instagram.com/${clean}`;
-    } else if (platform === "tiktok") {
-      url = `https://tiktok.com/@${clean}`;
-    } else if (platform === "x") {
-      url = `https://x.com/${clean}`;
-    }
+    let url = "";
+    if (platform === "instagram") url = `https://instagram.com/${clean}`;
+    else if (platform === "tiktok") url = `https://tiktok.com/@${clean}`;
+    else if (platform === "x") url = `https://x.com/${clean}`;
     if (url) Linking.openURL(url).catch(() => {});
   };
-
   return (
     <View style={styles.socialRow}>
       {links.instagram && (
-        <TouchableOpacity
-          onPress={() => openLink("instagram", links.instagram)}
-          style={styles.socialBtn}
-        >
-          <Ionicons name="logo-instagram" size={14} color="#E1306C" />
+        <TouchableOpacity onPress={() => openLink("instagram", links.instagram)} style={styles.socialBtn}>
+          <Ionicons name="logo-instagram" size={13} color="#E1306C" />
         </TouchableOpacity>
       )}
       {links.tiktok && (
-        <TouchableOpacity
-          onPress={() => openLink("tiktok", links.tiktok)}
-          style={styles.socialBtn}
-        >
-          <Ionicons name="logo-tiktok" size={14} color="#EAEAEA" />
+        <TouchableOpacity onPress={() => openLink("tiktok", links.tiktok)} style={styles.socialBtn}>
+          <Ionicons name="logo-tiktok" size={13} color="#EAEAEA" />
         </TouchableOpacity>
       )}
       {links.x && (
-        <TouchableOpacity
-          onPress={() => openLink("x", links.x)}
-          style={styles.socialBtn}
-        >
-          <Text style={{ color: '#EAEAEA', fontWeight: '800', fontSize: 11 }}>𝕏</Text>
+        <TouchableOpacity onPress={() => openLink("x", links.x)} style={styles.socialBtn}>
+          <Text style={{ color: '#EAEAEA', fontWeight: '800', fontSize: 10 }}>𝕏</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-export default function Outsiders() {
+function TimeRemainingBadge({ hours }: { hours: number }) {
+  let label = "";
+  let color = PALETTE.green;
+  if (hours <= 0) { label = "Expired"; color = PALETTE.accent2; }
+  else if (hours < 1) { label = `${Math.max(1, Math.round(hours * 60))}m`; color = PALETTE.accent2; }
+  else if (hours < 24) { label = `${Math.round(hours)}h`; color = hours < 6 ? PALETTE.orange : PALETTE.green; }
+  else { label = `${Math.round(hours / 24)}d`; }
+  return (
+    <View style={[styles.timeBadge, { backgroundColor: color + "15", borderColor: color + "40" }]}>
+      <Ionicons name="time-outline" size={11} color={color} />
+      <Text style={[styles.timeBadgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+function MomentumBadge({ value }: { value: number }) {
+  if (value === 0) return null;
+  const isUp = value > 0;
+  const color = isUp ? PALETTE.green : PALETTE.accent2;
+  return (
+    <View style={[styles.momentumBadge, { backgroundColor: color + "15" }]}>
+      <Ionicons name={isUp ? "arrow-up" : "arrow-down"} size={10} color={color} />
+      <Text style={[styles.momentumText, { color }]}>
+        {isUp ? "+" : ""}{formatNumber(value)}
+      </Text>
+    </View>
+  );
+}
+
+// ---- Main Component ----
+
+export default function OutsidersScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
 
+  const [outsiders, setOutsiders] = useState<OutsiderItem[]>([]);
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: PAGE_SIZE, total: 0, total_pages: 0, has_next: false, has_prev: false });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<SortMode>("index");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentUserId, setCurrentUserId] = useState("");
+
+  // Rotation timer
+  const rotationTimer = useRef<NodeJS.Timeout | null>(null);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    AsyncStorage.getItem(USER_ID_KEY).then((id) => {
-      if (id) setCurrentUserId(id);
-    });
+    AsyncStorage.getItem(USER_ID_KEY).then((id) => { if (id) setCurrentUserId(id); });
   }, []);
 
-  const load = useCallback(async (silent = false) => {
+  const fetchOutsiders = useCallback(async (page: number, sort: SortMode, search?: string, silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const data = await CreditsService.getOutsiders();
-      const all = [...(data.golden || []), ...(data.regular || [])];
-      all.sort((a, b) => b.total_votes - a.total_votes);
-      setOutsiders(all);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+        sort_by: sort,
+      });
+      if (search && search.trim()) params.set("search", search.trim());
+
+      const res = await fetch(API(`/outsiders/paginated?${params.toString()}`));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Fade in animation
+      if (!silent) {
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      }
+
+      setOutsiders(data.outsiders || []);
+      setPagination(data.pagination || { page: 1, limit: PAGE_SIZE, total: 0, total_pages: 0, has_next: false, has_prev: false });
     } catch (error) {
       console.error("Failed to load outsiders:", error);
     } finally {
       if (!silent) setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [fadeAnim]);
 
+  // Initial load & sort/page changes
   useEffect(() => {
-    load();
-    const interval = setInterval(() => load(true), 10000);
-    return () => clearInterval(interval);
-  }, [load]);
+    fetchOutsiders(currentPage, sortBy, searchActive ? searchQuery : undefined);
+  }, [currentPage, sortBy]);
+
+  // Auto-rotation every 10 minutes: go to next page
+  useEffect(() => {
+    rotationTimer.current = setInterval(() => {
+      setCurrentPage((prev) => {
+        const nextPage = pagination.has_next ? prev + 1 : 1;
+        return nextPage;
+      });
+    }, ROTATION_INTERVAL_MS);
+    return () => { if (rotationTimer.current) clearInterval(rotationTimer.current); };
+  }, [pagination.has_next]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    load(true);
-  }, [load]);
+    fetchOutsiders(currentPage, sortBy, searchActive ? searchQuery : undefined, true);
+  }, [currentPage, sortBy, searchQuery, searchActive, fetchOutsiders]);
 
-  const handleRenew = (item: OutsiderData) => {
-    router.push("/premium");
+  const handleSearch = () => {
+    if (!searchQuery.trim()) {
+      setSearchActive(false);
+      setCurrentPage(1);
+      fetchOutsiders(1, sortBy);
+      return;
+    }
+    setSearchActive(true);
+    setCurrentPage(1);
+    fetchOutsiders(1, sortBy, searchQuery);
   };
 
-  const MAX_SLOTS = 10;
-  const filledSlots = outsiders.length;
-  const emptySlots = Math.max(0, MAX_SLOTS - filledSlots);
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchActive(false);
+    setCurrentPage(1);
+    fetchOutsiders(1, sortBy);
+  };
+
+  const handleSortChange = (newSort: SortMode) => {
+    if (newSort === sortBy) return;
+    setSortBy(newSort);
+    setCurrentPage(1);
+  };
+
+  const goNextPage = () => {
+    if (pagination.has_next) {
+      const next = currentPage + 1;
+      setCurrentPage(next);
+    }
+  };
+
+  const goPrevPage = () => {
+    if (pagination.has_prev) {
+      const prev = currentPage - 1;
+      setCurrentPage(prev);
+    }
+  };
+
+  // ---- Render items ----
 
   const renderHeader = () => (
     <View>
-      {/* Slot counter */}
-      <View style={styles.slotCounter}>
-        <View style={styles.slotCounterLeft}>
-          <Ionicons name="people" size={18} color={PALETTE.accent2} />
-          <Text style={styles.slotCounterText}>
-            {t("outsiders.activeSlots", { filled: filledSlots, max: MAX_SLOTS })}
+      {/* Total counter */}
+      <View style={styles.totalBar}>
+        <View style={styles.totalLeft}>
+          <Ionicons name="people" size={16} color={PALETTE.accent2} />
+          <Text style={styles.totalText}>
+            {formatNumber(pagination.total)} Outsiders {t("outsiders.activeLabel")}
           </Text>
         </View>
-        <View style={[styles.slotCounterBadge, filledSlots >= MAX_SLOTS && { backgroundColor: PALETTE.accent + '20' }]}>
-          <Text style={[styles.slotCounterBadgeText, filledSlots >= MAX_SLOTS && { color: PALETTE.accent }]}>
-            {filledSlots >= MAX_SLOTS ? t("outsiders.full") : t("outsiders.open", { count: emptySlots })}
-          </Text>
+        <View style={styles.capacityBadge}>
+          <Text style={styles.capacityText}>/ 1000</Text>
         </View>
       </View>
+
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputRow}>
+          <Ionicons name="search" size={18} color={PALETTE.subtext} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={t("outsiders.searchPlaceholder")}
+            placeholderTextColor={PALETTE.subtext + "80"}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} style={styles.clearBtn}>
+              <Ionicons name="close-circle" size={18} color={PALETTE.subtext} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleSearch} style={styles.searchGoBtn}>
+            <Text style={styles.searchGoBtnText}>Go</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Sort pills */}
+      <View style={styles.sortRow}>
+        {SORT_OPTIONS.map((opt) => (
+          <TouchableOpacity
+            key={opt.key}
+            style={[styles.sortPill, sortBy === opt.key && styles.sortPillActive]}
+            onPress={() => handleSortChange(opt.key)}
+          >
+            <Ionicons
+              name={opt.icon as any}
+              size={14}
+              color={sortBy === opt.key ? PALETTE.gold : PALETTE.subtext}
+            />
+            <Text style={[styles.sortPillText, sortBy === opt.key && styles.sortPillTextActive]}>
+              {t(`outsiders.sort_${opt.key}`)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Promo banner */}
-      <TouchableOpacity
-        style={styles.promoBanner}
-        onPress={() => router.push("/premium")}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.promoBanner} onPress={() => router.push("/premium")} activeOpacity={0.8}>
         <View style={styles.promoIcon}>
-          <Ionicons name="rocket" size={20} color={PALETTE.gold} />
+          <Ionicons name="rocket" size={18} color={PALETTE.gold} />
         </View>
-        <View style={styles.promoText}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.promoTitle}>{t("outsiders.wantToAppear")}</Text>
-          <Text style={styles.promoSub}>
-            {t("outsiders.getBooster")}
-          </Text>
+          <Text style={styles.promoSub}>{t("outsiders.getBooster")}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={PALETTE.gold} />
+        <Ionicons name="chevron-forward" size={18} color={PALETTE.gold} />
       </TouchableOpacity>
     </View>
   );
 
-  const renderItem = ({
-    item,
-    index,
-  }: {
-    item: OutsiderData;
-    index: number;
-  }) => {
-    const score = item.score;
-    const isUp = score > 50;
-    const isDown = score < 50;
-    const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
-    const arrowColor = isUp
-      ? PALETTE.green
-      : isDown
-      ? PALETTE.accent
-      : PALETTE.subtext;
+  const renderItem = ({ item, index }: { item: OutsiderItem; index: number }) => {
+    const globalRank = (currentPage - 1) * PAGE_SIZE + index + 1;
     const isGolden = item.position === "top";
     const isOwn = item.user_id === currentUserId;
-    const timeBadgeColor = getTimeBadgeColor(item.hours_remaining);
 
     return (
       <TouchableOpacity
         style={[styles.row, isGolden && styles.goldenRow, isOwn && styles.ownRow]}
-        onPress={() =>
-          router.push({
-            pathname: "/person",
-            params: { id: item.id, name: item.name },
-          })
-        }
+        onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
+        activeOpacity={0.7}
       >
+        {/* Rank */}
         <View style={[styles.rank, isGolden && styles.goldenRank]}>
-          <Text style={[styles.rankText, isGolden && { color: PALETTE.gold }]}>
-            {index + 1}
-          </Text>
+          <Text style={[styles.rankText, isGolden && { color: PALETTE.gold }]}>{globalRank}</Text>
         </View>
+
+        {/* Avatar */}
         <InitialsAvatar
           initials={item.avatar_initials}
           color={item.avatar_color}
           name={item.name}
-          size={38}
+          size={36}
           isGolden={isGolden}
         />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
-              {item.name}
-            </Text>
-            {isGolden && (
-              <Ionicons name="trophy" size={14} color={PALETTE.gold} />
-            )}
+
+        {/* Info */}
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+            {isGolden && <Ionicons name="trophy" size={12} color={PALETTE.gold} />}
             {isOwn && (
               <View style={styles.youBadge}>
                 <Text style={styles.youBadgeText}>{t("outsiders.you")}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-            {item.tier_name} •{" "}
-            {formatNumber(item.total_votes)}{" "}
-            {item.total_votes <= 1 ? t("common.vote") : t("common.votes")}
-          </Text>
-          {/* Time remaining badge */}
-          <View style={styles.timeRow}>
-            <View style={[styles.timeBadge, { backgroundColor: timeBadgeColor + "20", borderColor: timeBadgeColor + "40" }]}>
-              <Ionicons name="time-outline" size={12} color={timeBadgeColor} />
-              <Text style={[styles.timeBadgeText, { color: timeBadgeColor }]}>
-                {formatTimeRemaining(item.hours_remaining, t)}
-              </Text>
-            </View>
-            {isOwn && item.hours_remaining <= 24 && (
-              <TouchableOpacity
-                style={styles.renewBtn}
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  handleRenew(item);
-                }}
-              >
-                <Ionicons name="refresh" size={13} color="#FFF" />
-                <Text style={styles.renewBtnText}>{t("outsiders.renew")}</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.metaRow}>
+            <Text style={styles.meta}>
+              {item.tier_name} • {formatNumber(item.total_votes)} votes
+            </Text>
+            <MomentumBadge value={item.momentum_24h} />
           </View>
-          <SocialLinksRow links={item.social_links} />
-        </View>
-        <View style={styles.arrowBox}>
-          <Ionicons name={arrowIcon as any} size={22} color={arrowColor} />
+          <View style={styles.bottomRow}>
+            <TimeRemainingBadge hours={item.hours_remaining} />
+            {item.popularoo_index > 0 && (
+              <View style={styles.indexBadge}>
+                <Text style={styles.indexText}>PI {Math.round(item.popularoo_index)}</Text>
+              </View>
+            )}
+            <SocialLinksRow links={item.social_links} />
+          </View>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="people-outline" size={48} color={PALETTE.subtext} />
-      <Text style={styles.emptyTitle}>{t("outsiders.noOutsiders")}</Text>
-      <Text style={styles.emptySub}>
-        {t("outsiders.noOutsidersSubtitle")}
-      </Text>
-      <TouchableOpacity
-        style={styles.emptyBtn}
-        onPress={() => router.push("/premium")}
-      >
-        <Ionicons name="rocket" size={16} color="#FFF" />
-        <Text style={styles.emptyBtnText}>{t("outsiders.getBoosterBtn")}</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderFooter = () => {
+    if (pagination.total_pages <= 1) return <View style={{ height: 80 }} />;
+    return (
+      <View style={styles.paginationContainer}>
+        <TouchableOpacity
+          style={[styles.pageBtn, !pagination.has_prev && styles.pageBtnDisabled]}
+          onPress={goPrevPage}
+          disabled={!pagination.has_prev}
+        >
+          <Ionicons name="chevron-back" size={18} color={pagination.has_prev ? PALETTE.text : PALETTE.subtext + "40"} />
+        </TouchableOpacity>
 
-  const renderFooter = () => (
-    <View>
-      {/* Empty slots */}
-      {emptySlots > 0 && (
-        <View style={styles.emptySlotsSection}>
-          {Array.from({ length: Math.min(emptySlots, 5) }).map((_, i) => (
-            <TouchableOpacity
-              key={`empty-slot-${i}`}
-              style={styles.emptySlotRow}
-              onPress={() => router.push("/premium")}
-              activeOpacity={0.7}
-            >
-              <View style={styles.emptySlotCircle}>
-                <Ionicons name="add" size={20} color={PALETTE.subtext} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptySlotTitle}>{t("outsiders.slotAvailable")}</Text>
-                <Text style={styles.emptySlotSub}>{t("outsiders.slotBoost")}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={PALETTE.subtext} />
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-      {/* Top Bull Runners section */}
-      <View style={styles.bullRunnerSection}>
-        <View style={styles.bullRunnerHeader}>
-          <Ionicons name="rocket" size={18} color={PALETTE.gold} />
-          <Text style={styles.bullRunnerTitle}>{t("outsiders.dailyRunLeaders")}</Text>
-        </View>
-        <View style={styles.bullRunnerPlaceholder}>
-          <Ionicons name="trophy-outline" size={32} color={PALETTE.gold + '60'} />
-          <Text style={styles.bullRunnerPlaceholderText}>
-            {t("outsiders.goldenBoosterCta")}
+        <View style={styles.pageInfo}>
+          <Text style={styles.pageInfoText}>
+            {pagination.page} / {pagination.total_pages}
           </Text>
-          <TouchableOpacity
-            style={styles.bullRunnerCta}
-            onPress={() => router.push("/premium")}
-          >
-            <Text style={styles.bullRunnerCtaText}>{t("outsiders.learnMore")}</Text>
-            <Ionicons name="arrow-forward" size={14} color={PALETTE.gold} />
-          </TouchableOpacity>
+          <Text style={styles.pageInfoSub}>
+            {t("outsiders.rotationHint")}
+          </Text>
         </View>
-      </View>
-    </View>
-  );
 
-  if (loading) {
+        <TouchableOpacity
+          style={[styles.pageBtn, !pagination.has_next && styles.pageBtnDisabled]}
+          onPress={goNextPage}
+          disabled={!pagination.has_next}
+        >
+          <Ionicons name="chevron-forward" size={18} color={pagination.has_next ? PALETTE.text : PALETTE.subtext + "40"} />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="people-outline" size={48} color={PALETTE.subtext} />
+        <Text style={styles.emptyTitle}>
+          {searchActive ? t("outsiders.noResults") : t("outsiders.noOutsiders")}
+        </Text>
+        <Text style={styles.emptySub}>
+          {searchActive ? t("outsiders.tryAnotherSearch") : t("outsiders.noOutsidersSubtitle")}
+        </Text>
+        {!searchActive && (
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/premium")}>
+            <Ionicons name="rocket" size={16} color="#FFF" />
+            <Text style={styles.emptyBtnText}>{t("outsiders.getBoosterBtn")}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  if (loading && outsiders.length === 0) {
     return (
       <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" color={PALETTE.accent2} />
+        <Text style={{ color: PALETTE.subtext, marginTop: 12 }}>{t("common.loading")}</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
-      <View
-        style={{
-          flex: 1,
-          maxWidth: isTablet ? 600 : undefined,
-          width: "100%",
-          alignSelf: "center",
-        }}
-      >
+      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: "100%", alignSelf: "center" }}>
+        {/* Fixed Header */}
         <View style={styles.header}>
           <Text style={styles.title}>{t("outsiders.title")}</Text>
           <Text style={styles.subtitle}>{t("outsiders.subtitle")}</Text>
         </View>
-        <FlatList
-          data={outsiders}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmpty}
-          ListFooterComponent={outsiders.length > 0 ? renderFooter : undefined}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={PALETTE.accent2}
-            />
-          }
-          contentContainerStyle={{ paddingBottom: 24 }}
-        />
+
+        {/* List */}
+        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <FlatList
+            data={outsiders}
+            keyExtractor={(item) => item.boost_id}
+            renderItem={renderItem}
+            ListHeaderComponent={renderHeader}
+            ListEmptyComponent={renderEmpty}
+            ListFooterComponent={renderFooter}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />
+            }
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+          />
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: PALETTE.bg,
-  },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: PALETTE.bg },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10,
+    borderBottomWidth: 1, borderBottomColor: PALETTE.border,
   },
-  title: {
-    color: PALETTE.text,
-    fontSize: 24,
-    fontWeight: "700",
+  title: { color: PALETTE.text, fontSize: 22, fontWeight: "700" },
+  subtitle: { color: PALETTE.subtext, fontSize: 13, marginTop: 3 },
+
+  // Total bar
+  totalBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: PALETTE.card, borderRadius: 10, borderWidth: 1, borderColor: PALETTE.border,
   },
-  subtitle: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    marginTop: 4,
+  totalLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  totalText: { color: PALETTE.text, fontSize: 14, fontWeight: "600" },
+  capacityBadge: { backgroundColor: PALETTE.border, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  capacityText: { color: PALETTE.subtext, fontSize: 11, fontWeight: "600" },
+
+  // Search
+  searchContainer: { marginHorizontal: 16, marginTop: 10 },
+  searchInputRow: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: PALETTE.card, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: PALETTE.border,
   },
-  // Promo Banner
+  searchInput: { flex: 1, color: PALETTE.text, fontSize: 14, paddingVertical: 4 },
+  clearBtn: { padding: 4, marginRight: 4 },
+  searchGoBtn: {
+    backgroundColor: PALETTE.accent2, paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: 8, marginLeft: 6,
+  },
+  searchGoBtnText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+
+  // Sort
+  sortRow: {
+    flexDirection: "row", paddingHorizontal: 16, marginTop: 10, gap: 6,
+  },
+  sortPill: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: PALETTE.card, borderWidth: 1, borderColor: PALETTE.border,
+  },
+  sortPillActive: { borderColor: PALETTE.gold, backgroundColor: PALETTE.gold + "12" },
+  sortPillText: { color: PALETTE.subtext, fontSize: 11, fontWeight: "600" },
+  sortPillTextActive: { color: PALETTE.gold },
+
+  // Promo
   promoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: PALETTE.card,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: PALETTE.gold,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: PALETTE.card, marginHorizontal: 16, marginTop: 10, marginBottom: 8,
+    padding: 12, borderRadius: 10, borderWidth: 1, borderColor: PALETTE.gold + "60",
   },
   promoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PALETTE.gold + "20",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: PALETTE.gold + "20", alignItems: "center", justifyContent: "center", marginRight: 10,
   },
-  promoText: { flex: 1 },
-  promoTitle: {
-    color: PALETTE.gold,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  promoSub: {
-    color: PALETTE.subtext,
-    fontSize: 12,
-    marginTop: 2,
-  },
+  promoTitle: { color: PALETTE.gold, fontSize: 13, fontWeight: "700" },
+  promoSub: { color: PALETTE.subtext, fontSize: 11, marginTop: 2 },
+
   // List rows
   row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomColor: PALETTE.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomColor: PALETTE.border, borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  goldenRow: {
-    backgroundColor: PALETTE.gold + "08",
-  },
-  ownRow: {
-    backgroundColor: PALETTE.green + "10",
-    borderLeftWidth: 3,
-    borderLeftColor: PALETTE.green,
-  },
+  goldenRow: { backgroundColor: PALETTE.gold + "08" },
+  ownRow: { backgroundColor: PALETTE.green + "10", borderLeftWidth: 3, borderLeftColor: PALETTE.green },
   rank: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PALETTE.card,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: PALETTE.card, borderWidth: 1, borderColor: PALETTE.border,
+    alignItems: "center", justifyContent: "center",
   },
-  goldenRank: {
-    borderColor: PALETTE.gold,
-    backgroundColor: PALETTE.gold + "15",
-  },
-  rankText: {
-    color: PALETTE.accent2,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  name: {
-    color: PALETTE.text,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  meta: {
-    color: PALETTE.subtext,
-    marginTop: 4,
-    fontSize: 12,
-  },
-  // YOU badge
-  youBadge: {
-    backgroundColor: PALETTE.green,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  youBadgeText: {
-    color: "#FFF",
-    fontSize: 9,
-    fontWeight: "800",
-  },
-  // Time remaining
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 6,
-  },
+  goldenRank: { borderColor: PALETTE.gold, backgroundColor: PALETTE.gold + "15" },
+  rankText: { color: PALETTE.accent2, fontWeight: "700", fontSize: 12 },
+  name: { color: PALETTE.text, fontSize: 15, fontWeight: "600", flexShrink: 1 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
+  meta: { color: PALETTE.subtext, fontSize: 11 },
+  bottomRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
+
+  // Badges
+  youBadge: { backgroundColor: PALETTE.green, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
+  youBadgeText: { color: "#FFF", fontSize: 8, fontWeight: "800" },
   timeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, borderWidth: 1,
   },
-  timeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+  timeBadgeText: { fontSize: 10, fontWeight: "700" },
+  momentumBadge: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+    paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6,
   },
-  // Renew button
-  renewBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: PALETTE.accent2,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+  momentumText: { fontSize: 10, fontWeight: "700" },
+  indexBadge: {
+    backgroundColor: PALETTE.border, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6,
   },
-  renewBtnText: {
-    color: "#FFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  arrowBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PALETTE.card,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  // Social links
-  socialRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 6,
-  },
+  indexText: { color: PALETTE.subtext, fontSize: 9, fontWeight: "700" },
+
+  // Social
+  socialRow: { flexDirection: "row", gap: 5 },
   socialBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: PALETTE.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: PALETTE.border,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: PALETTE.bg, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: PALETTE.border,
   },
-  // Empty state
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 40,
+
+  // Pagination
+  paginationContainer: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    paddingVertical: 16, paddingHorizontal: 16, gap: 16,
+    marginBottom: 60,
   },
-  emptyTitle: {
-    color: PALETTE.text,
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 16,
+  pageBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: PALETTE.card, borderWidth: 1, borderColor: PALETTE.border,
+    alignItems: "center", justifyContent: "center",
   },
-  emptySub: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 8,
-  },
+  pageBtnDisabled: { opacity: 0.4 },
+  pageInfo: { alignItems: "center" },
+  pageInfoText: { color: PALETTE.text, fontSize: 14, fontWeight: "600" },
+  pageInfoSub: { color: PALETTE.subtext, fontSize: 10, marginTop: 2 },
+
+  // Empty
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 60, paddingHorizontal: 40 },
+  emptyTitle: { color: PALETTE.text, fontSize: 18, fontWeight: "700", marginTop: 16 },
+  emptySub: { color: PALETTE.subtext, fontSize: 13, textAlign: "center", marginTop: 8 },
   emptyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: PALETTE.accent2,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginTop: 20,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: PALETTE.accent2, paddingHorizontal: 22, paddingVertical: 11,
+    borderRadius: 22, marginTop: 18,
   },
-  emptyBtnText: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  // Slot counter
-  slotCounter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: PALETTE.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  slotCounterLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  slotCounterText: {
-    color: PALETTE.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  slotCounterBadge: {
-    backgroundColor: PALETTE.green + "20",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  slotCounterBadgeText: {
-    color: PALETTE.green,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  // Empty slots
-  emptySlotsSection: {
-    marginTop: 8,
-  },
-  emptySlotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomColor: PALETTE.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-  },
-  emptySlotCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: PALETTE.border,
-    borderStyle: "dashed" as any,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptySlotTitle: {
-    color: PALETTE.subtext,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  emptySlotSub: {
-    color: PALETTE.subtext + "80",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  // Bull Runner section
-  bullRunnerSection: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 16,
-    backgroundColor: PALETTE.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: PALETTE.gold + "40",
-    overflow: "hidden",
-  },
-  bullRunnerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.gold + "20",
-    backgroundColor: PALETTE.gold + "08",
-  },
-  bullRunnerTitle: {
-    color: PALETTE.gold,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  bullRunnerPlaceholder: {
-    alignItems: "center",
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-  },
-  bullRunnerPlaceholderText: {
-    color: PALETTE.subtext,
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 10,
-    lineHeight: 18,
-  },
-  bullRunnerCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: PALETTE.gold + "40",
-  },
-  bullRunnerCtaText: {
-    color: PALETTE.gold,
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  emptyBtnText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
 });

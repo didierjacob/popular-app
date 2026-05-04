@@ -309,21 +309,6 @@ export default function HomeScreen() {
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // FAB visibility on scroll
-  const fabOpacity = useRef(new Animated.Value(1)).current;
-  const fabScale = useRef(new Animated.Value(1)).current;
-  const lastScrollY = useRef(0);
-  const handleScroll = (event: any) => {
-    const currentY = event.nativeEvent.contentOffset.y;
-    if (currentY > lastScrollY.current && currentY > 100) {
-      // Scrolling down - hide FAB
-      Animated.timing(fabOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    } else {
-      // Scrolling up or at top - show FAB
-      Animated.timing(fabOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    }
-    lastScrollY.current = currentY;
-  };
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async (silent = false) => {
@@ -427,8 +412,6 @@ export default function HomeScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={isTablet ? { alignItems: 'center' } : {}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
       >
         <View style={contentStyle}>
         {/* Header */}
@@ -779,31 +762,4 @@ const styles = StyleSheet.create({
   personName: { fontSize: 16, fontWeight: "600", color: PALETTE.text },
   personMeta: { fontSize: 13, color: PALETTE.subtext, marginTop: 2 },
   gaugeContainer: { marginLeft: 8 },
-  // FAB Boost button
-  fab: {
-    position: 'absolute',
-    bottom: 70,
-    right: 16,
-    borderRadius: 28,
-    shadowColor: '#C8A951',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
-    zIndex: 100,
-  },
-  fabInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#C8A951',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  fabText: {
-    color: '#000',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
 });

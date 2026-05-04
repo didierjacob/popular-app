@@ -131,7 +131,16 @@
     "dailyRunLeaders": "Daily Run Leaders",
     "goldenBoosterCta": "Activa un Golden Booster para lanzar tu Daily Run",
     "learnMore": "Más información",
-    "timeLeft": "{{time}} restante"
+    "timeLeft": "{{time}} restante",
+    "activeLabel": "activos",
+    "searchPlaceholder": "Buscar un Outsider...",
+    "sort_index": "Index",
+    "sort_momentum": "24h",
+    "sort_tier": "Tier",
+    "sort_votes": "Votes",
+    "rotationHint": "Rotación auto cada 10 min",
+    "noResults": "Sin resultados",
+    "tryAnotherSearch": "Prueba con otro nombre."
   },
   "premium": {
     "title": "Impulsa tu perfil",

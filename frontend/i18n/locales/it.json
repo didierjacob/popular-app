@@ -131,7 +131,16 @@
     "dailyRunLeaders": "Daily Run Leaders",
     "goldenBoosterCta": "Attiva un Golden Booster per partecipare al Daily Run",
     "learnMore": "Scopri di più",
-    "timeLeft": "{{time}} rimanente"
+    "timeLeft": "{{time}} rimanente",
+    "activeLabel": "attivi",
+    "searchPlaceholder": "Cerca un Outsider...",
+    "sort_index": "Index",
+    "sort_momentum": "24h",
+    "sort_tier": "Tier",
+    "sort_votes": "Votes",
+    "rotationHint": "Rotazione auto ogni 10 min",
+    "noResults": "Nessun risultato",
+    "tryAnotherSearch": "Prova con un altro nome."
   },
   "premium": {
     "title": "Dai un boost al tuo profilo",

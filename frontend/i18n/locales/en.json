@@ -131,7 +131,16 @@
     "dailyRunLeaders": "Daily Run Leaders",
     "goldenBoosterCta": "Activate a Golden Booster to join the Daily Run",
     "learnMore": "Learn more",
-    "timeLeft": "{{time}} left"
+    "timeLeft": "{{time}} left",
+    "activeLabel": "active",
+    "searchPlaceholder": "Search an Outsider...",
+    "sort_index": "Index",
+    "sort_momentum": "24h",
+    "sort_tier": "Tier",
+    "sort_votes": "Votes",
+    "rotationHint": "Auto-rotation every 10 min",
+    "noResults": "No results",
+    "tryAnotherSearch": "Try a different name or clear the search."
   },
   "premium": {
     "title": "Boost Yourself",

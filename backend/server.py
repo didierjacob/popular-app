@@ -13,6 +13,7 @@ import uuid
 from datetime import datetime, timedelta
 from bson import ObjectId
 import re
+from unidecode import unidecode
 from trends_service import trends_service
 from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
 from bull_run import bull_run_router, init_bull_run, bull_run_background_job
@@ -1625,6 +1626,143 @@ async def get_outsiders(
     except Exception as e:
         logger.error(f"Failed to get outsiders: {e}")
         return {"golden": [], "regular": [], "total_active": 0}
+
+
+@api_router.get("/outsiders/paginated")
+async def get_outsiders_paginated(
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(default=20, ge=1, le=50, description="Items per page"),
+    sort_by: str = Query(default="index", description="Sort: index | momentum | tier | votes"),
+    search: Optional[str] = Query(default=None, description="Search outsider by name"),
+    country: Optional[str] = Query(default=None, description="Country filter"),
+):
+    """
+    Chantier 1L — Paginated Outsiders list supporting 1000+ active outsiders.
+    Supports sorting by Popularoo Index, 24h momentum, Booster tier, or total votes.
+    Supports search by name. Returns paginated results with metadata.
+    """
+    try:
+        now = now_utc()
+
+        # Build base filter for active boosts (not expired, including active seeds)
+        boost_filter: Dict[str, Any] = {
+            "end_time": {"$gt": now},
+            "$or": [
+                {"is_seed": {"$ne": True}},
+                {"is_seed": True, "seed_active": True},
+            ],
+        }
+
+        # Country filter
+        if country:
+            boost_filter["country"] = country.upper().strip()
+
+        # Get ALL active boosts (up to 1000)
+        active_boosts = await db.active_boosts.find(boost_filter).to_list(length=1000)
+
+        # Build outsider data for all active boosts
+        outsider_list = []
+        for boost in active_boosts:
+            person = await db.persons.find_one({"_id": boost["person_id"]})
+            if not person:
+                continue
+
+            time_remaining = (boost["end_time"] - now).total_seconds()
+            hours_remaining = max(0, time_remaining / 3600)
+
+            # Calculate 24h momentum: votes gained in last 24h
+            momentum_24h = 0
+            try:
+                yesterday = now - timedelta(hours=24)
+                recent_ticks = await db.person_ticks.find({
+                    "person_id": boost["person_id"],
+                    "timestamp": {"$gte": yesterday},
+                }).sort("timestamp", 1).to_list(length=50)
+                if len(recent_ticks) >= 2:
+                    momentum_24h = recent_ticks[-1].get("total_votes", 0) - recent_ticks[0].get("total_votes", 0)
+                elif len(recent_ticks) == 1:
+                    momentum_24h = person.get("total_votes", 0) - recent_ticks[0].get("total_votes", 0)
+            except Exception:
+                pass
+
+            # Tier priority for sorting (golden=3, super=2, regular=1)
+            tier = boost.get("tier", "booster")
+            tier_priority = {"golden_booster": 3, "super_booster": 2, "booster": 1}.get(tier, 0)
+
+            outsider_data = {
+                "id": str(person["_id"]),
+                "boost_id": str(boost["_id"]),
+                "user_id": boost.get("user_id", ""),
+                "name": person.get("name", ""),
+                "category": person.get("category", "other"),
+                "score": person.get("score", 50.0),
+                "total_votes": person.get("total_votes", 0),
+                "likes": person.get("likes", 0),
+                "dislikes": person.get("dislikes", 0),
+                "tier": tier,
+                "tier_name": BOOSTER_TIERS.get(tier, {}).get("name", "Booster"),
+                "tier_priority": tier_priority,
+                "position": boost.get("position", "bottom"),
+                "end_time": boost["end_time"].isoformat(),
+                "hours_remaining": round(hours_remaining, 1),
+                "social_links": person.get("social_links", {}),
+                "avatar_initials": person.get("avatar_initials", ""),
+                "avatar_color": person.get("avatar_color", "#1C3A2C"),
+                "popularoo_index": person.get("popularoo_index", 0),
+                "momentum_24h": momentum_24h,
+                "active_strikes": person.get("active_strikes", 0),
+                "strike_emoji": person.get("strike_emoji"),
+                "strike_label": person.get("strike_label"),
+                "is_seed": bool(boost.get("is_seed", False)),
+                "country": boost.get("country") or person.get("primary_country", ""),
+            }
+            outsider_list.append(outsider_data)
+
+        # Apply search filter (case-insensitive, accent-insensitive partial match)
+        if search and search.strip():
+            query_normalized = unidecode(search.strip().lower())
+            outsider_list = [o for o in outsider_list if query_normalized in unidecode(o["name"].lower())]
+
+        # Apply sorting
+        if sort_by == "index":
+            outsider_list.sort(key=lambda x: x["popularoo_index"], reverse=True)
+        elif sort_by == "momentum":
+            outsider_list.sort(key=lambda x: x["momentum_24h"], reverse=True)
+        elif sort_by == "tier":
+            outsider_list.sort(key=lambda x: (x["tier_priority"], x["popularoo_index"]), reverse=True)
+        elif sort_by == "votes":
+            outsider_list.sort(key=lambda x: x["total_votes"], reverse=True)
+        else:
+            outsider_list.sort(key=lambda x: x["popularoo_index"], reverse=True)
+
+        # Pagination
+        total = len(outsider_list)
+        total_pages = max(1, (total + limit - 1) // limit)
+        page = min(page, total_pages)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        page_items = outsider_list[start_idx:end_idx]
+
+        return {
+            "outsiders": page_items,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+            "sort_by": sort_by,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get paginated outsiders: {e}")
+        return {
+            "outsiders": [],
+            "pagination": {"page": 1, "limit": limit, "total": 0, "total_pages": 0, "has_next": False, "has_prev": False},
+            "sort_by": sort_by,
+        }
 
 
 @api_router.get("/last-searches")
