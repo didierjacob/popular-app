@@ -309,20 +309,21 @@ export default function HomeScreen() {
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // FAB pulse animation
+  // FAB visibility on scroll
+  const fabOpacity = useRef(new Animated.Value(1)).current;
   const fabScale = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const pulse = () => {
-      Animated.sequence([
-        Animated.timing(fabScale, { toValue: 1.08, duration: 600, useNativeDriver: true }),
-        Animated.timing(fabScale, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ]).start();
-    };
-    const interval = setInterval(pulse, 8000);
-    // Initial pulse after 3 seconds
-    const timeout = setTimeout(pulse, 3000);
-    return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, []);
+  const lastScrollY = useRef(0);
+  const handleScroll = (event: any) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+    if (currentY > lastScrollY.current && currentY > 100) {
+      // Scrolling down - hide FAB
+      Animated.timing(fabOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    } else {
+      // Scrolling up or at top - show FAB
+      Animated.timing(fabOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
+    lastScrollY.current = currentY;
+  };
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async (silent = false) => {
@@ -426,6 +427,8 @@ export default function HomeScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={isTablet ? { alignItems: 'center' } : {}}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         <View style={contentStyle}>
         {/* Header */}
@@ -596,17 +599,6 @@ export default function HomeScreen() {
         <View style={{ height: 80 }} />
         </View>
       </ScrollView>
-
-      {/* Floating Boost Button (FAB) — compact round */}
-      <Animated.View style={[styles.fab, { transform: [{ scale: fabScale }] }]}>
-        <TouchableOpacity
-          style={styles.fabInner}
-          onPress={() => router.push("/premium")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="flash" size={26} color="#000" />
-        </TouchableOpacity>
-      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -790,7 +782,7 @@ const styles = StyleSheet.create({
   // FAB Boost button
   fab: {
     position: 'absolute',
-    bottom: 90,
+    bottom: 70,
     right: 16,
     borderRadius: 28,
     shadowColor: '#C8A951',
