@@ -196,6 +196,7 @@
     "confirmDuration": "Dauer: {{duration}}",
     "confirmGoldenExtra": "Prioritätsplatzierung + Startseiten-Rotation + Daily Run Zugang",
     "confirmPaymentVia": "Zahlung über {{store}}.",
+    "withdrawalConsent": "Mit der Bestätigung dieses Kaufs stimmen Sie zu, dass die Leistung sofort erbracht wird, und verzichten ausdrücklich auf Ihr 14-tägiges Widerrufsrecht gemäß Artikel L221-28 des französischen Verbrauchergesetzbuches.",
     "cancel": "Abbrechen",
     "buyPrice": "Kaufen {{price}}",
     "ok": "OK",

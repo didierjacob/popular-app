@@ -148,6 +148,12 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen
+        name="dailyrun"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="bullrun"
         options={{
           href: null,

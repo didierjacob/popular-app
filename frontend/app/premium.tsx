@@ -275,7 +275,8 @@ export default function Premium() {
           currentTier: existingBoost.tier_name,
           endDate: endDateStr,
         }) + `\n\n` +
-        t('premium.replaceNewBooster', { tierName: tier.name, duration: durationLabel }),
+        t('premium.replaceNewBooster', { tierName: tier.name, duration: durationLabel }) + `\n\n` +
+        t('premium.withdrawalConsent'),
         [
           { text: t('premium.cancel'), style: 'cancel' },
           {
@@ -295,7 +296,8 @@ export default function Premium() {
         (tier.id === 'golden_booster'
           ? `• ${t('premium.confirmGoldenExtra')}\n\n`
           : `\n`) +
-        t('premium.confirmPaymentVia', { store: Platform.OS === 'ios' ? 'Apple' : 'Google' }),
+        t('premium.confirmPaymentVia', { store: Platform.OS === 'ios' ? 'Apple' : 'Google' }) + `\n\n` +
+        t('premium.withdrawalConsent'),
         [
           { text: t('premium.cancel'), style: 'cancel' },
           {

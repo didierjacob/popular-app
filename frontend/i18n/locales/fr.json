@@ -196,6 +196,7 @@
     "confirmDuration": "Durée : {{duration}}",
     "confirmGoldenExtra": "Placement prioritaire + rotation en page d'accueil + accès Daily Run",
     "confirmPaymentVia": "Paiement via {{store}}.",
+    "withdrawalConsent": "En confirmant cet achat, vous acceptez que le service soit fourni immédiatement et vous renoncez expressément à votre droit de rétractation de 14 jours, conformément à l'article L221-28 du Code de la consommation.",
     "cancel": "Annuler",
     "buyPrice": "Acheter {{price}}",
     "ok": "OK",
