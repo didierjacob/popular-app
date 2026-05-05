@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Popularoo</title>
+<meta name="description" content="Privacy Policy of the Popularoo application — personal data processing, GDPR, user rights.">
+<style>
+  :root {
+    --bg: #0F2F22;
+    --bg-soft: #143A2A;
+    --green: #009B4D;
+    --green-light: #2ECC71;
+    --gold: #FFD700;
+    --red: #E04F5F;
+    --text: #F4F4F2;
+    --text-soft: #C8D5CE;
+    --rule: #1F4A36;
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 17px;
+    padding: 0;
+  }
+  .wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 60px 32px 100px;
+  }
+  header {
+    border-bottom: 2px solid var(--green);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .brand {
+    display: inline-block;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+  .meta {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text-soft);
+    letter-spacing: 0.02em;
+  }
+  .meta strong { color: var(--gold); font-weight: 600; }
+
+  nav.toc {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--gold);
+    padding: 24px 28px;
+    margin: 40px 0 48px;
+    border-radius: 4px;
+  }
+  nav.toc h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+  nav.toc ol {
+    list-style: none;
+    counter-reset: toc;
+    column-count: 2;
+    column-gap: 32px;
+  }
+  nav.toc ol li {
+    counter-increment: toc;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  nav.toc ol li::before {
+    content: counter(toc) ". ";
+    color: var(--gold);
+    font-weight: 600;
+  }
+  nav.toc a {
+    color: var(--text-soft);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  nav.toc a:hover { color: var(--green-light); }
+
+  h2.article {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.3;
+    scroll-margin-top: 24px;
+  }
+  h2.article .num {
+    color: var(--green-light);
+    font-weight: 800;
+    margin-right: 10px;
+  }
+  h3 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 28px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin: 16px 0 20px 24px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--gold); font-weight: 700; }
+  em { color: var(--text-soft); font-style: italic; }
+  a { color: var(--green-light); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--gold); }
+
+  .callout {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--green);
+    padding: 18px 22px;
+    margin: 24px 0;
+    font-size: 15px;
+    border-radius: 4px;
+  }
+  .callout.warning { border-left-color: var(--red); }
+  .callout.info { border-left-color: var(--gold); }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0 28px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    background: var(--bg-soft);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  table.data-table thead { background: var(--rule); }
+  table.data-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: var(--gold);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 12px;
+    border-bottom: 1px solid var(--green);
+  }
+  table.data-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--text);
+  }
+  table.data-table tr:last-child td { border-bottom: none; }
+  table.data-table tr:hover td { background: rgba(0, 155, 77, 0.08); }
+
+  .contact-block {
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    padding: 24px;
+    margin: 24px 0;
+    border-radius: 4px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+  }
+  .contact-block .label {
+    color: var(--gold);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .contact-block p { margin-bottom: 14px; }
+  .contact-block p:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    color: var(--text-soft);
+    text-align: center;
+  }
+  footer a { color: var(--green-light); }
+
+  @media (max-width: 640px) {
+    .wrapper { padding: 40px 20px 80px; }
+    h1 { font-size: 28px; }
+    h2.article { font-size: 19px; margin-top: 44px; }
+    nav.toc ol { column-count: 1; }
+    body { font-size: 16px; }
+    table.data-table { font-size: 13px; }
+    table.data-table th, table.data-table td { padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<header>
+  <span class="brand">Popularoo · Legal document</span>
+  <h1>Privacy Policy</h1>
+  <p class="meta">Version <strong>2.0</strong> · Effective from <strong>5 May 2026</strong></p>
+</header>
+
+<div class="callout info">
+  <p style="margin-bottom:0"><strong>Governing language notice.</strong> This English version is provided for the convenience of international users. The French version (<a href="/privacy-fr.html">privacy-fr.html</a>) is the legally binding text. In case of any discrepancy between the two versions, the French version shall prevail.</p>
+</div>
+
+<div class="callout info">
+  <p style="margin-bottom:0"><strong>The essentials in one sentence:</strong> Popularoo collects the minimum amount of data necessary for its operation (technical device identifier, votes, purchases), does not require registration or password to use the Service, and never resells any data to third parties.</p>
+</div>
+
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#a1">Data controller</a></li>
+    <li><a href="#a2">Guiding principles</a></li>
+    <li><a href="#a3">Data collected</a></li>
+    <li><a href="#a4">Purposes and legal bases</a></li>
+    <li><a href="#a5">Retention periods</a></li>
+    <li><a href="#a6">Recipients and processors</a></li>
+    <li><a href="#a7">Transfers outside the European Union</a></li>
+    <li><a href="#a8">Data security</a></li>
+    <li><a href="#a9">Your GDPR rights</a></li>
+    <li><a href="#a10">Data of public figures</a></li>
+    <li><a href="#a11">Minors</a></li>
+    <li><a href="#a12">Amendments and contact</a></li>
+  </ol>
+</nav>
+
+<h2 class="article" id="a1"><span class="num">Article 1.</span>Data controller</h2>
+
+<p>The data controller for personal data processing within the framework of the <strong>Popularoo</strong> application (hereinafter the "<strong>Service</strong>") is:</p>
+
+<div class="contact-block">
+  <span class="label">Publisher and data controller</span>
+  <p><strong>EN HAUT DES MARCHES</strong><br>
+  French <em>société à responsabilité limitée</em> (SARL), Paris Trade and Companies Register no. 504 747 932<br>
+  Registered office: 147 rue Léon-Maurice Nordmann, 75013 Paris, France<br>
+  SIRET: 504 747 932 00011</p>
+  <span class="label">Contact for any question relating to personal data</span>
+  <p><a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a></p>
+</div>
+
+<p>The Publisher has not designated a Data Protection Officer (DPO) within the meaning of Article 37 of the GDPR (<em>Règlement Général sur la Protection des Données</em>), as its structure and processing operations do not require it. Any question relating to personal data may nevertheless be addressed to the contact email above, to which the Publisher undertakes to respond within the legal deadlines.</p>
+
+<h2 class="article" id="a2"><span class="num">Article 2.</span>Guiding principles</h2>
+
+<p>The Publisher applies the following principles to personal data processing, in accordance with the General Data Protection Regulation (GDPR):</p>
+
+<ul>
+  <li><strong>Minimisation</strong>: only data strictly necessary for the purposes described in this Policy is collected;</li>
+  <li><strong>No registration required</strong>: use of the Service does not require account creation in the traditional sense, password, or real name. The User is identified by a technical device identifier;</li>
+  <li><strong>No resale</strong>: no personal data is sold, rented or transferred to third parties for commercial purposes;</li>
+  <li><strong>No advertising profiling</strong>: no third-party advertising cookie is used. The Service does not engage in advertising targeting or resale of user profiles;</li>
+  <li><strong>Transparency</strong>: this Policy describes in detail all data processed, its purposes and its recipients.</li>
+</ul>
+
+<h2 class="article" id="a3"><span class="num">Article 3.</span>Data collected</h2>
+
+<p>Three categories of data are collected within the framework of the Service.</p>
+
+<h3>3.1 Data collected automatically</h3>
+
+<p>This data is necessary for the technical operation of the Service and is collected from the first launch of the application:</p>
+
+<ul>
+  <li><strong>Device identifier</strong>: technical identifier generated by the operating system (iOS or Android) or by the application itself, allowing devices to be distinguished without identifying the User by name;</li>
+  <li><strong>Detected country</strong>: country associated with the App Store or Google Play account used to download the application, or failing that detected via the IP address;</li>
+  <li><strong>System language</strong>: used to display the interface in the appropriate language;</li>
+  <li><strong>Minimum technical data</strong>: device type, operating system version, application version, for support and diagnostic purposes.</li>
+</ul>
+
+<h3>3.2 Data provided voluntarily</h3>
+
+<p>This data is collected only if the User chooses to provide it:</p>
+
+<ul>
+  <li><strong>Display name</strong>: name or identifier freely chosen by the User when activating a Booster, publicly displayed on the User's Outsider page. The Publisher performs no verification on the nature of this name and does not distinguish real names from chosen identifiers;</li>
+  <li><strong>Email address</strong>: optional, used only for sending purchase receipts and notifications relating to acquired Boosters (expiration alerts);</li>
+  <li><strong>Social media accounts</strong> (Instagram, TikTok, X): optional, publicly displayed on the User's Outsider page if the User chooses to provide them;</li>
+  <li><strong>Reference country and language</strong>: manually modifiable in settings if automatic detection does not suit the User.</li>
+</ul>
+
+<h3>3.3 Data generated by use of the Service</h3>
+
+<p>This data is created by User actions on the Service:</p>
+
+<ul>
+  <li><strong>Votes</strong>: Likes, Dislikes and Superlikes cast by the User, time-stamped and associated with the User's device identifier;</li>
+  <li><strong>Purchases</strong>: history of acquired Boosters (tier, date, amount, status). Banking data is never collected by the Publisher; it is processed exclusively by Apple or Google;</li>
+  <li><strong>Activity</strong>: Daily Runs activated, victories obtained, Strikes triggered, Popularoo Index score calculated.</li>
+</ul>
+
+<div class="callout info">
+  <p style="margin-bottom:0"><strong>Data NOT collected:</strong> the Publisher does not collect your real name, telephone number, postal address, date of birth, contacts, photos, or address book. Precise geolocation (GPS) is not used.</p>
+</div>
+
+<h2 class="article" id="a4"><span class="num">Article 4.</span>Purposes and legal bases</h2>
+
+<p>In accordance with Article 13 of the GDPR, the purposes for which your data is processed and the legal basis applicable to each processing are as follows:</p>
+
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Purpose</th>
+      <th>GDPR legal basis</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Provide access to the Service and its technical operation</td>
+      <td>Performance of the contract (Terms)</td>
+    </tr>
+    <tr>
+      <td>Count votes and calculate the Popularoo Index</td>
+      <td>Performance of the contract</td>
+    </tr>
+    <tr>
+      <td>Process Booster purchases and send receipts</td>
+      <td>Performance of the contract / legal obligation (invoicing)</td>
+    </tr>
+    <tr>
+      <td>Prevent fraud and abuse (multi-accounts, vote manipulation)</td>
+      <td>Legitimate interest of the Publisher</td>
+    </tr>
+    <tr>
+      <td>Detect bugs and improve the quality of the Service</td>
+      <td>Legitimate interest of the Publisher</td>
+    </tr>
+    <tr>
+      <td>Measure aggregate audience and use of the Service</td>
+      <td>Legitimate interest of the Publisher</td>
+    </tr>
+    <tr>
+      <td>Respond to public figure removal requests</td>
+      <td>Legal obligation (LCEN, DSA)</td>
+    </tr>
+    <tr>
+      <td>Respond to GDPR rights exercise requests</td>
+      <td>Legal obligation (GDPR)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>No advertising processing or commercial profiling is performed.</p>
+
+<h2 class="article" id="a5"><span class="num">Article 5.</span>Retention periods</h2>
+
+<p>The retention periods applied are as follows:</p>
+
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Data category</th>
+      <th>Retention period</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Device identifier and associated activity</td>
+      <td>Duration of use of the Service, then 13 months after last use</td>
+    </tr>
+    <tr>
+      <td>Votes cast</td>
+      <td>Retained for score calculation; individual votes are anonymised after 24 months</td>
+    </tr>
+    <tr>
+      <td>Purchase data (Boosters)</td>
+      <td>10 years, in accordance with French accounting and tax obligations</td>
+    </tr>
+    <tr>
+      <td>Email address (if provided)</td>
+      <td>3 years from last interaction</td>
+    </tr>
+    <tr>
+      <td>Outsider social media accounts (if provided)</td>
+      <td>Until deletion by the User</td>
+    </tr>
+    <tr>
+      <td>Administrator audit logs</td>
+      <td>90 days</td>
+    </tr>
+    <tr>
+      <td>Data of public figures removed upon request</td>
+      <td>Effective deletion within 30 days, retention only of removal metadata for evidentiary purposes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The User may at any time request the early deletion of their data under the conditions of Article 9, subject to the legal retention obligations of the Publisher.</p>
+
+<h2 class="article" id="a6"><span class="num">Article 6.</span>Recipients and processors</h2>
+
+<p>Your data is accessible only to the Publisher and to its technical processors, strictly within the framework of their respective missions. No data is transmitted to third parties for commercial purposes.</p>
+
+<h3>Infrastructure processors</h3>
+
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Processor</th>
+      <th>Role</th>
+      <th>Location</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Render Services, Inc.</strong></td>
+      <td>Hosting of application servers</td>
+      <td>United States (Oregon)</td>
+    </tr>
+    <tr>
+      <td><strong>MongoDB Atlas</strong></td>
+      <td>Hosting of the database</td>
+      <td>United States</td>
+    </tr>
+    <tr>
+      <td><strong>Apple Inc.</strong></td>
+      <td>iOS distribution, In-App payments processing</td>
+      <td>United States</td>
+    </tr>
+    <tr>
+      <td><strong>Google LLC</strong></td>
+      <td>Android distribution, In-App payments processing</td>
+      <td>United States</td>
+    </tr>
+    <tr>
+      <td><strong>Infomaniak Network SA</strong></td>
+      <td>Hosting of the website and emails</td>
+      <td>Switzerland</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The Publisher does not use any third-party analytics tracking (such as Google Analytics, Mixpanel or equivalent) or any advertising audience measurement. If such tools were to be added in the future, this Policy would be updated beforehand and Users would be informed.</p>
+
+<h3>Processor commitments</h3>
+
+<p>All processors listed above are bound to the Publisher by contractual commitments compliant with Article 28 of the GDPR, requiring them in particular to process data only on the Publisher's instructions, to guarantee its confidentiality, and to apply appropriate security measures.</p>
+
+<h2 class="article" id="a7"><span class="num">Article 7.</span>Transfers outside the European Union</h2>
+
+<p>Several technical processors of the Publisher (Render, MongoDB Atlas, Apple, Google) have their headquarters or servers in the United States. The processing of your data may therefore involve a transfer outside the European Union.</p>
+
+<p>These transfers are framed in accordance with Chapter V of the GDPR by the following safeguards:</p>
+
+<ul>
+  <li><strong>Data Privacy Framework (DPF)</strong>: for American processors certified under the EU-US framework for data protection (European Commission adequacy decision of 10 July 2023);</li>
+  <li><strong>Standard Contractual Clauses (SCC)</strong>: approved by the European Commission, for processors not covered by the DPF.</li>
+</ul>
+
+<p>For other processors located in the European Union or in countries benefiting from an adequacy decision (notably Switzerland), no additional safeguard is required.</p>
+
+<h2 class="article" id="a8"><span class="num">Article 8.</span>Data security</h2>
+
+<p>The Publisher implements appropriate technical and organisational measures to protect processed data against unauthorised access, disclosure, alteration or destruction. These measures notably include:</p>
+
+<ul>
+  <li>TLS encryption of all communications between the application and the servers;</li>
+  <li>Storage of administrator passwords in bcrypt hash form, resistant to brute-force attacks;</li>
+  <li>Limitation of the number of administrator accesses and logging of all sensitive actions (audit log);</li>
+  <li>Limitation of authentication attempts (rate limiting) to prevent automated attacks;</li>
+  <li>Regular and encrypted database backups;</li>
+  <li>Regular updates of software dependencies to fix known vulnerabilities.</li>
+</ul>
+
+<p>In the event of a data breach presenting a risk to Users, the Publisher undertakes to notify the CNIL within 72 hours and, where applicable, the affected Users, in accordance with Articles 33 and 34 of the GDPR.</p>
+
+<h2 class="article" id="a9"><span class="num">Article 9.</span>Your GDPR rights</h2>
+
+<p>In accordance with Articles 15 to 22 of the GDPR, you have the following rights regarding your personal data:</p>
+
+<ul>
+  <li><strong>Right of access</strong>: obtain confirmation that data concerning you is being processed and receive a copy of it;</li>
+  <li><strong>Right of rectification</strong>: request the correction of inaccurate or incomplete data;</li>
+  <li><strong>Right to erasure</strong> ("right to be forgotten"): request the deletion of your data, subject to the legal obligations of the Publisher;</li>
+  <li><strong>Right to restriction of processing</strong>: request the temporary suspension of the processing of your data;</li>
+  <li><strong>Right to object</strong>: object, on grounds relating to your particular situation, to processing based on the legitimate interest of the Publisher;</li>
+  <li><strong>Right to portability</strong>: receive your data in a structured, machine-readable format, or request its transmission to another data controller;</li>
+  <li><strong>Right to define post-mortem instructions</strong>: organise the fate of your data after death.</li>
+</ul>
+
+<h3>Exercise of your rights</h3>
+
+<p>To exercise any of these rights, send your request by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, specifying the subject of your request and attaching any element allowing your identity or your link with the relevant device identifier to be verified.</p>
+
+<p>The Publisher undertakes to respond within a maximum period of one (1) month from receipt of the request, in accordance with Article 12 of the GDPR. This period may be extended by two (2) months in case of complex requests, in which case the User shall be informed of such extension and its reasons.</p>
+
+<h3>Complaint to the supervisory authority</h3>
+
+<p>If you consider, after having contacted the Publisher, that your rights are not respected, you have the right to lodge a complaint with the French Data Protection Authority (CNIL — <em>Commission Nationale de l'Informatique et des Libertés</em>):</p>
+
+<div class="contact-block">
+  <span class="label">French supervisory authority</span>
+  <p><strong>CNIL</strong> — Commission Nationale de l'Informatique et des Libertés<br>
+  3 place de Fontenoy — TSA 80715<br>
+  75334 Paris cedex 07 — France<br>
+  <a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a></p>
+</div>
+
+<h2 class="article" id="a10"><span class="num">Article 10.</span>Data of public figures</h2>
+
+<p>The entries of Public Figures featured on Popularoo (artists, athletes, political officials, media personalities) include a limited number of pieces of information strictly necessary for their identification in the Service: name, public photograph, activity category.</p>
+
+<p>This information is used within the framework of the right to information and the right of short citation, applicable to persons who have voluntarily exposed their image and their action to the public.</p>
+
+<p>In accordance with Article 7 of the Terms of Service, any Public Figure, or their duly mandated legal representative, has an absolute right to request the removal of their entry, without having to provide any reason, by writing by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>. The Publisher undertakes to process any request within a maximum period of 72 working hours.</p>
+
+<h2 class="article" id="a11"><span class="num">Article 11.</span>Minors</h2>
+
+<p>The Service is strictly reserved for persons aged at least sixteen (16) years, in accordance with Article 8 of the GDPR relating to consent of minors and Article 3 of the Terms of Service.</p>
+
+<p>The Publisher does not knowingly collect personal data concerning persons under 16 years of age. If a User under 16 registers despite this prohibition, their parents or legal guardians may request the immediate deletion of their data by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>.</p>
+
+<h2 class="article" id="a12"><span class="num">Article 12.</span>Amendments and contact</h2>
+
+<h3>Amendments to the Policy</h3>
+
+<p>The Publisher reserves the right to amend this Privacy Policy at any time, in particular to reflect legislative, jurisprudential or technical developments.</p>
+
+<p>Any substantial amendment shall be brought to the attention of Users by notification in the application at least fifteen (15) days before its entry into force. Continued use of the Service after the entry into force of the new version shall constitute acceptance thereof.</p>
+
+<h3>Contact</h3>
+
+<p>For any question relating to this Policy or to the processing of your personal data, contact the Publisher at <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>. Full postal contact details are mentioned in Article 1.</p>
+
+<footer>
+  <p>EN HAUT DES MARCHES — SARL · Paris Trade and Companies Register 504 747 932</p>
+  <p>See also: <a href="/terms-en.html">Terms of Service</a> · <a href="/legal-notice.html">Legal Notice</a> · <a href="/privacy-fr.html">Version française</a></p>
+</footer>
+
+</div>
+</body>
+</html>
