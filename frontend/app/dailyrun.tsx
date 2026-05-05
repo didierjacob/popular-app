@@ -251,9 +251,10 @@ const StrikeIndicator = ({ strikes }: { strikes: typeof MOCK_STRIKES }) => {
         {strikes.strike_types.map((s, i) => (
           <View key={i} style={styles.strikeTypeRow}>
             <Ionicons
-              name={s.active ? "checkmark-circle" : "ellipse-outline"}
+              name={s.active ? "checkmark-circle" : "lock-closed"}
               size={14}
               color={s.active ? PALETTE.winGreen : PALETTE.subtext}
+              style={!s.active ? { opacity: 0.5 } : undefined}
             />
             <Text style={[styles.strikeTypeName, s.active && { color: PALETTE.text }]}>
               {s.type}
@@ -324,8 +325,11 @@ const ActiveRunCard = ({
           </Text>
         </View>
         <View style={styles.timerContainer}>
-          <Ionicons name="time-outline" size={16} color={PALETTE.timerOrange} />
-          <Text style={styles.timerText}>{countdown}</Text>
+          <Text style={styles.timerLabel}>Time remaining</Text>
+          <View style={styles.timerRow}>
+            <Ionicons name="time-outline" size={16} color={PALETTE.timerOrange} />
+            <Text style={styles.timerText}>{countdown}</Text>
+          </View>
         </View>
       </View>
 
@@ -348,8 +352,14 @@ const ActiveRunCard = ({
           <Text style={styles.vsText}>VS</Text>
           {run.is_winning && (
             <View style={styles.winningIndicator}>
-              <Ionicons name="trending-up" size={14} color={PALETTE.winGreen} />
-              <Text style={styles.winningText}>Leading</Text>
+              <Ionicons name="caret-up" size={18} color={PALETTE.winGreen} />
+              <Text style={styles.winningText}>LEADING</Text>
+            </View>
+          )}
+          {!run.is_winning && (
+            <View style={styles.winningIndicator}>
+              <Ionicons name="caret-down" size={18} color={PALETTE.lossRed} />
+              <Text style={[styles.winningText, { color: PALETTE.lossRed }]}>BEHIND</Text>
             </View>
           )}
         </View>
@@ -404,10 +414,9 @@ const TargetCard = ({
       </View>
       <View style={styles.targetInfo}>
         <Text style={styles.targetName}>{target.name}</Text>
-        <View style={styles.targetMeta}>
-          <Text style={styles.targetCategory}>{target.category}</Text>
-          <Text style={styles.targetIndex}>Index: {target.popularoo_index.toFixed(1)}</Text>
-        </View>
+        <Text style={styles.targetCategory}>
+          {target.category} · Popularoo Index {target.popularoo_index.toFixed(1)}
+        </Text>
       </View>
       <View style={styles.targetRight}>
         <View style={[styles.targetTierBadge, { backgroundColor: tierColor + '20' }]}>
@@ -514,11 +523,6 @@ export default function DailyRunScreen() {
           <Text style={styles.headerTitle}>Daily Run</Text>
           <Text style={styles.headerSubtitle}>24h Momentum Challenge</Text>
         </View>
-        {activeRun && (
-          <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-            <Ionicons name="share-outline" size={22} color={PALETTE.text} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Tab bar */}
@@ -678,7 +682,7 @@ export default function DailyRunScreen() {
                     <Text style={[styles.statValue, { color: PALETTE.gold }]}>
                       {history.filter(h => h.tier === 'legendary' && h.result === 'win').length}
                     </Text>
-                    <Text style={styles.statLabel}>Legendary</Text>
+                    <Text style={styles.statLabel}>Legendaries Won</Text>
                   </View>
                   <View style={styles.statBox}>
                     <Text style={styles.statValue}>
@@ -687,10 +691,59 @@ export default function DailyRunScreen() {
                         : 0}%
                     </Text>
                     <Text style={styles.statLabel}>Win Rate</Text>
+                    <Text style={styles.statSubLabel}>
+                      {history.filter(h => h.result === 'win').length} out of {history.length}
+                    </Text>
                   </View>
                 </View>
               </View>
             )}
+
+            {/* Index Evolution (Critical 5 — extra content) */}
+            {history.length > 0 && (
+              <View style={styles.indexEvolutionCard}>
+                <Text style={styles.indexEvolutionTitle}>Popularoo Index Evolution</Text>
+                <View style={styles.indexChart}>
+                  {/* Mock sparkline chart */}
+                  <View style={styles.chartRow}>
+                    {[42, 44, 43, 47, 49, 48, 52].map((val, idx) => (
+                      <View key={idx} style={styles.chartBarWrapper}>
+                        <View
+                          style={[
+                            styles.chartBar,
+                            {
+                              height: `${(val / 60) * 100}%`,
+                              backgroundColor: idx === 6 ? PALETTE.winGreen : PALETTE.border,
+                            },
+                          ]}
+                        />
+                        <Text style={styles.chartLabel}>
+                          {idx === 0 ? '7d' : idx === 6 ? 'Now' : ''}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.chartLegend}>
+                    <Text style={styles.chartLegendText}>+10 pts this week</Text>
+                    <Ionicons name="trending-up" size={14} color={PALETTE.winGreen} />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Suggest next target CTA (Critical 5) */}
+            <TouchableOpacity
+              style={styles.suggestCta}
+              onPress={() => setTab('targets')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="rocket" size={20} color={PALETTE.text} />
+              <View style={styles.suggestCtaContent}>
+                <Text style={styles.suggestCtaTitle}>Ready for the next challenge?</Text>
+                <Text style={styles.suggestCtaSubtitle}>Find your next target to beat</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
+            </TouchableOpacity>
           </>
         )}
 
@@ -718,7 +771,26 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1, marginLeft: 12 },
   headerTitle: { color: PALETTE.text, fontSize: 20, fontWeight: '700' },
   headerSubtitle: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
-  shareBtn: { padding: 8 },
+
+  // Share CTA (sticky bottom - Critical 1)
+  shareCta: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#2ECC71',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  shareCtaText: { color: '#000', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
 
   // Tab bar
   tabBar: {
