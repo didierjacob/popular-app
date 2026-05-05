@@ -813,6 +813,12 @@ async def _send_victory_email(db, email_service, run: Dict, victory_type: str, m
         user_id = run.get("user_id", "")
         person_id = run.get("person_id")
 
+        # Skip email if outsider is suspended
+        person = await db.persons.find_one({"_id": person_id})
+        if person and person.get("suspended"):
+            logger.info(f"📧 Victory email skipped (outsider suspended): {run.get('outsider_name')}")
+            return
+
         # Look up user's email from their active boost
         boost = await db.active_boosts.find_one({
             "person_id": person_id,

@@ -73,6 +73,11 @@ async def startup_event():
         "timestamp", expireAfterSeconds=90 * 24 * 3600
     )
     
+    # Ensure admin_audit_log collection has TTL index (auto-cleanup after 90 days)
+    await db.admin_audit_log.create_index(
+        "timestamp", expireAfterSeconds=90 * 24 * 3600
+    )
+    
     # Ensure Popularoo Index database indexes
     await ensure_index_indexes(db)
     
@@ -758,7 +763,7 @@ async def list_people(
     List personalities with optional 50/50 local/international feed.
     If country is provided, returns ~50% local + ~50% international.
     """
-    filter_q: Dict[str, Any] = {"approved": True}
+    filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}}
     
     # Exclude "outsiders" (self_boosted) from main lists unless explicitly requested
     if not include_outsiders:
@@ -882,6 +887,10 @@ async def write_vote_event(person_oid: ObjectId, device_id: str, delta: int):
 async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID")):
     if not x_device_id:
         raise HTTPException(status_code=400, detail="X-Device-ID header is required for anonymous voting")
+    
+    # ── Ban enforcement ──
+    await _check_device_not_banned(x_device_id)
+    
     try:
         oid = ObjectId(person_id)
     except Exception:
@@ -890,6 +899,9 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     person = await db.persons.find_one({"_id": oid})
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
+    
+    # ── Suspension enforcement ──
+    await _check_person_not_suspended(person)
 
     new_val = int(body.value)
     is_outsider = person.get("source") in ("self_boosted", "seed")
@@ -1826,6 +1838,7 @@ async def get_outsiders_paginated(
         # Build base filter for active boosts (not expired, including active seeds)
         boost_filter: Dict[str, Any] = {
             "end_time": {"$gt": now},
+            "suspended": {"$ne": True},
             "$or": [
                 {"is_seed": {"$ne": True}},
                 {"is_seed": True, "seed_active": True},
@@ -1844,6 +1857,9 @@ async def get_outsiders_paginated(
         for boost in active_boosts:
             person = await db.persons.find_one({"_id": boost["person_id"]})
             if not person:
+                continue
+            # Skip suspended persons
+            if person.get("suspended"):
                 continue
 
             time_remaining = (boost["end_time"] - now).total_seconds()
@@ -2103,6 +2119,9 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
 async def boost_myself(request: BoostMyselfRequest):
     """Purchase a visibility boost and appear in the Outsiders ranking (Golden: + priority placement + Home page rotation)"""
     try:
+        # ── Ban enforcement ──
+        await _check_device_not_banned(request.user_id)
+        
         # Require a valid receipt from Apple/Google for payment verification
         if not request.receipt or len(request.receipt) < 10:
             raise HTTPException(
@@ -2330,6 +2349,9 @@ async def boost_myself(request: BoostMyselfRequest):
 async def extend_boost(request: ExtendBoostRequest):
     """Extend an existing boost"""
     try:
+        # ── Ban enforcement ──
+        await _check_device_not_banned(request.user_id)
+        
         if request.tier not in BOOSTER_TIERS:
             raise HTTPException(status_code=400, detail="Invalid booster tier")
 
@@ -2474,86 +2496,6 @@ async def admin_verify_token(token: str = Header(None, alias="X-Admin-Token")):
     return {"valid": True}
 
 # -------------------- Admin Endpoints --------------------
-
-@api_router.get("/admin/stats")
-async def get_admin_stats():
-    """Get global statistics for admin dashboard"""
-    try:
-        # Total people
-        total_people = await db.persons.count_documents({})
-        
-        # Total votes across all people
-        pipeline_votes = [
-            {
-                "$group": {
-                    "_id": None,
-                    "total_votes": {"$sum": "$total_votes"},
-                    "total_likes": {"$sum": "$likes"},
-                    "total_dislikes": {"$sum": "$dislikes"},
-                }
-            }
-        ]
-        vote_result = await db.persons.aggregate(pipeline_votes).to_list(1)
-        total_votes = vote_result[0]["total_votes"] if vote_result else 0
-        
-        # Active users 24h (count unique user_ids from credit_transactions in last 24h)
-        yesterday = now_utc() - timedelta(days=1)
-        active_users_pipeline = [
-            {"$match": {"timestamp": {"$gte": yesterday}}},
-            {"$group": {"_id": "$user_id"}},
-            {"$count": "count"}
-        ]
-        active_users_result = await db.credit_transactions.aggregate(active_users_pipeline).to_list(1)
-        active_users_24h = active_users_result[0]["count"] if active_users_result else 0
-        
-        # Revenue 24h (sum of purchases in last 24h)
-        revenue_pipeline = [
-            {
-                "$match": {
-                    "type": "purchase",
-                    "timestamp": {"$gte": yesterday}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "credit_packs",
-                    "let": {"pack_name": "$description"},
-                    "pipeline": [],
-                    "as": "pack_info"
-                }
-            },
-            {
-                "$group": {
-                    "_id": None,
-                    "total_revenue": {"$sum": 0.99}  # Simple estimate for now
-                }
-            }
-        ]
-        revenue_result = await db.credit_transactions.aggregate(revenue_pipeline).to_list(1)
-        # Count purchases and multiply by average price
-        purchases_24h = await db.credit_transactions.count_documents({
-            "type": "purchase",
-            "timestamp": {"$gte": yesterday}
-        })
-        revenue_24h = round(purchases_24h * 0.99, 2)  # Assuming average is 0.99€
-        
-        # New people added in 24h
-        new_people_24h = await db.persons.count_documents({
-            "created_at": {"$gte": yesterday}
-        })
-        
-        return {
-            "total_people": total_people,
-            "total_votes": total_votes,
-            "active_users_24h": active_users_24h,
-            "revenue_24h": f"{revenue_24h:.2f}",
-            "new_people_24h": new_people_24h,
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 class AdminBoostRequest(BaseModel):
     person_id: str
@@ -2702,15 +2644,47 @@ async def admin_reset_person(person_id: str):
 
 # ── Admin Audit Log helper ──
 
-async def _log_admin_action(action: str, target: str, details: dict = None, token: str = ""):
+async def _log_admin_action(action: str, target: str, details: dict = None, token: str = "", success: bool = True):
     """Record every admin action for traceability."""
     await db.admin_audit_log.insert_one({
         "action": action,
         "target": target,
         "details": details or {},
         "token_prefix": token[:8] if token else "",
+        "success": success,
         "timestamp": now_utc(),
     })
+
+
+# ── Device Ban Enforcement helper ──
+
+async def _check_device_not_banned(device_id: str):
+    """
+    Check if a device_id is banned. Raises HTTP 403 if banned.
+    Call this at the beginning of all critical endpoints (vote, purchase, daily run).
+    """
+    if not device_id:
+        return
+    banned = await db.banned_devices.find_one({"device_id": device_id})
+    if banned:
+        raise HTTPException(
+            status_code=403,
+            detail="This device has been suspended. Contact popularoo@popularoo.com for more information."
+        )
+
+
+# ── Outsider Suspension check helper ──
+
+async def _check_person_not_suspended(person: dict):
+    """
+    Check if a person/outsider is suspended. Raises HTTP 403 if suspended.
+    Call before allowing votes or interactions with a suspended outsider.
+    """
+    if person and person.get("suspended"):
+        raise HTTPException(
+            status_code=403,
+            detail="This profile is temporarily suspended. Contact popularoo@popularoo.com for more information."
+        )
 
 
 # ── 1. Suspend / Unsuspend Outsider ──
@@ -2781,19 +2755,20 @@ async def admin_ban_device(request: BanDeviceRequest):
             "device_id": request.device_id,
             "reason": request.reason,
             "banned_at": now_utc(),
+            "banned_by_admin": request.password[:4] + "****",  # Partial trace for audit
         }},
         upsert=True,
     )
     await _log_admin_action("ban_device", request.device_id, {"reason": request.reason})
     return {"success": True, "message": f"Device '{request.device_id}' banned"}
 
-@api_router.post("/admin/unban-device")
-async def admin_unban_device(request: BanDeviceRequest):
-    """Unban a device_id."""
+@api_router.post("/admin/unban-device/{device_id}")
+async def admin_unban_device(device_id: str, request: SuspendRequest):
+    """Unban a device_id. Body: {password}"""
     _require_admin_password(request.password)
     
-    result = await db.banned_devices.delete_one({"device_id": request.device_id})
-    await _log_admin_action("unban_device", request.device_id)
+    result = await db.banned_devices.delete_one({"device_id": device_id})
+    await _log_admin_action("unban_device", device_id)
     return {"success": True, "deleted": result.deleted_count > 0}
 
 @api_router.get("/admin/banned-devices")
@@ -2819,6 +2794,7 @@ class GrantBoosterRequest(BaseModel):
     name: str
     tier: str  # booster, super_booster, golden_booster
     duration_hours: int = 0  # 0 = use tier default
+    email: str = ""  # Optional: email for confirmation
     password: str
 
 @api_router.post("/admin/grant-booster")
@@ -2868,7 +2844,7 @@ async def admin_grant_booster(request: GrantBoosterRequest):
         "person_id": person_id,
         "person_name": request.name,
         "user_id": request.device_id,
-        "email": "",
+        "email": request.email,
         "tier": request.tier,
         "position": tier_info["position"],
         "country": "FR",
@@ -2877,13 +2853,28 @@ async def admin_grant_booster(request: GrantBoosterRequest):
         "created_at": now,
         "updated_at": now,
         "source": "admin_grant",
+        "granted_manually": True,
     }
     boost_result = await db.active_boosts.insert_one(boost_doc)
+    
+    # Send confirmation email if email provided
+    if request.email:
+        try:
+            from email_sender import send_booster_confirmation
+            duration_str = f"{duration} hours" if duration < 48 else f"{duration // 24} days"
+            await send_booster_confirmation(
+                db, email_service, request.email, request.device_id,
+                request.name, tier_info["name"], duration_str,
+                is_golden=(request.tier == "golden_booster"),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send grant email: {e}")
     
     await _log_admin_action("grant_booster", request.name, {
         "device_id": request.device_id,
         "tier": request.tier,
         "duration_hours": duration,
+        "email_sent": bool(request.email),
     })
     return {
         "success": True,
@@ -2916,9 +2907,26 @@ async def admin_expire_booster(boost_id: str, request: ExpireBoosterRequest):
         "expired_at": now,
     }})
     
+    # Send expiration email if email exists on the boost
+    email = boost.get("email", "")
+    if email:
+        try:
+            from email_sender import send_booster_expiration
+            tier = boost.get("tier", "booster")
+            tier_name = BOOSTER_TIERS.get(tier, {}).get("name", "Booster")
+            person_name = boost.get("person_name", "User")
+            await send_booster_expiration(
+                db, email_service, email, boost.get("user_id", ""),
+                person_name, tier_name, "0 hours",
+                total_votes=0, best_rank=0, daily_runs_count=0,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send admin expiration email: {e}")
+    
     await _log_admin_action("expire_booster", boost.get("person_name", ""), {
         "boost_id": boost_id,
         "original_end_time": boost.get("end_time").isoformat() if boost.get("end_time") else None,
+        "email_sent": bool(email),
     })
     return {"success": True, "message": f"Booster for '{boost.get('person_name')}' expired immediately"}
 
@@ -2926,8 +2934,9 @@ async def admin_expire_booster(boost_id: str, request: ExpireBoosterRequest):
 # ── 5. Activity feed with device_id filter ──
 
 @api_router.get("/admin/activity/recent")
-async def admin_get_recent_activity(device_id: Optional[str] = None):
+async def admin_get_recent_activity(password: str = Query(...), device_id: Optional[str] = None):
     """Admin-only: Get recent activity. Optional ?device_id=xxx to filter by user."""
+    _require_admin_password(password)
     try:
         # Last 50 person additions (last 7 days)
         week_ago = now_utc() - timedelta(days=7)
@@ -3001,12 +3010,37 @@ async def admin_get_audit_log(
     password: str = Query(...),
     limit: int = Query(default=50, le=200),
     skip: int = Query(default=0),
+    action_type: Optional[str] = Query(default=None, description="Filter by action type"),
+    from_date: Optional[str] = Query(default=None, alias="from", description="Start date ISO format"),
+    to_date: Optional[str] = Query(default=None, alias="to", description="End date ISO format"),
+    admin_token: Optional[str] = Query(default=None, description="Filter by admin token prefix"),
 ):
-    """Get admin audit log with pagination."""
+    """Get admin audit log with pagination and filters."""
     _require_admin_password(password)
     
-    total = await db.admin_audit_log.count_documents({})
-    logs = await db.admin_audit_log.find({}).sort("timestamp", -1).skip(skip).limit(limit).to_list(limit)
+    # Build filter
+    query: Dict[str, Any] = {}
+    if action_type:
+        query["action"] = action_type
+    if admin_token:
+        query["token_prefix"] = {"$regex": f"^{admin_token}"}
+    if from_date or to_date:
+        date_filter: Dict[str, Any] = {}
+        if from_date:
+            try:
+                date_filter["$gte"] = datetime.fromisoformat(from_date.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+        if to_date:
+            try:
+                date_filter["$lte"] = datetime.fromisoformat(to_date.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+        if date_filter:
+            query["timestamp"] = date_filter
+    
+    total = await db.admin_audit_log.count_documents(query)
+    logs = await db.admin_audit_log.find(query).sort("timestamp", -1).skip(skip).limit(limit).to_list(limit)
     
     return {
         "total": total,
@@ -3018,6 +3052,7 @@ async def admin_get_audit_log(
                 "target": log.get("target"),
                 "details": log.get("details", {}),
                 "token_prefix": log.get("token_prefix", ""),
+                "success": log.get("success", True),
                 "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else None,
             }
             for log in logs
@@ -3026,6 +3061,210 @@ async def admin_get_audit_log(
 
 
 # ────────────────────────────────────────────────────────────────
+
+# ── 7. Selective Vote Invalidation ──
+
+class InvalidateVotesRequest(BaseModel):
+    password: str
+    device_id: Optional[str] = None  # If set, only invalidate votes from this device
+    from_date: Optional[str] = None  # ISO format, start of period
+    to_date: Optional[str] = None    # ISO format, end of period
+
+@api_router.post("/admin/person/{person_id}/invalidate-votes")
+async def admin_invalidate_votes(person_id: str, request: InvalidateVotesRequest):
+    """
+    Selective vote invalidation for a person.
+    - No params (besides password): full reset (like reset)
+    - device_id: only invalidate votes from that device
+    - from/to: only invalidate votes in that time range
+    - Both: combined filter
+    """
+    _require_admin_password(request.password)
+    
+    try:
+        obj_id = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+    
+    person = await db.persons.find_one({"_id": obj_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    # If no selective params → full reset (existing behavior)
+    if not request.device_id and not request.from_date and not request.to_date:
+        await db.persons.update_one({"_id": obj_id}, {"$set": {
+            "likes": 0, "dislikes": 0, "superlikes": 0,
+            "total_votes": 0, "score": 50.0, "updated_at": now_utc(),
+        }})
+        await db.votes.delete_many({"person_id": obj_id})
+        await db.superlike_votes.delete_many({"person_id": obj_id})
+        await _log_admin_action("invalidate_votes_full", person.get("name", ""), {
+            "person_id": person_id,
+        })
+        return {"success": True, "mode": "full_reset", "message": f"All votes reset for '{person.get('name')}'"}
+    
+    # Build selective filter
+    vote_filter: Dict[str, Any] = {"person_id": obj_id}
+    if request.device_id:
+        vote_filter["device_id"] = request.device_id
+    
+    date_filter: Dict[str, Any] = {}
+    if request.from_date:
+        try:
+            date_filter["$gte"] = datetime.fromisoformat(request.from_date.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid from_date format (use ISO)")
+    if request.to_date:
+        try:
+            date_filter["$lte"] = datetime.fromisoformat(request.to_date.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid to_date format (use ISO)")
+    if date_filter:
+        vote_filter["created_at"] = date_filter
+    
+    # Count and delete matching votes
+    deleted_votes = await db.votes.delete_many(vote_filter)
+    deleted_superlikes = await db.superlike_votes.delete_many(vote_filter)
+    
+    total_deleted = deleted_votes.deleted_count + deleted_superlikes.deleted_count
+    
+    # Recalculate person's vote counters from remaining votes
+    remaining_likes = await db.votes.count_documents({"person_id": obj_id, "value": 1})
+    remaining_dislikes = await db.votes.count_documents({"person_id": obj_id, "value": -1})
+    remaining_superlikes = await db.superlike_votes.count_documents({"person_id": obj_id})
+    remaining_total = remaining_likes + remaining_dislikes + remaining_superlikes
+    
+    # Recalculate score
+    if remaining_total > 0:
+        new_score = 50.0 + ((remaining_likes + remaining_superlikes * 5 - remaining_dislikes) / remaining_total) * 50
+        new_score = max(0.0, min(100.0, new_score))
+    else:
+        new_score = 50.0
+    
+    await db.persons.update_one({"_id": obj_id}, {"$set": {
+        "likes": remaining_likes,
+        "dislikes": remaining_dislikes,
+        "superlikes": remaining_superlikes,
+        "total_votes": remaining_total,
+        "score": new_score,
+        "updated_at": now_utc(),
+    }})
+    
+    await _log_admin_action("invalidate_votes_selective", person.get("name", ""), {
+        "person_id": person_id,
+        "device_id": request.device_id,
+        "from_date": request.from_date,
+        "to_date": request.to_date,
+        "votes_deleted": total_deleted,
+    })
+    
+    return {
+        "success": True,
+        "mode": "selective",
+        "votes_deleted": total_deleted,
+        "remaining_total": remaining_total,
+        "new_score": round(new_score, 2),
+        "message": f"{total_deleted} votes invalidated for '{person.get('name')}'",
+    }
+
+
+# ── 8 & 9. Extended Stats + Lifetime Revenue ──
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(password: str = Query(default="")):
+    """Get global statistics for admin dashboard — extended with 7d/30d users and lifetime revenue."""
+    if password:
+        _require_admin_password(password)
+    try:
+        now = now_utc()
+        yesterday = now - timedelta(days=1)
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+        
+        # Total people
+        total_people = await db.persons.count_documents({})
+        
+        # Total votes across all people
+        pipeline_votes = [
+            {"$group": {"_id": None, "total_votes": {"$sum": "$total_votes"}, "total_likes": {"$sum": "$likes"}, "total_dislikes": {"$sum": "$dislikes"}}}
+        ]
+        vote_result = await db.persons.aggregate(pipeline_votes).to_list(1)
+        total_votes = vote_result[0]["total_votes"] if vote_result else 0
+        
+        # Active users 24h
+        active_24h_pipeline = [
+            {"$match": {"timestamp": {"$gte": yesterday}}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "count"}
+        ]
+        active_24h_result = await db.credit_transactions.aggregate(active_24h_pipeline).to_list(1)
+        active_users_24h = active_24h_result[0]["count"] if active_24h_result else 0
+        
+        # Active users 7d
+        active_7d_pipeline = [
+            {"$match": {"timestamp": {"$gte": week_ago}}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "count"}
+        ]
+        active_7d_result = await db.credit_transactions.aggregate(active_7d_pipeline).to_list(1)
+        active_users_7d = active_7d_result[0]["count"] if active_7d_result else 0
+        
+        # Active users 30d
+        active_30d_pipeline = [
+            {"$match": {"timestamp": {"$gte": month_ago}}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "count"}
+        ]
+        active_30d_result = await db.credit_transactions.aggregate(active_30d_pipeline).to_list(1)
+        active_users_30d = active_30d_result[0]["count"] if active_30d_result else 0
+        
+        # Revenue 24h — by actual tier pricing
+        TIER_PRICES = {"booster": 0.99, "super_booster": 9.99, "golden_booster": 49.99}
+        
+        revenue_24h_pipeline = [
+            {"$match": {"created_at": {"$gte": yesterday}, "source": {"$ne": "admin_grant"}}},
+            {"$group": {"_id": "$tier", "count": {"$sum": 1}}},
+        ]
+        revenue_24h_data = await db.active_boosts.aggregate(revenue_24h_pipeline).to_list(10)
+        revenue_24h = sum(TIER_PRICES.get(r["_id"], 0.99) * r["count"] for r in revenue_24h_data)
+        
+        # Revenue 24h breakdown
+        revenue_24h_breakdown = {r["_id"]: {"count": r["count"], "revenue": round(TIER_PRICES.get(r["_id"], 0.99) * r["count"], 2)} for r in revenue_24h_data}
+        
+        # Revenue TOTAL LIFETIME — by tier
+        revenue_lifetime_pipeline = [
+            {"$match": {"source": {"$ne": "admin_grant"}}},
+            {"$group": {"_id": "$tier", "count": {"$sum": 1}}},
+        ]
+        revenue_lifetime_data = await db.active_boosts.aggregate(revenue_lifetime_pipeline).to_list(10)
+        revenue_total_lifetime = sum(TIER_PRICES.get(r["_id"], 0.99) * r["count"] for r in revenue_lifetime_data)
+        
+        # Lifetime breakdown by tier
+        revenue_lifetime_breakdown = {
+            r["_id"]: {"count": r["count"], "revenue": round(TIER_PRICES.get(r["_id"], 0.99) * r["count"], 2)}
+            for r in revenue_lifetime_data
+        }
+        
+        # New people added in 24h
+        new_people_24h = await db.persons.count_documents({"created_at": {"$gte": yesterday}})
+        
+        return {
+            "total_people": total_people,
+            "total_votes": total_votes,
+            "active_users_24h": active_users_24h,
+            "active_users_7d": active_users_7d,
+            "active_users_30d": active_users_30d,
+            "revenue_24h": f"{revenue_24h:.2f}",
+            "revenue_24h_breakdown": revenue_24h_breakdown,
+            "revenue_total_lifetime": f"{revenue_total_lifetime:.2f}",
+            "revenue_lifetime_breakdown": revenue_lifetime_breakdown,
+            "new_people_24h": new_people_24h,
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @api_router.get("/admin/search")
 async def admin_search_people(
@@ -4163,11 +4402,18 @@ async def api_activate_daily_run(body: Dict[str, Any]):
     if not user_id or not person_id_str or not target_id_str:
         raise HTTPException(status_code=400, detail="user_id, person_id, and target_id are required")
 
+    # ── Ban enforcement ──
+    await _check_device_not_banned(user_id)
+
     try:
         person_oid = ObjectId(person_id_str)
         target_oid = ObjectId(target_id_str)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid person_id or target_id")
+
+    # ── Suspension enforcement ──
+    person = await db.persons.find_one({"_id": person_oid})
+    await _check_person_not_suspended(person)
 
     result = await activate_daily_run(db, user_id, person_oid, target_oid, rally_message)
     if "error" in result:

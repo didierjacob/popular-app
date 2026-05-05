@@ -230,6 +230,11 @@ async def _send_strike_emails(db, email_service, person_id: ObjectId, active_cou
         if not boost or not boost.get("email"):
             return  # No email → skip silently
 
+        # Skip email if outsider is suspended
+        person = await db.persons.find_one({"_id": person_id})
+        if person and person.get("suspended"):
+            return  # Suspended → skip emails silently
+
         email = boost["email"]
         user_id = boost.get("user_id", "")
         person = await db.persons.find_one({"_id": person_id})
