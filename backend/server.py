@@ -1,11 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 import logging
+import bcrypt
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Dict, Any
@@ -52,6 +56,11 @@ db = client[os.environ['DB_NAME']]
 
 # Create the main app without a prefix
 app = FastAPI()
+
+# ── Rate Limiter for admin endpoints (5 attempts / 15 min / IP) ──
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -2437,18 +2446,61 @@ import secrets
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or ""
 
+# Hash the password at startup for bcrypt comparison (timing-attack resistant)
+_ADMIN_PASSWORD_HASH = bcrypt.hashpw(ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()) if ADMIN_PASSWORD else b""
+
 def _require_admin_password(password: str):
     """
-    Verify admin password. Raises 503 if not configured, 403 if incorrect.
-    SECURITY: No fallback value. The env var MUST be set on the server.
+    Verify admin password using bcrypt. Raises 503 if not configured, 403 if incorrect.
+    SECURITY: Uses bcrypt.checkpw() to resist timing attacks.
     """
     if not ADMIN_PASSWORD:
         raise HTTPException(
             status_code=503,
             detail="Admin authentication not configured on this server"
         )
-    if password != ADMIN_PASSWORD:
+    if not bcrypt.checkpw(password.encode("utf-8"), _ADMIN_PASSWORD_HASH):
         raise HTTPException(status_code=403, detail="Invalid admin password")
+
+
+def _get_admin_password_from_header(request: Request) -> str:
+    """
+    Extract admin password from X-Admin-Password header.
+    Falls back to deprecated query param 'password' for backward compatibility.
+    SECURITY: Header is preferred because query params are logged in server logs and proxies.
+    """
+    header_pw = request.headers.get("X-Admin-Password", "")
+    if header_pw:
+        return header_pw
+    # Backward compat: also check query param (deprecated, will be removed in V2)
+    return request.query_params.get("password", "")
+
+
+def _require_admin_auth(request: Request, body_password: str = ""):
+    """
+    Unified admin auth: accepts X-Admin-Token header, X-Admin-Password header,
+    or legacy body/query password.
+    Priority: X-Admin-Token > X-Admin-Password header > body password > query param.
+    """
+    # Try token first
+    token = request.headers.get("X-Admin-Token", "")
+    if token and verify_admin_token(token):
+        return
+    # Then try header password
+    header_pw = request.headers.get("X-Admin-Password", "")
+    if header_pw:
+        _require_admin_password(header_pw)
+        return
+    # Then try body password (POST endpoints backward compat)
+    if body_password:
+        _require_admin_password(body_password)
+        return
+    # Then try query param (deprecated fallback)
+    query_pw = request.query_params.get("password", "")
+    if query_pw:
+        _require_admin_password(query_pw)
+        return
+    raise HTTPException(status_code=403, detail="Admin authentication required. Use X-Admin-Password or X-Admin-Token header.")
 
 # In-memory token store (simple approach: tokens expire after 4 hours)
 _admin_tokens: dict = {}  # {token: expiry_datetime}
@@ -2476,10 +2528,12 @@ class AdminAuthResponse(BaseModel):
     expires_in_hours: int = 4
 
 @api_router.post("/admin/auth")
-async def admin_auth(request: AdminAuthRequest):
+@limiter.limit("5/15minutes")
+async def admin_auth(request: Request, body: AdminAuthRequest):
     """Authenticate admin and return a session token (valid 4 hours).
-    SECURITY: If ADMIN_PASSWORD env var is not set, returns 503."""
-    _require_admin_password(request.password)
+    SECURITY: If ADMIN_PASSWORD env var is not set, returns 503.
+    Rate limited: 5 attempts per 15 minutes per IP."""
+    _require_admin_password(body.password)
     
     # Generate secure token
     token = secrets.token_urlsafe(32)
@@ -2772,9 +2826,10 @@ async def admin_unban_device(device_id: str, request: SuspendRequest):
     return {"success": True, "deleted": result.deleted_count > 0}
 
 @api_router.get("/admin/banned-devices")
-async def admin_list_banned_devices(password: str = Query(...)):
+@limiter.limit("10/15minutes")
+async def admin_list_banned_devices(request: Request):
     """List all banned devices."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     
     devices = await db.banned_devices.find({}).sort("banned_at", -1).to_list(200)
     return [
@@ -2934,9 +2989,10 @@ async def admin_expire_booster(boost_id: str, request: ExpireBoosterRequest):
 # ── 5. Activity feed with device_id filter ──
 
 @api_router.get("/admin/activity/recent")
-async def admin_get_recent_activity(password: str = Query(...), device_id: Optional[str] = None):
+@limiter.limit("10/15minutes")
+async def admin_get_recent_activity(request: Request, device_id: Optional[str] = None):
     """Admin-only: Get recent activity. Optional ?device_id=xxx to filter by user."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     try:
         # Last 50 person additions (last 7 days)
         week_ago = now_utc() - timedelta(days=7)
@@ -3006,8 +3062,9 @@ async def admin_get_recent_activity(password: str = Query(...), device_id: Optio
 # ── 6. Audit Log consultation ──
 
 @api_router.get("/admin/audit-log")
+@limiter.limit("10/15minutes")
 async def admin_get_audit_log(
-    password: str = Query(...),
+    request: Request,
     limit: int = Query(default=50, le=200),
     skip: int = Query(default=0),
     action_type: Optional[str] = Query(default=None, description="Filter by action type"),
@@ -3016,7 +3073,7 @@ async def admin_get_audit_log(
     admin_token: Optional[str] = Query(default=None, description="Filter by admin token prefix"),
 ):
     """Get admin audit log with pagination and filters."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     
     # Build filter
     query: Dict[str, Any] = {}
@@ -3171,10 +3228,10 @@ async def admin_invalidate_votes(person_id: str, request: InvalidateVotesRequest
 # ── 8 & 9. Extended Stats + Lifetime Revenue ──
 
 @api_router.get("/admin/stats")
-async def get_admin_stats(password: str = Query(default="")):
+@limiter.limit("10/15minutes")
+async def get_admin_stats(request: Request):
     """Get global statistics for admin dashboard — extended with 7d/30d users and lifetime revenue."""
-    if password:
-        _require_admin_password(password)
+    _require_admin_auth(request)
     try:
         now = now_utc()
         yesterday = now - timedelta(days=1)
@@ -4853,12 +4910,13 @@ from email_sender import (
 )
 
 @api_router.get("/admin/email-errors")
+@limiter.limit("10/15minutes")
 async def get_email_errors(
-    password: str = Query(default=""),
+    request: Request,
     limit: int = Query(default=50, ge=1, le=200),
 ):
     """Admin: View recent email delivery errors logged in admin_notifications."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
 
     errors = await db.admin_notifications.find(
         {"type": "email_error"}
@@ -4877,9 +4935,10 @@ async def get_email_errors(
 
 
 @api_router.get("/admin/download-emails-review")
-async def download_emails_review(password: str = Query(default="")):
+@limiter.limit("10/15minutes")
+async def download_emails_review(request: Request):
     """Admin: Download the EMAILS_REVIEW.md file for proofreading."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     file_path = os.path.join(os.path.dirname(__file__), "EMAILS_REVIEW.md")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -4893,9 +4952,10 @@ async def download_emails_review(password: str = Query(default="")):
 # ── Chantier 1J: Seed Outsiders Admin Endpoints ──
 
 @api_router.post("/admin/seed-outsiders")
-async def seed_outsiders_endpoint(password: str = Query(default="")):
+@limiter.limit("5/15minutes")
+async def seed_outsiders_endpoint(request: Request):
     """Admin: Create all 49 seed Outsiders. Idempotent (skips existing)."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     from seed_outsiders import create_seed_outsiders
     result = await create_seed_outsiders(db)
     return result
@@ -4956,17 +5016,19 @@ async def update_outsider_social_links(boost_id: str, request: UpdateSocialLinks
 
 
 @api_router.get("/admin/seed-outsiders/status")
-async def seed_outsiders_status(password: str = Query(default="")):
+@limiter.limit("10/15minutes")
+async def seed_outsiders_status(request: Request):
     """Admin: View seed Outsiders status per country."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     from seed_outsiders import get_seed_status
     return await get_seed_status(db)
 
 
 @api_router.delete("/admin/seed-outsiders")
-async def remove_seed_outsiders_endpoint(password: str = Query(default="")):
+@limiter.limit("5/15minutes")
+async def remove_seed_outsiders_endpoint(request: Request):
     """Admin: Remove ALL seed Outsiders from the database."""
-    _require_admin_password(password)
+    _require_admin_auth(request)
     from seed_outsiders import remove_all_seeds
     result = await remove_all_seeds(db)
     return {"success": True, **result}

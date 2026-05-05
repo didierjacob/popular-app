@@ -141,8 +141,12 @@ export default function Admin() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const authHeaders: Record<string, string> = adminToken
+        ? { 'X-Admin-Token': adminToken }
+        : {};
+
       // Load stats
-      const statsRes = await fetch(API('/admin/stats'));
+      const statsRes = await fetch(API('/admin/stats'), { headers: authHeaders });
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
@@ -157,14 +161,14 @@ export default function Admin() {
       }
 
       // Load activity
-      const activityRes = await fetch(API('/admin/activity/recent'));
+      const activityRes = await fetch(API('/admin/activity/recent'), { headers: authHeaders });
       if (activityRes.ok) {
         const actData = await activityRes.json();
         setActivityData(actData);
       }
 
       // Load settings
-      const settingsRes = await fetch(API('/admin/settings'));
+      const settingsRes = await fetch(API('/admin/settings'), { headers: authHeaders });
       if (settingsRes.ok) {
         const settData = await settingsRes.json();
         setSettings(settData);
