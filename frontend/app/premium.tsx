@@ -23,16 +23,23 @@ import { useTranslation } from "react-i18next";
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+/**
+ * Returns the public URL for legal pages on popularoo.com
+ * Language detection: FR → French version, all others → English (fallback)
+ * V1.5 TODO: Add DE/ES/IT/PT-BR native translations
+ */
 function getLegalUrl(page: 'terms' | 'privacy' | 'legal-notice'): string {
   const locale = Localization.getLocales()?.[0]?.languageCode || 'en';
   const isFrench = locale === 'fr';
-  const frMap: Record<string, string> = {
-    'terms': 'terms-fr',
-    'privacy': 'privacy-fr',
-    'legal-notice': 'mentions-legales',
+  // FR users → French pages, all others (EN/DE/ES/IT/PT) → English pages
+  const pageMap: Record<string, { fr: string; en: string }> = {
+    'terms': { fr: 'terms-fr.html', en: 'terms-en.html' },
+    'privacy': { fr: 'privacy-fr.html', en: 'privacy-en.html' },
+    'legal-notice': { fr: 'mentions-legales.html', en: 'legal-notice.html' },
   };
-  const slug = isFrench ? frMap[page] : page;
-  return `${API_BASE}/api/legal/${slug}`;
+  const entry = pageMap[page];
+  const filename = isFrench ? entry.fr : entry.en;
+  return `https://popularoo.com/${filename}`;
 }
 
 const PALETTE = {

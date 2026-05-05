@@ -4845,9 +4845,13 @@ async def get_instagram_image(filename: str):
 LEGAL_DIR = os.path.join(os.path.dirname(__file__), "static", "legal")
 
 LEGAL_PAGES = {
-    "privacy": "privacy.html",
+    # V2 legal files - all use popularoo@popularoo.com
+    # For DE/ES/IT/PT-BR: fallback to EN versions in V1.0, native translations in V1.5
+    "privacy": "privacy-en.html",
+    "privacy-en": "privacy-en.html",
     "privacy-fr": "privacy-fr.html",
-    "terms": "terms.html",
+    "terms": "terms-en.html",
+    "terms-en": "terms-en.html",
     "terms-fr": "terms-fr.html",
     "legal-notice": "legal-notice.html",
     "mentions-legales": "mentions-legales.html",

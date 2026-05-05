@@ -88,7 +88,7 @@ npx eas build --platform all --profile production
 | **Sous-titre** | Rate & rank personalities |
 | **Catégorie** | Entertainment / Social |
 | **Prix** | Gratuit (avec achats in-app) |
-| **Contact email** | popularoo@proton.me |
+| **Contact email** | popularoo@popularoo.com |
 | **URL politique de confidentialité** | *(à créer sur votre site)* |
 
 ### Description courte (80 caractères)
@@ -160,7 +160,7 @@ npx eas submit --platform android --profile production
 2. **Politique de confidentialité** : Obligatoire. Créez une page simple expliquant :
    - L'app utilise un ID anonyme (pas de compte requis)
    - Les données personnelles sont optionnelles
-   - Contact : popularoo@proton.me
+   - Contact : popularoo@popularoo.com
 
 3. **Encryption** : Déjà configuré dans `app.json` (`ITSAppUsesNonExemptEncryption: false`)
 
