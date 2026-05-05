@@ -2700,26 +2700,260 @@ async def admin_reset_person(person_id: str):
 
 # -------------------- Admin: Activity Feed --------------------
 
+# ── Admin Audit Log helper ──
+
+async def _log_admin_action(action: str, target: str, details: dict = None, token: str = ""):
+    """Record every admin action for traceability."""
+    await db.admin_audit_log.insert_one({
+        "action": action,
+        "target": target,
+        "details": details or {},
+        "token_prefix": token[:8] if token else "",
+        "timestamp": now_utc(),
+    })
+
+
+# ── 1. Suspend / Unsuspend Outsider ──
+
+class SuspendRequest(BaseModel):
+    reason: str = ""
+    password: str
+
+@api_router.post("/admin/outsider/{person_id}/suspend")
+async def admin_suspend_outsider(person_id: str, request: SuspendRequest):
+    """Suspend an Outsider — hides them from all public lists without deleting."""
+    _require_admin_password(request.password)
+    obj_id = ObjectId(person_id)
+    person = await db.persons.find_one({"_id": obj_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    await db.persons.update_one({"_id": obj_id}, {"$set": {
+        "suspended": True,
+        "suspended_at": now_utc(),
+        "suspended_reason": request.reason,
+    }})
+    # Also mark any active boost as suspended
+    await db.active_boosts.update_many(
+        {"person_id": obj_id, "end_time": {"$gt": now_utc()}},
+        {"$set": {"suspended": True}}
+    )
+    await _log_admin_action("suspend_outsider", person.get("name", ""), {"reason": request.reason})
+    return {"success": True, "message": f"'{person.get('name')}' suspended"}
+
+@api_router.post("/admin/outsider/{person_id}/unsuspend")
+async def admin_unsuspend_outsider(person_id: str, request: SuspendRequest):
+    """Unsuspend an Outsider — restores visibility."""
+    _require_admin_password(request.password)
+    obj_id = ObjectId(person_id)
+    person = await db.persons.find_one({"_id": obj_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    
+    await db.persons.update_one({"_id": obj_id}, {"$unset": {
+        "suspended": "",
+        "suspended_at": "",
+        "suspended_reason": "",
+    }})
+    await db.active_boosts.update_many(
+        {"person_id": obj_id},
+        {"$unset": {"suspended": ""}}
+    )
+    await _log_admin_action("unsuspend_outsider", person.get("name", ""))
+    return {"success": True, "message": f"'{person.get('name')}' unsuspended"}
+
+
+# ── 2. Ban device_id ──
+
+class BanDeviceRequest(BaseModel):
+    device_id: str
+    reason: str = ""
+    password: str
+
+@api_router.post("/admin/ban-device")
+async def admin_ban_device(request: BanDeviceRequest):
+    """Ban a device_id from voting and purchasing."""
+    _require_admin_password(request.password)
+    
+    await db.banned_devices.update_one(
+        {"device_id": request.device_id},
+        {"$set": {
+            "device_id": request.device_id,
+            "reason": request.reason,
+            "banned_at": now_utc(),
+        }},
+        upsert=True,
+    )
+    await _log_admin_action("ban_device", request.device_id, {"reason": request.reason})
+    return {"success": True, "message": f"Device '{request.device_id}' banned"}
+
+@api_router.post("/admin/unban-device")
+async def admin_unban_device(request: BanDeviceRequest):
+    """Unban a device_id."""
+    _require_admin_password(request.password)
+    
+    result = await db.banned_devices.delete_one({"device_id": request.device_id})
+    await _log_admin_action("unban_device", request.device_id)
+    return {"success": True, "deleted": result.deleted_count > 0}
+
+@api_router.get("/admin/banned-devices")
+async def admin_list_banned_devices(password: str = Query(...)):
+    """List all banned devices."""
+    _require_admin_password(password)
+    
+    devices = await db.banned_devices.find({}).sort("banned_at", -1).to_list(200)
+    return [
+        {
+            "device_id": d.get("device_id"),
+            "reason": d.get("reason", ""),
+            "banned_at": d.get("banned_at").isoformat() if d.get("banned_at") else None,
+        }
+        for d in devices
+    ]
+
+
+# ── 3. Grant Booster manually (commercial gesture) ──
+
+class GrantBoosterRequest(BaseModel):
+    device_id: str
+    name: str
+    tier: str  # booster, super_booster, golden_booster
+    duration_hours: int = 0  # 0 = use tier default
+    password: str
+
+@api_router.post("/admin/grant-booster")
+async def admin_grant_booster(request: GrantBoosterRequest):
+    """Create an active Booster without IAP payment (commercial gesture)."""
+    _require_admin_password(request.password)
+    
+    TIER_DEFAULTS = {
+        "booster": {"name": "Booster", "hours": 1, "position": "normal"},
+        "super_booster": {"name": "Super Booster", "hours": 24, "position": "normal"},
+        "golden_booster": {"name": "Golden Booster", "hours": 168, "position": "top"},
+    }
+    if request.tier not in TIER_DEFAULTS:
+        raise HTTPException(status_code=400, detail=f"Invalid tier. Use: {list(TIER_DEFAULTS.keys())}")
+    
+    tier_info = TIER_DEFAULTS[request.tier]
+    duration = request.duration_hours if request.duration_hours > 0 else tier_info["hours"]
+    now = now_utc()
+    
+    # Find or create the person
+    person = await db.persons.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}, "source": "self_boosted"})
+    if not person:
+        # Create the outsider profile
+        slug = request.name.lower().replace(" ", "-").replace("'", "")
+        person_doc = {
+            "name": request.name,
+            "slug": slug,
+            "category": "other",
+            "approved": True,
+            "source": "self_boosted",
+            "score": 50.0,
+            "likes": 0,
+            "dislikes": 0,
+            "superlikes": 0,
+            "total_votes": 0,
+            "popularoo_index": 15,
+            "created_at": now,
+            "updated_at": now,
+        }
+        result = await db.persons.insert_one(person_doc)
+        person_id = result.inserted_id
+    else:
+        person_id = person["_id"]
+    
+    # Create the active boost
+    boost_doc = {
+        "person_id": person_id,
+        "person_name": request.name,
+        "user_id": request.device_id,
+        "email": "",
+        "tier": request.tier,
+        "position": tier_info["position"],
+        "country": "FR",
+        "start_time": now,
+        "end_time": now + timedelta(hours=duration),
+        "created_at": now,
+        "updated_at": now,
+        "source": "admin_grant",
+    }
+    boost_result = await db.active_boosts.insert_one(boost_doc)
+    
+    await _log_admin_action("grant_booster", request.name, {
+        "device_id": request.device_id,
+        "tier": request.tier,
+        "duration_hours": duration,
+    })
+    return {
+        "success": True,
+        "boost_id": str(boost_result.inserted_id),
+        "tier": request.tier,
+        "duration_hours": duration,
+        "expires_at": (now + timedelta(hours=duration)).isoformat(),
+    }
+
+
+# ── 4. Expire Booster manually ──
+
+class ExpireBoosterRequest(BaseModel):
+    password: str
+
+@api_router.post("/admin/expire-booster/{boost_id}")
+async def admin_expire_booster(boost_id: str, request: ExpireBoosterRequest):
+    """Force-expire a Booster immediately (emergency revocation)."""
+    _require_admin_password(request.password)
+    
+    obj_id = ObjectId(boost_id)
+    boost = await db.active_boosts.find_one({"_id": obj_id})
+    if not boost:
+        raise HTTPException(status_code=404, detail="Boost not found")
+    
+    now = now_utc()
+    await db.active_boosts.update_one({"_id": obj_id}, {"$set": {
+        "end_time": now,
+        "expired_by_admin": True,
+        "expired_at": now,
+    }})
+    
+    await _log_admin_action("expire_booster", boost.get("person_name", ""), {
+        "boost_id": boost_id,
+        "original_end_time": boost.get("end_time").isoformat() if boost.get("end_time") else None,
+    })
+    return {"success": True, "message": f"Booster for '{boost.get('person_name')}' expired immediately"}
+
+
+# ── 5. Activity feed with device_id filter ──
+
 @api_router.get("/admin/activity/recent")
-async def admin_get_recent_activity():
-    """Admin-only: Get recent activity (votes, new people, purchases)"""
+async def admin_get_recent_activity(device_id: Optional[str] = None):
+    """Admin-only: Get recent activity. Optional ?device_id=xxx to filter by user."""
     try:
         # Last 50 person additions (last 7 days)
         week_ago = now_utc() - timedelta(days=7)
+        people_query = {"created_at": {"$gte": week_ago}}
+        purchases_query: dict = {"type": "purchase"}
+        uses_query: dict = {"type": "use"}
+        
+        # Filter by device_id if provided
+        if device_id:
+            purchases_query["user_id"] = device_id
+            uses_query["user_id"] = device_id
+        
         recent_people = await db.persons.find(
-            {"created_at": {"$gte": week_ago}},
+            people_query,
             {"name": 1, "source": 1, "created_at": 1, "score": 1}
         ).sort("created_at", -1).limit(50).to_list(50)
         
         # Last 50 credit transactions
         recent_purchases = await db.credit_transactions.find(
-            {"type": "purchase"},
+            purchases_query,
             {"user_id": 1, "amount": 1, "description": 1, "timestamp": 1}
         ).sort("timestamp", -1).limit(50).to_list(50)
         
         # Last 50 credit uses
         recent_uses = await db.credit_transactions.find(
-            {"type": "use"},
+            uses_query,
             {"user_id": 1, "description": 1, "timestamp": 1}
         ).sort("timestamp", -1).limit(50).to_list(50)
         
@@ -2759,6 +2993,39 @@ async def admin_get_recent_activity():
 
 
 # -------------------- Admin: Advanced Search --------------------
+
+# ── 6. Audit Log consultation ──
+
+@api_router.get("/admin/audit-log")
+async def admin_get_audit_log(
+    password: str = Query(...),
+    limit: int = Query(default=50, le=200),
+    skip: int = Query(default=0),
+):
+    """Get admin audit log with pagination."""
+    _require_admin_password(password)
+    
+    total = await db.admin_audit_log.count_documents({})
+    logs = await db.admin_audit_log.find({}).sort("timestamp", -1).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "logs": [
+            {
+                "action": log.get("action"),
+                "target": log.get("target"),
+                "details": log.get("details", {}),
+                "token_prefix": log.get("token_prefix", ""),
+                "timestamp": log.get("timestamp").isoformat() if log.get("timestamp") else None,
+            }
+            for log in logs
+        ],
+    }
+
+
+# ────────────────────────────────────────────────────────────────
 
 @api_router.get("/admin/search")
 async def admin_search_people(
