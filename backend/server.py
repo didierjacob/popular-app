@@ -2413,7 +2413,20 @@ async def extend_boost(request: ExtendBoostRequest):
 
 import secrets
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or ""
+
+def _require_admin_password(password: str):
+    """
+    Verify admin password. Raises 503 if not configured, 403 if incorrect.
+    SECURITY: No fallback value. The env var MUST be set on the server.
+    """
+    if not ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin authentication not configured on this server"
+        )
+    if password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid admin password")
 
 # In-memory token store (simple approach: tokens expire after 4 hours)
 _admin_tokens: dict = {}  # {token: expiry_datetime}
@@ -2442,12 +2455,9 @@ class AdminAuthResponse(BaseModel):
 
 @api_router.post("/admin/auth")
 async def admin_auth(request: AdminAuthRequest):
-    """Authenticate admin and return a session token (valid 4 hours)."""
-    if not ADMIN_PASSWORD:
-        raise HTTPException(status_code=500, detail="Admin password not configured")
-    
-    if request.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    """Authenticate admin and return a session token (valid 4 hours).
+    SECURITY: If ADMIN_PASSWORD env var is not set, returns 503."""
+    _require_admin_password(request.password)
     
     # Generate secure token
     token = secrets.token_urlsafe(32)
@@ -4335,8 +4345,7 @@ async def get_email_errors(
     limit: int = Query(default=50, ge=1, le=200),
 ):
     """Admin: View recent email delivery errors logged in admin_notifications."""
-    if password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    _require_admin_password(password)
 
     errors = await db.admin_notifications.find(
         {"type": "email_error"}
@@ -4357,8 +4366,7 @@ async def get_email_errors(
 @api_router.get("/admin/download-emails-review")
 async def download_emails_review(password: str = Query(default="")):
     """Admin: Download the EMAILS_REVIEW.md file for proofreading."""
-    if password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    _require_admin_password(password)
     file_path = os.path.join(os.path.dirname(__file__), "EMAILS_REVIEW.md")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -4374,8 +4382,7 @@ async def download_emails_review(password: str = Query(default="")):
 @api_router.post("/admin/seed-outsiders")
 async def seed_outsiders_endpoint(password: str = Query(default="")):
     """Admin: Create all 49 seed Outsiders. Idempotent (skips existing)."""
-    if password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    _require_admin_password(password)
     from seed_outsiders import create_seed_outsiders
     result = await create_seed_outsiders(db)
     return result
@@ -4438,8 +4445,7 @@ async def update_outsider_social_links(boost_id: str, request: UpdateSocialLinks
 @api_router.get("/admin/seed-outsiders/status")
 async def seed_outsiders_status(password: str = Query(default="")):
     """Admin: View seed Outsiders status per country."""
-    if password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    _require_admin_password(password)
     from seed_outsiders import get_seed_status
     return await get_seed_status(db)
 
@@ -4447,8 +4453,7 @@ async def seed_outsiders_status(password: str = Query(default="")):
 @api_router.delete("/admin/seed-outsiders")
 async def remove_seed_outsiders_endpoint(password: str = Query(default="")):
     """Admin: Remove ALL seed Outsiders from the database."""
-    if password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Invalid admin password")
+    _require_admin_password(password)
     from seed_outsiders import remove_all_seeds
     result = await remove_all_seeds(db)
     return {"success": True, **result}
