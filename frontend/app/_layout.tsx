@@ -2,10 +2,25 @@ import React, { useState, useEffect } from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import * as Sentry from "@sentry/react-native";
 import "../i18n"; // Initialize i18n on app start
 import SplashScreen from "./splash";
 
-export default function RootLayout() {
+// Initialize Sentry — DSN will be set via EXPO_PUBLIC_SENTRY_DSN
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || "";
+
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: __DEV__ ? "development" : "production",
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+    enableAutoSessionTracking: true,
+    attachScreenshot: true,
+    debug: false,
+  });
+}
+
+function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
   const { t } = useTranslation();
 
@@ -126,3 +141,5 @@ export default function RootLayout() {
     </Tabs>
   );
 }
+
+export default SENTRY_DSN ? Sentry.wrap(RootLayout) : RootLayout;

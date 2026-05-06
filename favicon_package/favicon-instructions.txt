@@ -1,6 +1,6 @@
-═══════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
 FAVICON INTEGRATION — Popularoo V8
-═══════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
 
 Place all files in the root of your website (popularoo.com/).
 
@@ -18,11 +18,14 @@ Add the following in the <head> of your index.html:
 <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
 
+<!-- Web Manifest -->
+<link rel="manifest" href="/site.webmanifest">
+
 <!-- Theme Color (Popularoo dark green) -->
 <meta name="theme-color" content="#0F2F22">
 <meta name="msapplication-TileColor" content="#0F2F22">
 
-═══════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
 NOTE: Le theme-color #0F2F22 correspond au fond officiel V8.
-       Si tu preferes la variante #103A28, remplace-le ci-dessus.
-═══════════════════════════════════════════════════════════════
+      Si tu preferes la variante #103A28, remplace-le ci-dessus.
+════════════════════════════════════════════════════════════════

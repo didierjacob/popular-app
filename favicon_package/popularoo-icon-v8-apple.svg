@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<title>Popularoo app icon V7 — Apple submission version (no rounded corners)</title>
+<desc>Square 1:1 app icon for Apple App Store. Square corners — Apple applies its own rounded mask automatically.</desc>
+
+<defs>
+<linearGradient id="bg7" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#184A30"></stop>
+<stop offset="50%" stop-color="#103A28"></stop>
+<stop offset="100%" stop-color="#0A2A1B"></stop>
+</linearGradient>
+<radialGradient id="bgDiffuse7" cx="50%" cy="20%" r="80%">
+<stop offset="0%" stop-color="#2A6A48" stop-opacity="0.25"></stop>
+<stop offset="40%" stop-color="#1F5A3A" stop-opacity="0.1"></stop>
+<stop offset="100%" stop-color="#0F2F22" stop-opacity="0"></stop>
+</radialGradient>
+<radialGradient id="haloSoft7" cx="50%" cy="50%" r="65%">
+<stop offset="0%" stop-color="#F5D070" stop-opacity="0.5"></stop>
+<stop offset="20%" stop-color="#E8C055" stop-opacity="0.3"></stop>
+<stop offset="45%" stop-color="#B89030" stop-opacity="0.13"></stop>
+<stop offset="70%" stop-color="#3FA070" stop-opacity="0.05"></stop>
+<stop offset="100%" stop-color="#0F2F22" stop-opacity="0"></stop>
+</radialGradient>
+<radialGradient id="haloSoft7b" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.2"></stop>
+<stop offset="50%" stop-color="#F5D070" stop-opacity="0.08"></stop>
+<stop offset="100%" stop-color="#D4AA40" stop-opacity="0"></stop>
+</radialGradient>
+<linearGradient id="pBack7" x1="50%" y1="0%" x2="50%" y2="100%">
+<stop offset="0%" stop-color="#7A5A14"></stop>
+<stop offset="100%" stop-color="#322505"></stop>
+</linearGradient>
+<linearGradient id="pFront7" x1="30%" y1="0%" x2="70%" y2="100%">
+<stop offset="0%" stop-color="#FFE38A" stop-opacity="0.92"></stop>
+<stop offset="25%" stop-color="#F5C940" stop-opacity="0.88"></stop>
+<stop offset="55%" stop-color="#D4A510" stop-opacity="0.86"></stop>
+<stop offset="85%" stop-color="#A8800C" stop-opacity="0.88"></stop>
+<stop offset="100%" stop-color="#7A5C06" stop-opacity="0.92"></stop>
+</linearGradient>
+<linearGradient id="pTopEdge7" x1="50%" y1="0%" x2="50%" y2="100%">
+<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.92"></stop>
+<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"></stop>
+</linearGradient>
+<linearGradient id="pLeftEdge7" x1="0%" y1="0%" x2="100%" y2="0%">
+<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"></stop>
+</linearGradient>
+<linearGradient id="pInnerLight7" x1="50%" y1="0%" x2="50%" y2="100%">
+<stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.42"></stop>
+<stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.05"></stop>
+<stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"></stop>
+</linearGradient>
+<linearGradient id="pInnerShadow7" x1="50%" y1="50%" x2="50%" y2="100%">
+<stop offset="0%" stop-color="#000000" stop-opacity="0"></stop>
+<stop offset="100%" stop-color="#322505" stop-opacity="0.5"></stop>
+</linearGradient>
+<radialGradient id="castShadow7" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#000000" stop-opacity="0.7"></stop>
+<stop offset="50%" stop-color="#000000" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#000000" stop-opacity="0"></stop>
+</radialGradient>
+<radialGradient id="floorShade7" cx="50%" cy="100%" r="70%">
+<stop offset="0%" stop-color="#000000" stop-opacity="0.4"></stop>
+<stop offset="100%" stop-color="#000000" stop-opacity="0"></stop>
+</radialGradient>
+<clipPath id="pFrontClip7">
+<path d="M 336 276 L 336 716 Q 336 744 364 744 L 436 744 Q 464 744 464 716 L 464 576 L 580 576 Q 744 576 744 426 Q 744 276 580 276 L 368 276 Q 336 276 336 276 Z M 464 384 L 568 384 Q 640 384 640 426 Q 640 476 568 476 L 464 476 Z"></path>
+</clipPath>
+</defs>
+
+<rect x="0" y="0" width="1024" height="1024" fill="url(#bg7)"></rect>
+<rect x="0" y="0" width="1024" height="1024" fill="url(#bgDiffuse7)"></rect>
+<ellipse cx="512" cy="160" rx="560" ry="360" fill="url(#haloSoft7)" opacity="0.85"></ellipse>
+<ellipse cx="512" cy="200" rx="400" ry="240" fill="url(#haloSoft7b)"></ellipse>
+<ellipse cx="512" cy="1024" rx="640" ry="200" fill="url(#floorShade7)"></ellipse>
+<ellipse cx="524" cy="790" rx="250" ry="40" fill="url(#castShadow7)" opacity="0.9"></ellipse>
+
+<path d="M 356 296 L 356 732 Q 356 760 384 760 L 452 760 Q 480 760 480 732 L 480 592 L 580 592 Q 760 592 760 434 Q 760 296 580 296 L 376 296 Q 356 296 356 296 Z M 480 400 L 568 400 Q 652 400 652 434 Q 652 488 568 488 L 480 488 Z" fill="url(#pBack7)" fill-rule="evenodd" opacity="0.9"></path>
+
+<path d="M 336 276 L 336 716 Q 336 744 364 744 L 436 744 Q 464 744 464 716 L 464 576 L 580 576 Q 744 576 744 426 Q 744 276 580 276 L 368 276 Q 336 276 336 276 Z M 464 384 L 568 384 Q 640 384 640 426 Q 640 476 568 476 L 464 476 Z" fill="url(#pFront7)" fill-rule="evenodd"></path>
+
+<g clip-path="url(#pFrontClip7)">
+<path d="M 336 276 L 336 716 Q 336 744 364 744 L 436 744 Q 464 744 464 716 L 464 576 L 580 576 Q 744 576 744 426 Q 744 276 580 276 L 368 276 Q 336 276 336 276 Z M 464 384 L 568 384 Q 640 384 640 426 Q 640 476 568 476 L 464 476 Z" fill="url(#pInnerLight7)" fill-rule="evenodd" opacity="0.85"></path>
+<path d="M 336 276 L 744 276 L 744 290 L 336 290 Z" fill="url(#pTopEdge7)"></path>
+<rect x="336" y="276" width="10" height="468" fill="url(#pLeftEdge7)" opacity="0.9"></rect>
+<path d="M 336 580 L 744 580 L 744 744 Q 744 760 720 760 L 384 760 Q 336 744 336 716 Z" fill="url(#pInnerShadow7)" fill-rule="evenodd"></path>
+</g>
+</svg>
