@@ -22,6 +22,7 @@ import * as Haptics from "expo-haptics";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { fetchWithCache } from "../services/cacheService";
 import { useTranslation } from "react-i18next";
+import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -93,24 +94,7 @@ function generateDummyVote(idCounter: number): LiveVoteEntry {
   };
 }
 
-// --- Trend Status Logic ---
-
-type TrendStatus = "rising" | "falling" | "trending" | "freefall";
-
-function computeTrendStatus(person: any): TrendStatus {
-  if (!person) return "rising";
-  const nameHash = (person.name || "")
-    .split("")
-    .reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
-  const hourFactor = new Date().getHours();
-  const scoreFactor = Math.floor((person.score || 50) / 10);
-  const variation = (nameHash + hourFactor + scoreFactor) % 20;
-
-  if (variation < 8) return "rising"; // 40%
-  if (variation < 12) return "falling"; // 20%
-  if (variation < 17) return "trending"; // 25%
-  return "freefall"; // 15%
-}
+// --- Trend Status Logic (imported from utils/trendUtils) ---
 
 function TrendStatusBadge({ status }: { status: TrendStatus }) {
   const { t } = useTranslation();
@@ -513,7 +497,7 @@ export default function Person() {
     }
   };
 
-  const trendStatus = computeTrendStatus(person);
+  const trendStatus = getTrendStatus({ name: person?.name || name, score: person?.score || 50 });
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>

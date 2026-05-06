@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
+import { getTrendDirection, hasGlowEffect } from "../utils/trendUtils";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -102,28 +103,22 @@ export default function List() {
   }, [people, selectedCategory]);
 
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
-    // Determine arrow direction with visual variety
-    // Use a deterministic hash based on person name + current hour for daily consistency
-    const nameHash = item.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    const hourFactor = new Date().getHours();
-    const variation = (nameHash + hourFactor) % 10;
+    // Use shared trend utility for coherence with person.tsx
+    const direction = getTrendDirection({ name: item.name, score: item.score });
+    const isGlowing = hasGlowEffect({ name: item.name, score: item.score });
     
-    // ~50% up, ~30% down, ~20% equal for credibility
     let arrowIcon: string;
     let arrowColor: string;
-    if (variation < 5) { // 50% up
+    if (direction === "up") {
       arrowIcon = "arrow-up";
       arrowColor = PALETTE.green;
-    } else if (variation < 8) { // 30% down
+    } else if (direction === "down") {
       arrowIcon = "arrow-down";
       arrowColor = PALETTE.accent;
-    } else { // 20% equal
+    } else {
       arrowIcon = "swap-horizontal";
       arrowColor = PALETTE.subtext;
     }
-    
-    // Glow effect: items going up get subtle highlight
-    const isGlowing = variation < 3;
     
     return (
       <TouchableOpacity
