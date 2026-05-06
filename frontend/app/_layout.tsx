@@ -123,12 +123,6 @@ export default function RootLayout() {
           href: null,
         }}
       />
-      <Tabs.Screen
-        name="onboarding"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }

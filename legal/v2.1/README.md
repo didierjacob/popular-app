@@ -1,0 +1,1 @@
+# CGU V2.1 - Staged for deployment\n\nThis directory contains V2.1 legal files ready for deployment.\nFiles will be uploaded to popularoo.com once Build 3 is validated.\n\n## Status\n- [ ] terms-fr.html (V2.1 - à recevoir de l'utilisateur)\n- [ ] terms-en.html (V2.1 - à recevoir de l'utilisateur)\n\n## Deployment\nDo NOT modify app legal URLs until explicit instruction.

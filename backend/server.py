@@ -225,7 +225,7 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
-Category = Literal["politics", "culture", "business", "sport", "other", "outsider"]
+Category = Literal["politics", "culture", "business", "sport", "influencer", "other", "outsider"]
 
 
 class PersonCreate(BaseModel):
@@ -463,6 +463,36 @@ SEED_PEOPLE = [
     {"name": "Conor McGregor", "category": "sport", "primary_country": "IE"},
     {"name": "Usain Bolt", "category": "sport", "primary_country": "JM"},
     {"name": "Chris Hemsworth", "category": "culture", "primary_country": "AU"},
+
+    # ══════════════════════════════════════════════════════
+    # 📱 Influencers — Top social media personalities (20)
+    # ══════════════════════════════════════════════════════
+    # 🇫🇷 France (7)
+    {"name": "Léna Situations", "category": "influencer", "primary_country": "FR"},
+    {"name": "Cyprien", "category": "influencer", "primary_country": "FR"},
+    {"name": "Norman Thavaud", "category": "influencer", "primary_country": "FR"},
+    {"name": "Tibo InShape", "category": "influencer", "primary_country": "FR"},
+    {"name": "McFly et Carlito", "category": "influencer", "primary_country": "FR"},
+    {"name": "Enjoy Phoenix", "category": "influencer", "primary_country": "FR"},
+    {"name": "Inoxtag", "category": "influencer", "primary_country": "FR"},
+    # 🇺🇸 US (7)
+    {"name": "MrBeast", "category": "influencer", "primary_country": "US"},
+    {"name": "Kylie Jenner", "category": "influencer", "primary_country": "US"},
+    {"name": "Kim Kardashian", "category": "influencer", "primary_country": "US"},
+    {"name": "Khaby Lame", "category": "influencer", "primary_country": "US"},
+    {"name": "Addison Rae", "category": "influencer", "primary_country": "US"},
+    {"name": "Emma Chamberlain", "category": "influencer", "primary_country": "US"},
+    {"name": "Logan Paul", "category": "influencer", "primary_country": "US"},
+    # 🇬🇧 UK (3)
+    {"name": "KSI", "category": "influencer", "primary_country": "GB"},
+    {"name": "Zoella", "category": "influencer", "primary_country": "GB"},
+    {"name": "Molly-Mae Hague", "category": "influencer", "primary_country": "GB"},
+    # 🇪🇸 Spain (1)
+    {"name": "ElRubius", "category": "influencer", "primary_country": "ES"},
+    # 🇧🇷 Brazil (1)
+    {"name": "Whindersson Nunes", "category": "influencer", "primary_country": "BR"},
+    # 🇩🇪 Germany (1)
+    {"name": "Bibi Claßen", "category": "influencer", "primary_country": "DE"},
 ]
 
 
@@ -495,6 +525,8 @@ async def ensure_indexes():
 async def seed_people():
     count = await db.persons.count_documents({})
     if count > 0:
+        # DB already has data — check for new seed entries (e.g., influencers added later)
+        await seed_missing_people()
         return
     docs = []
     now = now_utc()
@@ -525,6 +557,53 @@ async def seed_people():
         } for oid in res.inserted_ids]
         if tick_docs:
             await db.person_ticks.insert_many(tick_docs)
+
+
+async def seed_missing_people():
+    """Insert any SEED_PEOPLE entries not yet in the database (e.g., new influencers)."""
+    import random
+    now = now_utc()
+    added = 0
+    for p in SEED_PEOPLE:
+        slug = slugify(p["name"])
+        existing = await db.persons.find_one({"slug": slug})
+        if existing:
+            continue
+        # Give initial votes similar to other seeds (range 5000-15000)
+        init_likes = random.randint(5000, 12000)
+        init_dislikes = random.randint(1000, 4000)
+        total = init_likes + init_dislikes
+        score = round((init_likes / max(1, total)) * 200 - 100, 1)  # Convert to -100..+100 scale
+        doc = {
+            "name": p["name"],
+            "slug": slug,
+            "category": p.get("category", "other"),
+            "approved": True,
+            "created_at": now,
+            "updated_at": now,
+            "score": score,
+            "likes": init_likes,
+            "dislikes": init_dislikes,
+            "total_votes": total,
+            "seed_votes_likes": init_likes,
+            "seed_votes_dislikes": init_dislikes,
+            "source": "seed",
+        }
+        if p.get("primary_country"):
+            doc["primary_country"] = p["primary_country"]
+            # Set country_tags for geographic feed filtering
+            doc["country_tags"] = [p["primary_country"], "international"]
+            doc["is_international"] = True
+        result = await db.persons.insert_one(doc)
+        # Insert initial tick
+        await db.person_ticks.insert_one({
+            "person_id": result.inserted_id,
+            "score": score,
+            "created_at": now
+        })
+        added += 1
+    if added > 0:
+        logger.info(f"🌱 seed_missing_people: Added {added} new personalities")
 
 
 @app.on_event("startup")
@@ -815,7 +894,7 @@ async def list_people(
             if cat == "outsider":
                 # Special category for self-boosted users
                 filter_q["source"] = "self_boosted"
-            elif cat not in {"politics", "culture", "business", "sport", "other"}:
+            elif cat not in {"politics", "culture", "business", "sport", "influencer", "other"}:
                 raise HTTPException(status_code=400, detail="Invalid category")
             else:
                 filter_q["category"] = cat
@@ -831,11 +910,11 @@ async def list_people(
         local_filter = {**filter_q, "country_tags": user_country}
         
         # Priority categories for local results
-        priority_cats = ["culture", "sport"]
+        priority_cats = ["culture", "sport", "influencer"]
         priority_filter = {**local_filter, "category": {"$in": priority_cats}}
         priority_limit = max(1, local_limit // 2)  # At least 50% of local slots
         
-        priority_cursor = db.persons.find(priority_filter).sort([("popularoo_index", -1)]).limit(priority_limit)
+        priority_cursor = db.persons.find(priority_filter).sort([("popularoo_index", -1), ("total_votes", -1)]).limit(priority_limit)
         priority_docs = await priority_cursor.to_list(length=priority_limit)
         
         # Fill remaining local slots with any category
@@ -850,10 +929,10 @@ async def list_people(
         # If not enough local, fill with more international
         remaining = limit - len(local_docs)
         
-        # Fetch international personalities (excluding already-fetched locals)
+        # Fetch remaining personalities (any country except already-fetched)
         local_ids = [d["_id"] for d in local_docs]
-        intl_filter = {**filter_q, "is_international": True, "_id": {"$nin": local_ids}}
-        intl_cursor = db.persons.find(intl_filter).sort([("popularoo_index", -1)]).limit(remaining)
+        intl_filter = {**filter_q, "_id": {"$nin": local_ids}}
+        intl_cursor = db.persons.find(intl_filter).sort([("popularoo_index", -1), ("total_votes", -1)]).limit(remaining)
         intl_docs = await intl_cursor.to_list(length=remaining)
 
         # Interleave: local, intl, local, intl...
