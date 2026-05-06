@@ -63,7 +63,8 @@
           "organization": "popularoo",
           "project": "popularoo-mobile"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
