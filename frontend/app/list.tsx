@@ -4,6 +4,7 @@ import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, 
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import * as Localization from "expo-localization";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -69,10 +70,12 @@ export default function List() {
 
   const load = useCallback(async () => {
     try {
-      const data = await apiGet<Person[]>("/people?limit=100");
+      const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
+      const countryParam = regionCode ? `&country=${regionCode}` : '';
+      const data = await apiGet<Person[]>(`/people?limit=300${countryParam}`);
       setPeople(data);
     } catch (error) {
-      console.error("Failed to load top 100:", error);
+      console.error("Failed to load top 300:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { CreditsService, type OutsiderData } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
+import * as Localization from "expo-localization";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -316,8 +317,12 @@ export default function HomeScreen() {
       if (!silent) setLoading(true);
       setError(null);
 
+      // Detect user country from device locale
+      const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
+      const countryParam = regionCode ? `&country=${regionCode}` : '';
+
       const [peopleRes, outsidersData] = await Promise.all([
-        fetch(API("/people?limit=10")),
+        fetch(API(`/people?limit=50${countryParam}`)),
         CreditsService.getOutsiders(),
       ]);
 
@@ -577,23 +582,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Your Spot is Waiting — CTA Section */}
-        <TouchableOpacity
-          style={styles.spotSection}
-          onPress={() => router.push("/premium")}
-          activeOpacity={0.8}
-        >
-          {/* YOU card */}
-          <View style={styles.spotCard}>
-            <View style={styles.spotAvatarCircle}>
-              <Text style={styles.spotAvatarText}>?</Text>
-            </View>
-            <Text style={styles.spotYou}>{t("home.spot_you")}</Text>
-          </View>
-          <Text style={styles.spotTitle}>{t("home.spot_title")}</Text>
-          <Text style={styles.spotSub}>{t("home.spot_subtitle")}</Text>
-        </TouchableOpacity>
 
         {/* Bottom spacing */}
         <View style={{ height: 80 }} />

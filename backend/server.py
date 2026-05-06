@@ -533,8 +533,28 @@ async def on_startup():
     await seed_people()
     await migrate_raw_scores()
     await migrate_seed_votes()
+    await auto_seed_outsiders_on_startup()
     # Initialize Bull Run module with db reference
     init_bull_run(db)
+
+
+async def auto_seed_outsiders_on_startup():
+    """Auto-seed outsiders if none exist — ensures app is never empty at launch."""
+    try:
+        active_count = await db.active_boosts.count_documents({
+            "end_time": {"$gt": now_utc()},
+            "is_seed": True,
+            "seed_active": True
+        })
+        if active_count == 0:
+            logger.info("🌱 No active seed outsiders found — auto-seeding...")
+            from seed_outsiders import create_seed_outsiders
+            result = await create_seed_outsiders(db)
+            logger.info(f"🌱 Auto-seed complete: {result.get('created', 0)} outsiders created")
+        else:
+            logger.info(f"🌱 {active_count} active seed outsiders already present")
+    except Exception as e:
+        logger.error(f"Auto-seed outsiders failed (non-fatal): {e}")
 
 
 async def migrate_raw_scores():
@@ -763,14 +783,15 @@ def person_to_out(doc: Dict[str, Any]) -> PersonOut:
 @api_router.get("/people", response_model=List[PersonOut])
 async def list_people(
     query: Optional[str] = Query(default=None),
-    limit: int = Query(default=20, le=100),
+    limit: int = Query(default=20, le=300),
     category: Optional[str] = Query(default=None),
     include_outsiders: bool = Query(default=False),
-    country: Optional[str] = Query(default=None, description="User country code for 50/50 feed filtering"),
+    country: Optional[str] = Query(default=None, description="User country code for 60/40 feed filtering"),
 ):
     """
-    List personalities with optional 50/50 local/international feed.
-    If country is provided, returns ~50% local + ~50% international.
+    List personalities with optional 60/40 local/international feed.
+    If country is provided, returns ~60% local + ~40% international.
+    Among local: prioritizes culture, sport, and influencer categories.
     """
     filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}}
     
@@ -799,16 +820,32 @@ async def list_people(
             else:
                 filter_q["category"] = cat
 
-    # 50/50 local/international feed when country is specified
+    # 60/40 local/international feed when country is specified
     if country and not query:
         user_country = country.upper().strip()
-        local_limit = limit // 2
-        intl_limit = limit - local_limit
+        local_limit = int(limit * 0.6)  # 60% local
+        intl_limit = limit - local_limit  # 40% international
 
         # Fetch local personalities (tagged with user's country)
+        # Prioritize culture, sport, influencers (50%+ of local)
         local_filter = {**filter_q, "country_tags": user_country}
-        local_cursor = db.persons.find(local_filter).sort([("popularoo_index", -1)]).limit(local_limit)
-        local_docs = await local_cursor.to_list(length=local_limit)
+        
+        # Priority categories for local results
+        priority_cats = ["culture", "sport"]
+        priority_filter = {**local_filter, "category": {"$in": priority_cats}}
+        priority_limit = max(1, local_limit // 2)  # At least 50% of local slots
+        
+        priority_cursor = db.persons.find(priority_filter).sort([("popularoo_index", -1)]).limit(priority_limit)
+        priority_docs = await priority_cursor.to_list(length=priority_limit)
+        
+        # Fill remaining local slots with any category
+        remaining_local = local_limit - len(priority_docs)
+        priority_ids = [d["_id"] for d in priority_docs]
+        other_local_filter = {**local_filter, "_id": {"$nin": priority_ids}}
+        other_local_cursor = db.persons.find(other_local_filter).sort([("popularoo_index", -1)]).limit(remaining_local)
+        other_local_docs = await other_local_cursor.to_list(length=remaining_local)
+        
+        local_docs = priority_docs + other_local_docs
 
         # If not enough local, fill with more international
         remaining = limit - len(local_docs)

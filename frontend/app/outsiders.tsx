@@ -362,14 +362,13 @@ export default function OutsidersScreen() {
         ))}
       </View>
 
-      {/* Promo banner */}
+      {/* Promo banner — "Tu veux apparaître ici ?" is sufficient, no separate "get booster" button */}
       <TouchableOpacity style={styles.promoBanner} onPress={() => router.push("/premium")} activeOpacity={0.8}>
         <View style={styles.promoIcon}>
           <Ionicons name="rocket" size={18} color={PALETTE.gold} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.promoTitle}>{t("outsiders.wantToAppear")}</Text>
-          <Text style={styles.promoSub}>{t("outsiders.getBooster")}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={PALETTE.gold} />
       </TouchableOpacity>
@@ -488,21 +487,18 @@ export default function OutsidersScreen() {
 
   const renderEmpty = () => {
     if (loading) return null;
+    // Only show empty state for search with no results
+    // For normal state, seed outsiders should always be present
+    if (!searchActive) return null;
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="people-outline" size={48} color={PALETTE.subtext} />
         <Text style={styles.emptyTitle}>
-          {searchActive ? t("outsiders.noResults") : t("outsiders.noOutsiders")}
+          {t("outsiders.noResults")}
         </Text>
         <Text style={styles.emptySub}>
-          {searchActive ? t("outsiders.tryAnotherSearch") : t("outsiders.noOutsidersSubtitle")}
+          {t("outsiders.tryAnotherSearch")}
         </Text>
-        {!searchActive && (
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/premium")}>
-            <Ionicons name="rocket" size={16} color="#FFF" />
-            <Text style={styles.emptyBtnText}>{t("outsiders.getBoosterBtn")}</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   };

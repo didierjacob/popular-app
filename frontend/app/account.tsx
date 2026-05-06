@@ -599,22 +599,6 @@ export default function AccountScreen() {
             </TouchableOpacity>
 
             <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={async () => {
-                await AsyncStorage.removeItem("@popularoo_onboarding_done");
-                Alert.alert(
-                  t("onboarding.replay"),
-                  "",
-                  [{ text: "OK", onPress: () => {} }]
-                );
-              }}
-            >
-              <Ionicons name="refresh-outline" size={24} color={PALETTE.subtext} />
-              <Text style={[styles.menuItemText, { color: PALETTE.subtext }]}>{t("onboarding.replay")}</Text>
-              <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
           </View>
         </View>
 
