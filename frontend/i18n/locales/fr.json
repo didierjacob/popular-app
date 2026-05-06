@@ -36,7 +36,8 @@
     "politics": "Politique",
     "culture": "Culture",
     "business": "Business",
-    "sport": "Sport"
+    "sport": "Sport",
+    "influencer": "Influenceur"
   },
   "home": {
     "title": "Popularoo",
@@ -51,7 +52,7 @@
     "timeLeft_minutes": "{{count}}min restantes",
     "timeLeft_hours": "{{count}}h restantes",
     "timeLeft_days": "{{count}}j restants",
-    "baseline": "Vote pour les personnalités les plus célèbres du monde. Et deviens-en une.",
+    "baseline": "Vote pour les célébrités que tu aimes. Dégage les autres.",
     "spot_title": "Your spot is waiting",
     "spot_subtitle": "Prends ta place à côté des stars. Active un Booster pour entrer dans le classement Outsiders.",
     "spot_you": "YOU"
@@ -219,6 +220,7 @@
     "emailLabel": "Email",
     "address": "Adresse",
     "city": "Ville",
+    "language": "Langue",
     "country": "Pays",
     "enterName": "Saisis ton nom",
     "enterEmail": "Saisis ton email",

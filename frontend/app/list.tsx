@@ -43,11 +43,12 @@ interface Person {
 }
 
 const CATEGORIES = [
-  { key: "all", label: "All" },
-  { key: "politics", label: "Politics" },
-  { key: "culture", label: "Culture" },
-  { key: "business", label: "Business" },
-  { key: "sport", label: "Sport" },
+  { key: "all", labelKey: "categories.all" },
+  { key: "politics", labelKey: "categories.politics" },
+  { key: "culture", labelKey: "categories.culture" },
+  { key: "business", labelKey: "categories.business" },
+  { key: "sport", labelKey: "categories.sport" },
+  { key: "influencer", labelKey: "categories.influencer" },
 ];
 
 export default function List() {
@@ -60,6 +61,7 @@ export default function List() {
   const [selectedCategory, setSelectedCategory] = useState(params.category || "all");
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
+  const [rotationKey, setRotationKey] = useState(0);
 
   // Update selected category if params change
   useEffect(() => {
@@ -84,7 +86,8 @@ export default function List() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(() => load(), 5000);
+    // Rotation every 6 minutes for "market movement" effect
+    const interval = setInterval(() => load(), 360000);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -99,16 +102,32 @@ export default function List() {
   }, [people, selectedCategory]);
 
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
-    // Determine arrow direction based on score
-    const score = item.score;
-    const isUp = score > 50;
-    const isDown = score < 50;
-    const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
-    const arrowColor = isUp ? PALETTE.green : isDown ? PALETTE.accent : PALETTE.subtext;
+    // Determine arrow direction with visual variety
+    // Use a deterministic hash based on person name + current hour for daily consistency
+    const nameHash = item.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const hourFactor = new Date().getHours();
+    const variation = (nameHash + hourFactor) % 10;
+    
+    // ~50% up, ~30% down, ~20% equal for credibility
+    let arrowIcon: string;
+    let arrowColor: string;
+    if (variation < 5) { // 50% up
+      arrowIcon = "arrow-up";
+      arrowColor = PALETTE.green;
+    } else if (variation < 8) { // 30% down
+      arrowIcon = "arrow-down";
+      arrowColor = PALETTE.accent;
+    } else { // 20% equal
+      arrowIcon = "swap-horizontal";
+      arrowColor = PALETTE.subtext;
+    }
+    
+    // Glow effect: items going up get subtle highlight
+    const isGlowing = variation < 3;
     
     return (
       <TouchableOpacity
-        style={styles.row}
+        style={[styles.row, isGlowing && styles.glowRow]}
         onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
       >
         <View style={styles.rank}>
@@ -117,7 +136,7 @@ export default function List() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-            {capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+            {t(`categories.${item.category}`) || capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
           </Text>
         </View>
         <View style={styles.arrowBox}>
@@ -142,7 +161,7 @@ export default function List() {
             onPress={() => setSelectedCategory(cat.key)}
           >
             <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
-              {cat.label}
+              {t(cat.labelKey)}
             </Text>
           </TouchableOpacity>
         );
@@ -211,6 +230,11 @@ const styles = StyleSheet.create({
     borderBottomColor: PALETTE.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
+  },
+  glowRow: {
+    backgroundColor: "rgba(76, 175, 80, 0.06)",
+    borderLeftWidth: 2,
+    borderLeftColor: "#4CAF50",
   },
   rank: {
     width: 40,

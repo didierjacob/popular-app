@@ -300,6 +300,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const [people, setPeople] = useState<Person[]>([]);
+  const [displayedPeople, setDisplayedPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
   const [goldenOutsiders, setGoldenOutsiders] = useState<OutsiderData[]>([]);
   const [currentOutsiderIndex, setCurrentOutsiderIndex] = useState(0);
@@ -307,10 +308,12 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchName, setSearchName] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const listFadeAnim = useRef(new Animated.Value(1)).current;
 
   const loadData = async (silent = false) => {
     try {
@@ -348,9 +351,39 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => loadData(true), 15000);
+    const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Home listing rotation every 6 seconds — shuffle display order
+  useEffect(() => {
+    if (people.length <= 1) return;
+    // Show initial 20 people
+    setDisplayedPeople(people.slice(0, 20));
+    const shuffleInterval = setInterval(() => {
+      // Fade out
+      Animated.timing(listFadeAnim, {
+        toValue: 0.3,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => {
+        setDisplayedPeople(prev => {
+          // Shift: move first 3 to end and add 3 new from pool
+          const shifted = [...people].sort(() => Math.random() - 0.5).slice(0, 20);
+          return shifted;
+        });
+        // Fade in
+        Animated.timing(listFadeAnim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 6000);
+    return () => clearInterval(shuffleInterval);
+  }, [people]);
 
   // Rotate outsider of the day every 10 seconds
   useEffect(() => {
@@ -393,13 +426,32 @@ export default function HomeScreen() {
 
   const handleSearch = async () => {
     if (!searchName.trim()) return;
+    const query = searchName.trim().toLowerCase();
+    
+    // FAST PATH: Check locally loaded people first for instant navigation
+    const localMatch = people.find(p => 
+      p.name.toLowerCase() === query || 
+      p.name.toLowerCase().includes(query)
+    );
+    if (localMatch) {
+      router.push({ pathname: "/person", params: { id: localMatch.id, name: localMatch.name } });
+      setSearchName("");
+      setSearchSuggestions([]);
+      return;
+    }
+
+    // SLOW PATH: Query backend search (Wikipedia fallback etc.)
     try {
       const response = await fetch(API(`/search?query=${encodeURIComponent(searchName.trim())}`));
       if (response.ok) {
         const results = await response.json();
         if (results.length > 0) {
-          router.push({ pathname: "/person", params: { id: results[0].id, name: results[0].name } });
+          // Prioritize exact name match over partial
+          const exactMatch = results.find((r: any) => r.name.toLowerCase() === query);
+          const best = exactMatch || results[0];
+          router.push({ pathname: "/person", params: { id: best.id, name: best.name } });
           setSearchName("");
+          setSearchSuggestions([]);
           return;
         }
       }
@@ -429,20 +481,50 @@ export default function HomeScreen() {
 
         {/* Search Box */}
         <View style={styles.searchCard}>
-          <Text style={styles.searchLabel}>{t("home.searchLabel")}</Text>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
               placeholder={t("home.searchPlaceholder")}
               placeholderTextColor={PALETTE.subtext}
               value={searchName}
-              onChangeText={setSearchName}
+              onChangeText={(text) => {
+                setSearchName(text);
+                // Auto-complete suggestions
+                if (text.length >= 2) {
+                  const filtered = people.filter(p => 
+                    p.name.toLowerCase().includes(text.toLowerCase())
+                  ).slice(0, 5);
+                  setSearchSuggestions(filtered);
+                } else {
+                  setSearchSuggestions([]);
+                }
+              }}
               onSubmitEditing={handleSearch}
             />
             <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
               <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
             </TouchableOpacity>
           </View>
+          {/* Auto-complete suggestions */}
+          {searchSuggestions.length > 0 && searchName.length >= 2 && (
+            <View style={styles.suggestionsContainer}>
+              {searchSuggestions.map((suggestion) => (
+                <TouchableOpacity
+                  key={suggestion.id}
+                  style={styles.suggestionItem}
+                  onPress={() => {
+                    router.push({ pathname: "/person", params: { id: suggestion.id, name: suggestion.name } });
+                    setSearchName("");
+                    setSearchSuggestions([]);
+                  }}
+                >
+                  <Ionicons name="person-outline" size={14} color={PALETTE.subtext} />
+                  <Text style={styles.suggestionText}>{suggestion.name}</Text>
+                  <Text style={styles.suggestionMeta}>{capitalize(suggestion.category || 'other')}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Personality of the Day */}
@@ -461,8 +543,8 @@ export default function HomeScreen() {
                 <Text style={styles.potdMeta}>
                   {t(`categories.${personOfTheDay.category}`) || capitalize(personOfTheDay.category)} • {formatNumber(personOfTheDay.total_votes)} votes
                 </Text>
-                <Text style={styles.potdVotes}>
-                  {formatNumber(personOfTheDay.total_votes)} {personOfTheDay.total_votes <= 1 ? 'vote' : 'votes'}
+                <Text style={styles.potdIndex}>
+                  Popularoo Index: {personOfTheDay.popularoo_index || Math.round(personOfTheDay.score)}
                 </Text>
               </View>
               <BigOscillatingGauge score={personOfTheDay.score} size={90} />
@@ -561,26 +643,40 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {!loading && !error && people.map((person, index) => (
-            <TouchableOpacity
-              key={person.id}
-              style={styles.personCard}
-              onPress={() => router.push({ pathname: "/person", params: { id: person.id, name: person.name } })}
-            >
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>{index + 1}</Text>
-              </View>
-              <View style={styles.personInfo}>
-                <Text style={styles.personName}>{person.name}</Text>
-                <Text style={styles.personMeta}>
-                  {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
-                </Text>
-              </View>
-              <View style={styles.gaugeContainer}>
-                <GaugeIcon score={person.score} size={36} />
-              </View>
-            </TouchableOpacity>
-          ))}
+          {!loading && !error && (
+            <Animated.View style={{ opacity: listFadeAnim }}>
+              {displayedPeople.map((person, index) => {
+                // Determine trend arrow with visual variety (deterministic)
+                const nameHash = person.name.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
+                const hourFactor = new Date().getHours();
+                const variation = (nameHash + hourFactor) % 10;
+                const isUp = variation < 5;
+                const isDown = variation >= 5 && variation < 8;
+                const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
+                const arrowColor = isUp ? "#4CAF50" : isDown ? "#FF5252" : PALETTE.subtext;
+                return (
+                  <TouchableOpacity
+                    key={person.id}
+                    style={styles.personCard}
+                    onPress={() => router.push({ pathname: "/person", params: { id: person.id, name: person.name } })}
+                  >
+                    <View style={styles.rankBadge}>
+                      <Text style={styles.rankText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.personInfo}>
+                      <Text style={styles.personName}>{person.name}</Text>
+                      <Text style={styles.personMeta}>
+                        {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
+                      </Text>
+                    </View>
+                    <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
+                      <Ionicons name={arrowIcon as any} size={20} color={arrowColor} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </Animated.View>
+          )}
         </View>
 
         {/* Bottom spacing */}
@@ -608,6 +704,33 @@ const styles = StyleSheet.create({
   },
   searchLabel: { color: PALETTE.text, fontSize: 16, fontWeight: "600", marginBottom: 10 },
   searchRow: { flexDirection: "row", gap: 10 },
+  suggestionsContainer: {
+    marginTop: 8,
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: PALETTE.border,
+    gap: 8,
+  },
+  suggestionText: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  suggestionMeta: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+  },
   searchInput: {
     flex: 1,
     backgroundColor: PALETTE.bg,
@@ -644,7 +767,7 @@ const styles = StyleSheet.create({
   potdInfo: { flex: 1 },
   potdName: { color: PALETTE.text, fontSize: 22, fontWeight: "700" },
   potdMeta: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
-  potdVotes: { color: PALETTE.accent2, fontSize: 14, fontWeight: "600", marginTop: 4 },
+  potdIndex: { color: PALETTE.gold, fontSize: 14, fontWeight: "600", marginTop: 4 },
 
   // ===== Outsider of the Day =====
   outsiderOfTheDaySection: { marginTop: 16 },

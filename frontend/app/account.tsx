@@ -379,18 +379,6 @@ export default function AccountScreen() {
 
           <View style={styles.card}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t("account.fullName")}</Text>
-              <TextInput
-                style={[styles.input, !isEditing && styles.inputDisabled]}
-                value={accountInfo.name}
-                onChangeText={(v) => handleChange("name", v)}
-                placeholder={t("account.enterName")}
-                placeholderTextColor={PALETTE.subtext}
-                editable={isEditing}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
               <Text style={styles.label}>{t("account.emailLabel")}</Text>
               <TextInput
                 style={[styles.input, !isEditing && styles.inputDisabled]}
@@ -404,27 +392,16 @@ export default function AccountScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t("account.address")}</Text>
-              <TextInput
-                style={[styles.input, !isEditing && styles.inputDisabled]}
-                value={accountInfo.address}
-                onChangeText={(v) => handleChange("address", v)}
-                placeholder={t("account.enterAddress")}
-                placeholderTextColor={PALETTE.subtext}
-                editable={isEditing}
-              />
-            </View>
-
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>{t("account.city")}</Text>
+                <Text style={styles.label}>{t("account.language")}</Text>
                 <TextInput
                   style={[styles.input, !isEditing && styles.inputDisabled]}
-                  value={accountInfo.city}
-                  onChangeText={(v) => handleChange("city", v)}
-                  placeholder={t("account.city")}
+                  value={accountInfo.language || ''}
+                  onChangeText={(v) => handleChange("language", v)}
+                  placeholder="FR, EN, DE..."
                   placeholderTextColor={PALETTE.subtext}
+                  autoCapitalize="characters"
                   editable={isEditing}
                 />
               </View>
@@ -436,6 +413,7 @@ export default function AccountScreen() {
                   onChangeText={(v) => handleChange("country", v)}
                   placeholder={t("account.country")}
                   placeholderTextColor={PALETTE.subtext}
+                  autoCapitalize="characters"
                   editable={isEditing}
                 />
               </View>
