@@ -21,6 +21,7 @@
       "bundleIdentifier": "com.didierjacob.popularapp",
       "buildNumber": "1",
       "icon": "./assets/images/ios-icon.png",
+      "appleTeamId": "RM6N9F576RR",
       "infoPlist": {
         "NSCameraUsageDescription": "This app does not use the camera",
         "NSPhotoLibraryUsageDescription": "This app does not use the photo library",
