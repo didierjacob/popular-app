@@ -20,7 +20,10 @@
         "resourceClass": "m-medium",
         "image": "latest"
       },
-      "node": "22.12.0"
+      "node": "22.12.0",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "production": {
       "distribution": "store",
@@ -33,7 +36,10 @@
         "autoIncrement": true,
         "image": "latest"
       },
-      "node": "22.12.0"
+      "node": "22.12.0",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     }
   },
   "submit": {
