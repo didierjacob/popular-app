@@ -57,14 +57,7 @@
       ],
       "react-native-iap",
       "expo-localization",
-      "expo-web-browser",
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "popularoo",
-          "project": "popularoo-mobile"
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
