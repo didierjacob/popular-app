@@ -10,7 +10,7 @@ interface SplashScreenProps {
   onFinish: () => void;
 }
 
-export default function SplashScreen({ onFinish }: SplashScreenProps) {
+export default function SplashScreen({ onFinish = () => {} }: SplashScreenProps) {
   const scale = useRef(new Animated.Value(0.25)).current;
   const letterOpacity = useRef(new Animated.Value(0)).current;
   const screenOpacity = useRef(new Animated.Value(1)).current;

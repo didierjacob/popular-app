@@ -367,6 +367,8 @@ export default function HomeScreen() {
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // Pulsing heart animation for Outsider of the Day
+  const heartPulse = useRef(new Animated.Value(1)).current;
   // Removed: listFadeAnim was used by the old periodic shuffle, replaced by Algo A
 
   const loadData = async (silent = false) => {
@@ -412,13 +414,21 @@ export default function HomeScreen() {
   }, []);
 
   // BLOC 2.4: Like an outsider directly from the Home card
+  // FIX: Send { value: 1 } with X-Device-ID header (matching backend VoteIn schema)
   const handleLikeOutsider = useCallback(async (personId: string) => {
     try {
-      const userId = await AsyncStorage.getItem('popular_user_id') || `user_temp_${Date.now()}`;
+      let did = await AsyncStorage.getItem('popularity_device_id');
+      if (!did) {
+        did = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        await AsyncStorage.setItem('popularity_device_id', did);
+      }
       const res = await fetch(API(`/people/${personId}/vote`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, delta: 1 }),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': did,
+        },
+        body: JSON.stringify({ value: 1 }),
       });
       if (res.ok) {
         // Optimistic update on the golden outsiders state
@@ -532,6 +542,16 @@ export default function HomeScreen() {
       if (animTickRef.current) clearTimeout(animTickRef.current);
     };
   }, [people]);
+
+  // Pulsing heart animation — infinite loop
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartPulse, { toValue: 1.25, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(heartPulse, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   // Rotate outsider of the day every 10 seconds
   useEffect(() => {
@@ -749,7 +769,7 @@ export default function HomeScreen() {
                 </Text>
                 <TimeRemainingBadge hours={goldenOutsiders[currentOutsiderIndex]?.hours_remaining || 0} />
               </View>
-              {/* BLOC 2.4: Heart + Social on Outsider of the Day */}
+              {/* BLOC 2.4: Heart + Social on Outsider of the Day — Pulsing Heart */}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
                 <TouchableOpacity
                   style={{
@@ -767,7 +787,9 @@ export default function HomeScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="heart" size={18} color="#FF4757" />
+                  <Animated.View style={{ transform: [{ scale: heartPulse }] }}>
+                    <Ionicons name="heart" size={18} color="#FF4757" />
+                  </Animated.View>
                   <Text style={{ color: "#FF4757", fontWeight: "700", fontSize: 14, marginLeft: 5 }}>
                     {goldenOutsiders[currentOutsiderIndex]?.likes || 0}
                   </Text>

@@ -5154,6 +5154,210 @@ async def remove_seed_outsiders_endpoint(request: Request):
     return {"success": True, **result}
 
 
+# ==================== BLOC 3.4: Test Email Endpoint (Temporary) ====================
+
+@api_router.post("/admin/test-email")
+@limiter.limit("5/15minutes")
+async def admin_test_email(request: Request):
+    """
+    Admin-only: Send a test Welcome email via Brevo SMTP.
+    This endpoint is TEMPORARY and should be removed after validation.
+    """
+    _require_admin_auth(request)
+    
+    body = await request.json()
+    to_email = body.get("to_email", "popularoo@popularoo.com")
+    template = body.get("template", "welcome")  # welcome, booster_confirmation
+    lang = body.get("lang", "fr")
+    
+    try:
+        if template == "welcome":
+            from email_sender import send_welcome
+            await send_welcome(db, email_service, to_email, "test_user_admin", "Testeur Admin")
+        elif template == "booster_confirmation":
+            from email_sender import send_booster_confirmation
+            await send_booster_confirmation(
+                db, email_service, to_email, "test_user_admin",
+                person_name="Test Personnalité",
+                tier="golden_booster",
+                duration_label="7 jours",
+                price="€49.99",
+            )
+        elif template == "raw":
+            # Simplest test: just send a raw HTML email directly
+            html = """
+            <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:20px;">
+              <h1 style="color:#FFD700;">🎉 Popularoo — Test Email</h1>
+              <p>Cet email confirme que la configuration SMTP Brevo fonctionne correctement.</p>
+              <p style="color:#888;font-size:12px;">Envoyé depuis l'endpoint /api/admin/test-email</p>
+            </div>
+            """
+            await email_service.send_email(to_email, "🧪 Popularoo — Test SMTP Brevo", html)
+        else:
+            return {"success": False, "error": f"Unknown template: {template}"}
+        
+        return {
+            "success": True,
+            "message": f"Test email '{template}' sent to {to_email} (lang={lang})",
+            "smtp_host": os.getenv("SMTP_HOST", "N/A"),
+            "from": os.getenv("SMTP_FROM_EMAIL", "N/A"),
+        }
+    except Exception as e:
+        logger.error(f"Test email failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ==================== BLOC 3.6: GDPR "Mes données" — Data Deletion ====================
+
+class GDPRDeleteRequest(BaseModel):
+    device_id: str
+    confirm: bool = False  # Must be True to actually delete
+
+
+@api_router.post("/gdpr/my-data")
+async def gdpr_get_my_data(request: Request, x_device_id: str = Header(alias="X-Device-ID")):
+    """
+    GDPR: Returns a summary of all data associated with a device_id.
+    The user can see what data we hold about them.
+    """
+    device_id = x_device_id
+    
+    # Count data in each collection
+    votes_count = await db.votes.count_documents({"device_id": device_id})
+    superlike_votes_count = await db.superlike_votes.count_documents({"device_id": device_id})
+    boosts_count = await db.active_boosts.count_documents({"user_id": device_id})
+    transactions_count = await db.credit_transactions.count_documents({"user_id": device_id})
+    settings_doc = await db.user_settings.find_one({"device_id": device_id})
+    daily_runs_count = await db.daily_runs.count_documents({"user_id": device_id})
+    
+    # Get email if any boost has one
+    boost_with_email = await db.active_boosts.find_one(
+        {"user_id": device_id, "email": {"$ne": "", "$exists": True}},
+        {"email": 1}
+    )
+    email_on_file = boost_with_email.get("email") if boost_with_email else None
+    
+    return {
+        "device_id": device_id,
+        "email_on_file": email_on_file,
+        "data_summary": {
+            "votes": votes_count,
+            "superlikes": superlike_votes_count,
+            "boosters_purchased": boosts_count,
+            "transactions": transactions_count,
+            "daily_runs": daily_runs_count,
+            "has_settings": bool(settings_doc),
+            "country": settings_doc.get("country") if settings_doc else None,
+            "language": settings_doc.get("language") if settings_doc else None,
+        },
+        "legal_notice": "Conformément à la loi française, les données financières (active_boosts, credit_transactions) "
+                        "seront anonymisées mais conservées 10 ans. Les votes seront conservés comme orphelins."
+    }
+
+
+@api_router.delete("/gdpr/delete-my-data")
+async def gdpr_delete_my_data(
+    request: Request,
+    x_device_id: str = Header(alias="X-Device-ID"),
+):
+    """
+    GDPR: Delete / anonymize all data for a device_id.
+    
+    Legal compliance (French commercial law - 10 year retention):
+    - persons (self_boosted only): FULLY DELETED
+    - active_boosts: ANONYMIZED (email→null, person_name→"Utilisateur supprimé", user_id→"GDPR_DELETED")
+    - credit_transactions: ANONYMIZED (email→null, user_id→"GDPR_DELETED", description anonymized)
+    - votes: LEFT AS ORPHANS (person_id still valid, device_id removed)
+    - superlike_votes: DELETED
+    - user_settings: DELETED
+    - daily_runs: ANONYMIZED (user_id→"GDPR_DELETED")
+    - superlike_events: DELETED
+    """
+    body = await request.json()
+    if not body.get("confirm"):
+        return {"success": False, "error": "You must set confirm=true to delete your data."}
+    
+    device_id = x_device_id
+    now = now_utc()
+    results = {}
+    
+    # 1. Persons created by this user (self_boosted outsiders) → FULLY DELETE
+    outsiders_deleted = await db.persons.delete_many({
+        "source": "self_boosted",
+        "$or": [
+            {"created_by": device_id},
+            {"user_id": device_id},
+        ]
+    })
+    results["persons_deleted"] = outsiders_deleted.deleted_count
+    
+    # 2. active_boosts → ANONYMIZE (preserve financial record, remove PII)
+    boosts_anonymized = await db.active_boosts.update_many(
+        {"user_id": device_id},
+        {"$set": {
+            "user_id": "GDPR_DELETED",
+            "email": None,
+            "person_name": "Utilisateur supprimé",
+            "gdpr_anonymized_at": now,
+        }}
+    )
+    results["active_boosts_anonymized"] = boosts_anonymized.modified_count
+    
+    # 3. credit_transactions → ANONYMIZE (preserve financial record, remove PII)
+    transactions_anonymized = await db.credit_transactions.update_many(
+        {"user_id": device_id},
+        {"$set": {
+            "user_id": "GDPR_DELETED",
+            "email": None,
+            "description": "Transaction anonymisée (RGPD)",
+            "gdpr_anonymized_at": now,
+        }}
+    )
+    results["credit_transactions_anonymized"] = transactions_anonymized.modified_count
+    
+    # 4. votes → ANONYMIZE device_id (keep vote data as orphans for integrity)
+    votes_anonymized = await db.votes.update_many(
+        {"device_id": device_id},
+        {"$set": {
+            "device_id": "GDPR_DELETED",
+            "gdpr_anonymized_at": now,
+        }}
+    )
+    results["votes_anonymized"] = votes_anonymized.modified_count
+    
+    # 5. superlike_votes → DELETE
+    sl_deleted = await db.superlike_votes.delete_many({"device_id": device_id})
+    results["superlike_votes_deleted"] = sl_deleted.deleted_count
+    
+    # 6. superlike_events → DELETE
+    sle_deleted = await db.superlike_events.delete_many({"device_id": device_id})
+    results["superlike_events_deleted"] = sle_deleted.deleted_count
+    
+    # 7. user_settings → DELETE
+    settings_deleted = await db.user_settings.delete_many({"device_id": device_id})
+    results["user_settings_deleted"] = settings_deleted.deleted_count
+    
+    # 8. daily_runs → ANONYMIZE
+    dr_anonymized = await db.daily_runs.update_many(
+        {"user_id": device_id},
+        {"$set": {
+            "user_id": "GDPR_DELETED",
+            "gdpr_anonymized_at": now,
+        }}
+    )
+    results["daily_runs_anonymized"] = dr_anonymized.modified_count
+    
+    logger.info(f"🔒 GDPR deletion completed for device_id={device_id[:12]}... — Results: {results}")
+    
+    return {
+        "success": True,
+        "message": "Toutes vos données personnelles ont été supprimées ou anonymisées conformément au RGPD.",
+        "details": results,
+        "legal_notice": "Les données financières (achats, transactions) ont été anonymisées et seront conservées "
+                        "10 ans conformément à la loi française (Code de commerce Art. L123-22).",
+    }
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
