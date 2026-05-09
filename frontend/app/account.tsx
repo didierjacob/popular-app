@@ -36,7 +36,7 @@ const PALETTE = {
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
-const SUPPORT_EMAIL = "support@popularoo.com";
+const SUPPORT_EMAIL = "popularoo@popularoo.com";
 const COUNTRY_KEY = "popular_user_country";
 const USER_ID_KEY = "popular_user_id";
 const DEVICE_KEY = "popularity_device_id";

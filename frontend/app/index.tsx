@@ -24,6 +24,7 @@ import { CreditsService, type OutsiderData } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import OutsiderCard from "../components/OutsiderCard";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -261,89 +262,6 @@ function TimeRemainingBadge({ hours }: { hours: number }) {
     <View style={[styles.timeBadge, { backgroundColor: color + '20', borderColor: color }]}>
       <Ionicons name="time" size={12} color={color} />
       <Text style={[styles.timeBadgeText, { color }]}>{label}</Text>
-    </View>
-  );
-}
-
-// ---- Outsider Card (Home) — BLOC 2.4: Heart + Social buttons ----
-
-function OutsiderCard({ outsider, isGolden, onLike }: { outsider: OutsiderData; isGolden: boolean; onLike: (id: string) => void }) {
-  const router = useRouter();
-
-  const initials = outsider.avatar_initials ||
-    outsider.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-
-  return (
-    <View
-      style={[
-        styles.outsiderCard,
-        isGolden ? styles.goldenCard : styles.regularCard,
-        isGolden && { minWidth: 260 },
-      ]}
-    >
-      {/* Tier badge */}
-      <View style={styles.outsiderBadge}>
-        <Ionicons
-          name={isGolden ? "trophy" : "rocket"}
-          size={14}
-          color={isGolden ? PALETTE.gold : PALETTE.accent2}
-        />
-        <Text style={[styles.outsiderBadgeText, isGolden && { color: PALETTE.gold }]}>
-          {outsider.tier_name}
-        </Text>
-        <TimeRemainingBadge hours={outsider.hours_remaining} />
-      </View>
-
-      {/* Avatar + Name — tappable to go to person page */}
-      <TouchableOpacity
-        style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
-        onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
-        activeOpacity={0.7}
-      >
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: outsider.avatar_color || "#1C3A2C",
-            justifyContent: "center",
-            alignItems: "center",
-            marginRight: 8,
-            borderWidth: isGolden ? 1.5 : 0,
-            borderColor: isGolden ? PALETTE.gold : "transparent",
-          }}
-        >
-          <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>
-            {initials}
-          </Text>
-        </View>
-        <Text style={[styles.outsiderName, isGolden && { color: PALETTE.gold }]}>
-          {outsider.name}
-        </Text>
-      </TouchableOpacity>
-
-      {/* BLOC 2.4: Heart + Social row */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
-        <TouchableOpacity
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: "rgba(255, 71, 87, 0.12)",
-            paddingHorizontal: 12,
-            paddingVertical: 6,
-            borderRadius: 20,
-          }}
-          onPress={() => onLike(outsider.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="heart" size={16} color="#FF4757" />
-          <Text style={{ color: "#FF4757", fontWeight: "700", fontSize: 13, marginLeft: 4 }}>
-            {outsider.likes || 0}
-          </Text>
-        </TouchableOpacity>
-
-        <SocialLinksRow links={outsider.social_links} />
-      </View>
     </View>
   );
 }
@@ -723,80 +641,15 @@ export default function HomeScreen() {
         {/* ===== OUTSIDER OF THE DAY (Golden Boosters only, rotates every 10s) ===== */}
         {goldenOutsiders.length > 0 && !goldenOutsiders[currentOutsiderIndex]?.name?.toLowerCase().includes('test') && (
           <Animated.View style={[styles.outsiderOfTheDaySection, { opacity: fadeAnim }]}>
-            <TouchableOpacity
-              style={styles.outsiderOfTheDayCard}
-              onPress={() => {
-                const outsider = goldenOutsiders[currentOutsiderIndex];
-                if (outsider) router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } });
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.outsiderOfTheDayBadge}>
-                <Ionicons name="trophy" size={16} color={PALETTE.gold} />
-                <Text style={styles.outsiderOfTheDayBadgeText}>{t("home.outsiderOfTheDay")}</Text>
-                {goldenOutsiders.length > 1 && (
-                  <Text style={styles.outsiderOfTheDayCounter}>
-                    {currentOutsiderIndex + 1}/{goldenOutsiders.length}
-                  </Text>
-                )}
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: goldenOutsiders[currentOutsiderIndex]?.avatar_color || "#1C3A2C",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 10,
-                    borderWidth: 1.5,
-                    borderColor: PALETTE.gold,
-                  }}
-                >
-                  <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 13 }}>
-                    {goldenOutsiders[currentOutsiderIndex]?.avatar_initials ||
-                      goldenOutsiders[currentOutsiderIndex]?.name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
-                  </Text>
-                </View>
-                <Text style={styles.outsiderOfTheDayName}>
-                  {goldenOutsiders[currentOutsiderIndex]?.name}
-                </Text>
-              </View>
-              <View style={styles.outsiderOfTheDayMeta}>
-                <Text style={styles.outsiderOfTheDayVotes}>
-                  {formatNumber(goldenOutsiders[currentOutsiderIndex]?.total_votes || 0)} votes
-                </Text>
-                <TimeRemainingBadge hours={goldenOutsiders[currentOutsiderIndex]?.hours_remaining || 0} />
-              </View>
-              {/* BLOC 2.4: Heart + Social on Outsider of the Day — Pulsing Heart */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-                <TouchableOpacity
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: "rgba(255, 71, 87, 0.12)",
-                    paddingHorizontal: 14,
-                    paddingVertical: 7,
-                    borderRadius: 20,
-                  }}
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    const outsider = goldenOutsiders[currentOutsiderIndex];
-                    if (outsider) handleLikeOutsider(outsider.id);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Animated.View style={{ transform: [{ scale: heartPulse }] }}>
-                    <Ionicons name="heart" size={18} color="#FF4757" />
-                  </Animated.View>
-                  <Text style={{ color: "#FF4757", fontWeight: "700", fontSize: 14, marginLeft: 5 }}>
-                    {goldenOutsiders[currentOutsiderIndex]?.likes || 0}
-                  </Text>
-                </TouchableOpacity>
-                <SocialLinksRow links={goldenOutsiders[currentOutsiderIndex]?.social_links} />
-              </View>
-            </TouchableOpacity>
+            <View style={{ marginHorizontal: 16 }}>
+              <OutsiderCard
+                outsider={goldenOutsiders[currentOutsiderIndex]}
+                onLike={handleLikeOutsider}
+                pulsingHeart={true}
+                badgeLabel={t("home.outsiderOfTheDay")}
+                badgeCounter={goldenOutsiders.length > 1 ? `${currentOutsiderIndex + 1}/${goldenOutsiders.length}` : undefined}
+              />
+            </View>
           </Animated.View>
         )}
 

@@ -751,11 +751,11 @@ export default function Person() {
               )}
             </View>
 
-            {/* Share Section */}
+            {/* Outsider promotion banner */}
             {person?.source === "self_boosted" ? (
               <View style={[styles.card, { marginBottom: 30 }]}>
                 <Text style={styles.sectionTitle}>
-                  {t("person.dailyRun")}
+                  {t("person.outsiderPromo")}
                 </Text>
                 <View
                   style={{
