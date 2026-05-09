@@ -208,7 +208,6 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
               <Ionicons name={isGolden ? "trophy" : "rocket"} size={11} color={isGolden ? PALETTE.gold : PALETTE.green} />
               <Text style={[styles.tierText, isGolden && { color: PALETTE.gold }]}>{outsider.tier_name || "Booster"}</Text>
             </View>
-            <TimeBadge hours={outsider.hours_remaining || 0} />
           </View>
         </View>
       </TouchableOpacity>

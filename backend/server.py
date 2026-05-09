@@ -5154,6 +5154,61 @@ async def remove_seed_outsiders_endpoint(request: Request):
     return {"success": True, **result}
 
 
+@api_router.post("/admin/calibrate-outsider-votes")
+@limiter.limit("5/15minutes")
+async def calibrate_outsider_votes(request: Request):
+    """
+    Admin: Reset outsider vote counts to realistic levels.
+    Accepts optional JSON body with { calibration: [{id, name, tier, new_total, new_likes}...] }
+    """
+    import random
+    from bson import ObjectId
+    _require_admin_auth(request)
+    
+    body = await request.json()
+    calibration_data = body.get("calibration", None)
+    
+    results = {"updated": 0, "details": []}
+    
+    if calibration_data:
+        for item in calibration_data:
+            oid = item["id"]
+            new_total = item["new_total"]
+            new_likes = item["new_likes"]
+            new_dislikes = new_total - new_likes
+            await db.persons.update_one(
+                {"_id": ObjectId(oid)},
+                {"$set": {
+                    "total_votes": new_total,
+                    "likes": new_likes,
+                    "dislikes": new_dislikes,
+                    "score": new_likes - new_dislikes,
+                }}
+            )
+            results["details"].append({
+                "name": item.get("name", "?"),
+                "tier": item.get("tier", "?"),
+                "new_total": new_total,
+                "new_likes": new_likes,
+            })
+            results["updated"] += 1
+    else:
+        outsiders = await db.persons.find({"source": "self_boosted"}).to_list(length=500)
+        for o in outsiders:
+            new_total = random.randint(5, 50)
+            new_likes = random.randint(int(new_total * 0.4), int(new_total * 0.7))
+            new_dislikes = new_total - new_likes
+            await db.persons.update_one(
+                {"_id": o["_id"]},
+                {"$set": {"total_votes": new_total, "likes": new_likes, "dislikes": new_dislikes, "score": new_likes - new_dislikes}}
+            )
+            results["details"].append({"name": o.get("name","?"), "new_total": new_total, "new_likes": new_likes})
+            results["updated"] += 1
+    
+    logger.info(f"🎯 Calibrated {results['updated']} outsider vote counts")
+    return {"success": True, **results}
+
+
 # ==================== BLOC 3.4: Test Email Endpoint (Temporary) ====================
 
 @api_router.post("/admin/test-email")

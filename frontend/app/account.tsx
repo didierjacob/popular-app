@@ -380,8 +380,6 @@ export default function AccountScreen() {
     const FAQ = [
       { q: t("helpCenter.faq_whatIsPopularoo_q"), a: t("helpCenter.faq_whatIsPopularoo_a") },
       { q: t("helpCenter.faq_popularooIndex_q"), a: t("helpCenter.faq_popularooIndex_a") },
-      { q: t("helpCenter.faq_dailyRuns_q"), a: t("helpCenter.faq_dailyRuns_a") },
-      { q: t("helpCenter.faq_winning_q"), a: t("helpCenter.faq_winning_a") },
       { q: t("helpCenter.faq_superlike_q"), a: t("helpCenter.faq_superlike_a") },
       { q: t("helpCenter.faq_boosters_q"), a: t("helpCenter.faq_boosters_a") },
       { q: t("helpCenter.faq_vote_q"), a: t("helpCenter.faq_vote_a") },
