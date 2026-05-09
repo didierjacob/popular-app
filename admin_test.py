@@ -7,11 +7,12 @@ Tests all 9 admin endpoints with REAL EFFECT verification
 import requests
 import json
 import time
+import os
 from typing import Dict, Any, List, Optional
 
 # Backend URL and admin password
 BACKEND_URL = "https://personality-launch.preview.emergentagent.com/api"
-ADMIN_PASSWORD = "fab31230"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "CHANGE_ME")
 
 # Test results tracking
 test_results = []

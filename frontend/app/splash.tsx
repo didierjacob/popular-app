@@ -6,13 +6,14 @@ interface SplashScreenProps {
 }
 
 /**
- * Splash Screen — V1.0 Cinematic Animation
+ * Splash Screen — V1.0 Cinematic Animation (3 acts)
  *
- * T=0          : Screen 100% BLACK, nothing visible
- * T=0 → 0.5s  : Background fades from black to dark green (#0F2F22)
- *                Icon appears at center, growing from scale 0 → 0.3
- * T=0.5s → 2s : Icon continues growing from scale 0.3 → 5 (golden P fills screen)
- * T=2s         : Fade out to transparent, then navigate to Home
+ * ACT 1 — T=0 → T=0.5s   : Screen 100% BLACK. Nothing visible. Pause (lever de rideau).
+ * ACT 2 — T=0.5s → T=1.2s : Background fades from black to dark green (#0F2F22). Icon NOT visible yet.
+ * ACT 3 — T=1.2s → T=2.8s : Icon appears at center (scale 0) and grows to scale 5 (golden P fills screen).
+ * FADE  — T=2.8s → T=3.0s : Everything fades out, navigate to Home.
+ *
+ * Total: 3.0 seconds.
  */
 export default function SplashScreen({ onFinish = () => {} }: SplashScreenProps) {
   const { width, height } = useWindowDimensions();
@@ -27,44 +28,43 @@ export default function SplashScreen({ onFinish = () => {} }: SplashScreenProps)
   const fadeOut = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // ── Phase 1 (T=0 → T=0.5s): Black → Green + Icon appears (scale 0 → 0.3) ──
-    Animated.parallel([
+    // ── ACT 1 (T=0 → T=0.5s): Pure black. Nothing happens. ──
+    const act1Timer = setTimeout(() => {
+      // ── ACT 2 (T=0.5s → T=1.2s): Black fades to green. Icon still hidden. ──
       Animated.timing(bgProgress, {
         toValue: 1,
-        duration: 500,
+        duration: 700, // 0.7s fade
         easing: Easing.ease,
         useNativeDriver: false, // backgroundColor can't use native driver
-      }),
-      Animated.timing(iconOpacity, {
-        toValue: 1,
-        duration: 500,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }),
-      Animated.timing(iconScale, {
-        toValue: 0.3,
-        duration: 500,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // ── Phase 2 (T=0.5s → T=2s): Icon grows from 0.3 → 5 ──
-      Animated.timing(iconScale, {
-        toValue: 5,
-        duration: 1500,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
       }).start(() => {
-        // ── Phase 3 (T=2s → T=2.4s): Fade out everything ──
-        Animated.timing(fadeOut, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }).start(() => {
-          onFinish();
+        // ── ACT 3 (T=1.2s → T=2.8s): Icon appears and grows ──
+        Animated.parallel([
+          Animated.timing(iconOpacity, {
+            toValue: 1,
+            duration: 400, // Quick fade-in of icon
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(iconScale, {
+            toValue: 5,
+            duration: 1600, // 1.6s growth
+            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // ── FADE (T=2.8s → T=3.0s): Fade out everything ──
+          Animated.timing(fadeOut, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            onFinish();
+          });
         });
       });
-    });
+    }, 500); // 500ms black pause
+
+    return () => clearTimeout(act1Timer);
   }, []);
 
   // Interpolate background color from black to dark green
