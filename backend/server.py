@@ -2675,8 +2675,9 @@ class AdminBoostRequest(BaseModel):
 
 
 @api_router.post("/admin/boost-votes")
-async def admin_boost_votes(request: AdminBoostRequest):
+async def admin_boost_votes(req: Request, request: AdminBoostRequest):
     """Admin-only: Manually add votes to any personality"""
+    _require_admin_auth(req)
     try:
         person_id = ObjectId(request.person_id)
         person = await db.persons.find_one({"_id": person_id})
@@ -2734,8 +2735,9 @@ async def admin_boost_votes(request: AdminBoostRequest):
 # -------------------- Admin: Moderation --------------------
 
 @api_router.delete("/admin/person/{person_id}")
-async def admin_delete_person(person_id: str):
+async def admin_delete_person(request: Request, person_id: str):
     """Admin-only: Delete a personality completely"""
+    _require_admin_auth(request)
     try:
         obj_id = ObjectId(person_id)
         person = await db.persons.find_one({"_id": obj_id})
@@ -2765,8 +2767,9 @@ async def admin_delete_person(person_id: str):
 
 
 @api_router.post("/admin/person/{person_id}/reset")
-async def admin_reset_person(person_id: str):
+async def admin_reset_person(request: Request, person_id: str):
     """Admin-only: Reset a personality's score to 50 (neutral)"""
+    _require_admin_auth(request)
     try:
         obj_id = ObjectId(person_id)
         person = await db.persons.find_one({"_id": obj_id})
@@ -2865,8 +2868,9 @@ class SuspendRequest(BaseModel):
     password: str
 
 @api_router.post("/admin/outsider/{person_id}/suspend")
-async def admin_suspend_outsider(person_id: str, request: SuspendRequest):
+async def admin_suspend_outsider(req: Request, person_id: str, request: SuspendRequest):
     """Suspend an Outsider — hides them from all public lists without deleting."""
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     obj_id = ObjectId(person_id)
     person = await db.persons.find_one({"_id": obj_id})
@@ -2887,8 +2891,9 @@ async def admin_suspend_outsider(person_id: str, request: SuspendRequest):
     return {"success": True, "message": f"'{person.get('name')}' suspended"}
 
 @api_router.post("/admin/outsider/{person_id}/unsuspend")
-async def admin_unsuspend_outsider(person_id: str, request: SuspendRequest):
+async def admin_unsuspend_outsider(req: Request, person_id: str, request: SuspendRequest):
     """Unsuspend an Outsider — restores visibility."""
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     obj_id = ObjectId(person_id)
     person = await db.persons.find_one({"_id": obj_id})
@@ -2916,8 +2921,9 @@ class BanDeviceRequest(BaseModel):
     password: str
 
 @api_router.post("/admin/ban-device")
-async def admin_ban_device(request: BanDeviceRequest):
+async def admin_ban_device(req: Request, request: BanDeviceRequest):
     """Ban a device_id from voting and purchasing."""
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     
     await db.banned_devices.update_one(
@@ -2970,8 +2976,9 @@ class GrantBoosterRequest(BaseModel):
     password: str
 
 @api_router.post("/admin/grant-booster")
-async def admin_grant_booster(request: GrantBoosterRequest):
+async def admin_grant_booster(req: Request, request: GrantBoosterRequest):
     """Create an active Booster without IAP payment (commercial gesture)."""
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     
     TIER_DEFAULTS = {
@@ -3063,8 +3070,9 @@ class ExpireBoosterRequest(BaseModel):
     password: str
 
 @api_router.post("/admin/expire-booster/{boost_id}")
-async def admin_expire_booster(boost_id: str, request: ExpireBoosterRequest):
+async def admin_expire_booster(req: Request, boost_id: str, request: ExpireBoosterRequest):
     """Force-expire a Booster immediately (emergency revocation)."""
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     
     obj_id = ObjectId(boost_id)
@@ -3245,7 +3253,7 @@ class InvalidateVotesRequest(BaseModel):
     to_date: Optional[str] = None    # ISO format, end of period
 
 @api_router.post("/admin/person/{person_id}/invalidate-votes")
-async def admin_invalidate_votes(person_id: str, request: InvalidateVotesRequest):
+async def admin_invalidate_votes(req: Request, person_id: str, request: InvalidateVotesRequest):
     """
     Selective vote invalidation for a person.
     - No params (besides password): full reset (like reset)
@@ -3253,6 +3261,7 @@ async def admin_invalidate_votes(person_id: str, request: InvalidateVotesRequest
     - from/to: only invalidate votes in that time range
     - Both: combined filter
     """
+    _require_admin_auth(req)
     _require_admin_password(request.password)
     
     try:
@@ -3442,6 +3451,7 @@ async def get_admin_stats(request: Request):
 
 @api_router.get("/admin/search")
 async def admin_search_people(
+    request: Request,
     q: Optional[str] = None,
     category: Optional[Category] = None,
     source: Optional[str] = None,
@@ -3449,6 +3459,7 @@ async def admin_search_people(
     limit: int = 50
 ):
     """Admin-only: Advanced search with filters"""
+    _require_admin_auth(request)
     try:
         # Build query
         query = {}
@@ -3505,8 +3516,9 @@ class AppSettings(BaseModel):
 
 
 @api_router.get("/admin/settings")
-async def admin_get_settings():
+async def admin_get_settings(request: Request):
     """Admin-only: Get app settings"""
+    _require_admin_auth(request)
     try:
         settings = await db.app_settings.find_one({"_id": "global"})
         
@@ -3540,8 +3552,9 @@ async def admin_get_settings():
 
 
 @api_router.post("/admin/settings")
-async def admin_update_settings(settings: AppSettings):
+async def admin_update_settings(request: Request, settings: AppSettings):
     """Admin-only: Update app settings"""
+    _require_admin_auth(request)
     try:
         await db.app_settings.update_one(
             {"_id": "global"},
@@ -3573,11 +3586,12 @@ async def admin_update_settings(settings: AppSettings):
 # -------------------- Google Trends Integration --------------------
 
 @api_router.post("/admin/refresh-trends")
-async def admin_refresh_trends():
+async def admin_refresh_trends(request: Request):
     """
     Admin-only: Manually trigger Google Trends refresh
     Fetches trending personalities and updates the database
     """
+    _require_admin_auth(request)
     try:
         logger.info("Starting manual trends refresh...")
         
@@ -3700,8 +3714,9 @@ async def get_trending_personalities():
 
 
 @api_router.get("/admin/scheduler-status")
-async def admin_get_scheduler_status():
+async def admin_get_scheduler_status(request: Request):
     """Admin-only: Get scheduler status and next run time"""
+    _require_admin_auth(request)
     try:
         from scheduler import scheduler
         
@@ -3747,8 +3762,9 @@ SPORTS_PERSONALITIES = [
 ]
 
 @api_router.post("/admin/fix-categories")
-async def admin_fix_categories():
+async def admin_fix_categories(request: Request):
     """Admin-only: Fix category assignments for sports personalities and Pope Francis"""
+    _require_admin_auth(request)
     try:
         fixed_count = 0
         fixed_names = []
@@ -3784,8 +3800,9 @@ async def admin_fix_categories():
 
 
 @api_router.post("/admin/create-demo-outsider")
-async def admin_create_demo_outsider():
+async def admin_create_demo_outsider(request: Request):
     """Admin-only: Create a demo outsider to show the feature"""
+    _require_admin_auth(request)
     try:
         # Check if demo outsider already exists
         existing = await db.persons.find_one({"name": "Alex Martin", "source": "self_boosted"})
@@ -3842,8 +3859,9 @@ async def admin_create_demo_outsider():
 
 
 @api_router.post("/admin/add-missing-seeds")
-async def admin_add_missing_seeds():
+async def admin_add_missing_seeds(request: Request):
     """Admin-only: Add any missing seed personalities to the database"""
+    _require_admin_auth(request)
     try:
         added_count = 0
         added_names = []
@@ -3898,8 +3916,9 @@ async def admin_add_missing_seeds():
 
 
 @api_router.post("/admin/update-celebrity-countries")
-async def admin_update_celebrity_countries():
+async def admin_update_celebrity_countries(request: Request):
     """Admin-only: Update primary_country for existing celebrities based on SEED_PEOPLE"""
+    _require_admin_auth(request)
     try:
         updated_count = 0
         updated_names = []
@@ -3934,8 +3953,9 @@ async def admin_update_celebrity_countries():
 
 
 @api_router.post("/admin/initialize-votes")
-async def admin_initialize_votes():
+async def admin_initialize_votes(request: Request):
     """Admin-only: Initialize existing personalities with realistic vote counts"""
+    _require_admin_auth(request)
     try:
         # Find all personalities with 0 or very low votes
         low_vote_persons = await db.persons.find({
@@ -4243,11 +4263,12 @@ async def init_votes():
 # -------------------- Popularoo Index Admin Endpoints --------------------
 
 @api_router.post("/admin/migrate-popularoo-index")
-async def admin_migrate_index():
+async def admin_migrate_index(request: Request):
     """
     One-time migration: Calculate initial Popularoo Index for all persons.
     Safe to run multiple times (idempotent).
     """
+    _require_admin_auth(request)
     try:
         count = await migrate_initial_index(db)
         return {
@@ -4261,8 +4282,9 @@ async def admin_migrate_index():
 
 
 @api_router.post("/admin/recalculate-all-indices")
-async def admin_recalculate_indices():
+async def admin_recalculate_indices(request: Request):
     """Force a full recalculation of Popularoo Index for all persons."""
+    _require_admin_auth(request)
     try:
         await recalculate_all_indices(db)
         return {"success": True, "message": "All indices recalculated"}
@@ -4272,19 +4294,21 @@ async def admin_recalculate_indices():
 
 
 @api_router.get("/admin/index-config")
-async def admin_get_index_config():
+async def admin_get_index_config(request: Request):
     """View current algorithm configuration (admin only)."""
+    _require_admin_auth(request)
     config = await load_index_config(db)
     safe = {k: v for k, v in config.items() if k != "_id"}
     return {"config": safe}
 
 
 @api_router.post("/admin/index-config")
-async def admin_update_index_config(body: Dict[str, Any]):
+async def admin_update_index_config(request: Request, body: Dict[str, Any]):
     """
     Update algorithm coefficients (admin only).
     Example: {"coefficients": {"volume": 0.25, "ratio": 0.35}}
     """
+    _require_admin_auth(request)
     try:
         update_fields = {}
         if "coefficients" in body:
@@ -4316,11 +4340,12 @@ async def admin_update_index_config(body: Dict[str, Any]):
 # -------------------- Admin: Geo-Tagging Endpoints --------------------
 
 @api_router.post("/admin/apply-geo-tags")
-async def admin_apply_geo_tags():
+async def admin_apply_geo_tags(request: Request):
     """
     Apply geo-tags from the pre-generated JSON file to all personalities.
     Idempotent: safe to run multiple times.
     """
+    _require_admin_auth(request)
     import json as json_lib
     json_path = os.path.join(os.path.dirname(__file__), "static", "personality_tags.json")
     if not os.path.exists(json_path):
@@ -4353,8 +4378,9 @@ async def admin_apply_geo_tags():
 
 
 @api_router.get("/admin/geo-tags-summary")
-async def admin_geo_tags_summary():
+async def admin_geo_tags_summary(request: Request):
     """Get summary of geo-tag distribution across all personalities."""
+    _require_admin_auth(request)
     pipeline = [
         {"$match": {"approved": True, "source": {"$ne": "self_boosted"}}},
         {"$group": {
@@ -4385,8 +4411,9 @@ async def admin_geo_tags_summary():
 
 
 @api_router.post("/admin/delete-duplicate/{person_id}")
-async def admin_delete_duplicate(person_id: str):
+async def admin_delete_duplicate(request: Request, person_id: str):
     """Delete a duplicate/invalid personality entry. Admin only."""
+    _require_admin_auth(request)
     try:
         oid = ObjectId(person_id)
     except Exception:
@@ -4407,12 +4434,14 @@ async def admin_delete_duplicate(person_id: str):
 
 
 @api_router.post("/admin/bulk-import-personalities")
-async def admin_bulk_import_personalities():
+async def admin_bulk_import_personalities(request: Request):
     """
     Import new personalities from the validated personality_tags_v2.json file.
     Only inserts NEW entries (status='new') that don't already exist in the DB.
     Idempotent: safe to run multiple times.
     """
+    _require_admin_auth(request)
+    import json as json_lib
     json_path = os.path.join(os.path.dirname(__file__), "static", "personality_tags_v2.json")
     if not os.path.exists(json_path):
         raise HTTPException(status_code=404, detail="Tags V2 file not found.")
