@@ -20,6 +20,7 @@ import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } fro
 import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import type { Product, ProductPurchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
+import { useRouter } from "expo-router";
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
@@ -96,6 +97,7 @@ function isValidUsername(platform: string, value: string): boolean {
 
 export default function Premium() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -373,6 +375,15 @@ export default function Premium() {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentWrapper}>
+          {/* Back button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={{ color: PALETTE.text, fontSize: 24, fontWeight: '300', marginRight: 6 }}>{"<"}</Text>
+            <Text style={{ color: PALETTE.text, fontSize: 14, fontWeight: '600' }}>{t("person.home")}</Text>
+          </TouchableOpacity>
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="rocket" size={32} color={PALETTE.gold} />

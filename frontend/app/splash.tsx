@@ -3,8 +3,7 @@ import { View, StyleSheet, Animated, Easing } from "react-native";
 
 const PALETTE = {
   bg: "#0F2F22",
-  text: "#EAEAEA",
-  accent: "#009B4D",
+  gold: "#FFD700",
 };
 
 interface SplashScreenProps {
@@ -12,38 +11,55 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.25)).current;
+  const letterOpacity = useRef(new Animated.Value(0)).current;
+  const screenOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Start rotation animation
-    Animated.loop(
-      Animated.timing(rotateAnim, {
+    // Phase 1: Gold P appears and expands organically from center (0-1.4s)
+    Animated.parallel([
+      Animated.timing(letterOpacity, {
         toValue: 1,
-        duration: 2000,
-        easing: Easing.linear,
+        duration: 350,
         useNativeDriver: true,
-      })
-    ).start();
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-    // Finish after 2 seconds
+    // Phase 2: After 1.7s, fade out and call onFinish
     const timer = setTimeout(() => {
-      onFinish();
-    }, 2000);
+      Animated.timing(screenOpacity, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => {
+        onFinish();
+      });
+    }, 1700);
 
     return () => clearTimeout(timer);
   }, []);
 
-  const spin = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
   return (
-    <View style={styles.container}>
-      <Animated.Text style={[styles.letter, { transform: [{ rotateY: spin }] }]}>
+    <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
+      <Animated.Text
+        style={[
+          styles.letter,
+          {
+            opacity: letterOpacity,
+            transform: [{ scale }],
+          },
+        ]}
+      >
         P
       </Animated.Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -56,10 +72,10 @@ const styles = StyleSheet.create({
   },
   letter: {
     fontSize: 140,
-    fontWeight: "300",
-    color: PALETTE.text,
-    textShadowColor: PALETTE.accent,
+    fontWeight: "900",
+    color: PALETTE.gold,
+    textShadowColor: "rgba(255, 215, 0, 0.4)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+    textShadowRadius: 30,
   },
 });

@@ -347,6 +347,24 @@ export default function Person() {
       const newEntry = generateDummyVote(voteIdCounter.current);
       newEntry.timestamp = Date.now();
       setLiveVotes((prev) => [newEntry, ...prev].slice(0, 30));
+
+      // BLOC 1.7: Sync visual vote counter with live feed
+      setPerson((prev: any) => {
+        if (!prev) return prev;
+        if (newEntry.action === "liked") {
+          return {
+            ...prev,
+            likes: (prev.likes || 0) + 1,
+            total_votes: (prev.total_votes || 0) + 1,
+          };
+        } else {
+          return {
+            ...prev,
+            dislikes: (prev.dislikes || 0) + 1,
+            total_votes: (prev.total_votes || 0) + 1,
+          };
+        }
+      });
     };
 
     liveIntervalRef.current = setInterval(addVote, 2500 + Math.random() * 2000);
@@ -514,14 +532,11 @@ export default function Person() {
             {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity
-                onPress={() => router.push("/")}
+                onPress={() => router.back()}
                 style={styles.homeBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Ionicons
-                  name="chevron-back"
-                  size={20}
-                  color={PALETTE.text}
-                />
+                <Text style={styles.backArrow}>{"<"}</Text>
                 <Text style={styles.homeText}>{t("person.home")}</Text>
               </TouchableOpacity>
               <Text style={styles.title}>{name}</Text>
@@ -826,6 +841,13 @@ const styles = StyleSheet.create({
     color: PALETTE.text,
     fontSize: 14,
     fontWeight: "600",
+  },
+  backArrow: {
+    color: PALETTE.text,
+    fontSize: 24,
+    fontWeight: "300",
+    lineHeight: 28,
+    marginRight: 2,
   },
   title: {
     color: PALETTE.text,

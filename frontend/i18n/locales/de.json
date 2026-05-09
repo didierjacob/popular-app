@@ -52,7 +52,7 @@
     "timeLeft_minutes": "{{count}}min übrig",
     "timeLeft_hours": "{{count}}h übrig",
     "timeLeft_days": "{{count}}T übrig",
-    "baseline": "Stimme fuer deine Lieblingsstars und steige im weltweiten Ranking auf.",
+    "baseline": "Stimme für deine Lieblingsstars und steige im weltweiten Ranking auf.",
     "spot_title": "Your spot is waiting",
     "spot_subtitle": "Steh neben den Stars. Aktiviere einen Booster, um ins Outsiders-Ranking einzusteigen.",
     "spot_you": "YOU"
@@ -65,18 +65,18 @@
   },
   "person": {
     "home": "Start",
-    "supporters": "{{count}} Unterstuetzer",
+    "supporters": "{{count}} Unterstützer",
     "likes_dislikes": "{{likes}} Likes • {{dislikes}} Dislikes",
     "popularooIndex": "Popularoo Index",
     "totalVotes": "{{count}} Stimmen insgesamt",
-    "voteFor": "Fuer {{name}} abstimmen",
+    "voteFor": "Für {{name}} abstimmen",
     "like": "Like",
     "dislike": "Dislike",
     "status_rising": "Im Aufstieg",
     "status_falling": "Im Abstieg",
     "status_trending": "Starker Trend",
     "status_freefall": "Freier Fall",
-    "liveActivity": "Live-Aktivitaet",
+    "liveActivity": "Live-Aktivität",
     "liveActivityEmpty": "Die Stimmen kommen rein...",
     "liked": "hat geliked",
     "disliked": "hat disliked",
@@ -93,10 +93,10 @@
     "more": "Mehr",
     "shareMessage": "Schau dir {{name}} auf Popularoo an! Popularoo Index: {{score}} mit {{votes}} Stimmen!",
     "alreadyVotedTitle": "Bereits abgestimmt",
-    "alreadyVotedMessage": "Du hast heute bereits fuer {{name}} abgestimmt.",
+    "alreadyVotedMessage": "Du hast heute bereits für {{name}} abgestimmt.",
     "alreadyVotedSub": "Du kannst in {{time}} erneut abstimmen.",
     "instagramShareTitle": "Teilen",
-    "instagramShareMessage": "Instagram unterstuetzt kein direktes Teilen von Text. Der Link wurde in die Zwischenablage kopiert."
+    "instagramShareMessage": "Instagram unterstützt kein direktes Teilen von Text. Der Link wurde in die Zwischenablage kopiert."
   },
   "myvotes": {
     "title": "Meine Stimmen",
@@ -152,7 +152,7 @@
     "tryAnotherSearch": "Versuche einen anderen Namen."
   },
   "premium": {
-    "title": "Boost Yourself",
+    "title": "Pushe deinen Namen",
     "subtitle": "Lass dich entdecken!",
     "description": "Kauf einen Booster und dein Name erscheint im Outsiders-Ranking, sichtbar für alle. Der Golden Booster bietet zusätzlich eine bevorzugte Platzierung und Rotation auf der Startseite als Outsider des Tages.",
     "chooseBooster": "Wähle deinen Booster",
@@ -201,7 +201,7 @@
     "confirmDuration": "Dauer: {{duration}}",
     "confirmGoldenExtra": "Prioritätsplatzierung + Startseiten-Rotation + Daily Run Zugang",
     "confirmPaymentVia": "Zahlung über {{store}}.",
-    "withdrawalConsent": "Mit der Bestätigung dieses Kaufs stimmen Sie zu, dass die Leistung sofort erbracht wird, und verzichten ausdrücklich auf Ihr 14-tägiges Widerrufsrecht gemäß Artikel L221-28 des französischen Verbrauchergesetzbuches.",
+    "withdrawalConsent": "Mit der Bestätigung dieses Kaufs stimmst du zu, dass die Leistung sofort erbracht wird, und verzichtest ausdrücklich auf dein 14-tägiges Widerrufsrecht gemäß Artikel L221-28 des französischen Verbrauchergesetzbuches.",
     "cancel": "Abbrechen",
     "buyPrice": "Kaufen {{price}}",
     "ok": "OK",

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
@@ -13,6 +13,9 @@ import {
   Animated,
   Easing,
   Linking,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +23,11 @@ import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg"
 import { CreditsService, type OutsiderData } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -45,7 +53,24 @@ interface Person {
   category: string;
   score: number;
   total_votes: number;
+  source?: string;
 }
+
+// ===== ANIMATION_CONFIG — Algo A: Weighted Random Increments =====
+// All coefficients are grouped here for easy tuning after iPhone testing.
+const ANIMATION_CONFIG = {
+  TOP_LIST_SIZE: 30,                     // Number of items in the animated Top list
+  MAX_DRIFT: 5,                          // Max ±positions drift from original rank
+  TICK_MIN_MS: 1200,                     // Min interval between increments (ms)
+  TICK_MAX_MS: 2800,                     // Max interval between increments (ms)
+  INCREMENT_MIN: 1,                      // Min score bump per tick
+  INCREMENT_MAX: 5,                      // Max score bump per tick
+  PICKS_PER_TICK: 2,                     // How many personalities receive a bump per tick
+  // Probability weight by rank bucket (higher = more likely to be selected)
+  WEIGHT_TOP5: 0.40,                     // Ranks 1-5
+  WEIGHT_MID: 0.35,                      // Ranks 6-15
+  WEIGHT_TAIL: 0.25,                     // Ranks 16-30
+};
 
 interface Category {
   key: string;
@@ -313,7 +338,7 @@ export default function HomeScreen() {
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const listFadeAnim = useRef(new Animated.Value(1)).current;
+  // Removed: listFadeAnim was used by the old periodic shuffle, replaced by Algo A
 
   const loadData = async (silent = false) => {
     try {
@@ -332,7 +357,9 @@ export default function HomeScreen() {
       if (!peopleRes.ok) throw new Error(`HTTP ${peopleRes.status}`);
       const data = await peopleRes.json();
 
-      const sortedByVotes = [...data].sort((a: Person, b: Person) => b.total_votes - a.total_votes);
+      const sortedByVotes = [...data]
+        .filter((p: Person) => p.source !== "self_boosted") // P0 BUG FIX: Never show outsiders in Top list
+        .sort((a: Person, b: Person) => b.total_votes - a.total_votes);
       setPeople(sortedByVotes);
 
       if (data.length > 0) {
@@ -355,34 +382,106 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Home listing rotation every 6 seconds — shuffle display order
+  // ===== ALGO A: Organic Ranking Movement =====
+  // Each person gets an internal "simulated score" that evolves by small random increments.
+  // When a score crosses another, the list re-sorts with a smooth LayoutAnimation.
+  const simulatedScores = useRef<Map<string, number>>(new Map());
+  const originalRanks = useRef<Map<string, number>>(new Map());
+  const animTickRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (people.length <= 1) return;
-    // Show initial 20 people
-    setDisplayedPeople(people.slice(0, 20));
-    const shuffleInterval = setInterval(() => {
-      // Fade out
-      Animated.timing(listFadeAnim, {
-        toValue: 0.3,
-        duration: 400,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }).start(() => {
+
+    // Initialize: take first 30 non-outsider people, assign simulated scores
+    const top = people.slice(0, ANIMATION_CONFIG.TOP_LIST_SIZE);
+    const scoreMap = new Map<string, number>();
+    const rankMap = new Map<string, number>();
+    top.forEach((p, i) => {
+      scoreMap.set(p.id, p.total_votes);
+      rankMap.set(p.id, i);
+    });
+    simulatedScores.current = scoreMap;
+    originalRanks.current = rankMap;
+    setDisplayedPeople(top);
+
+    // Weighted random selection helper
+    const pickRandomPerson = (list: Person[]): number => {
+      const r = Math.random();
+      const { WEIGHT_TOP5, WEIGHT_MID } = ANIMATION_CONFIG;
+      let bucket: [number, number];
+      if (r < WEIGHT_TOP5) {
+        bucket = [0, Math.min(5, list.length)];
+      } else if (r < WEIGHT_TOP5 + WEIGHT_MID) {
+        bucket = [Math.min(5, list.length), Math.min(15, list.length)];
+      } else {
+        bucket = [Math.min(15, list.length), list.length];
+      }
+      if (bucket[0] >= bucket[1]) bucket = [0, list.length];
+      return bucket[0] + Math.floor(Math.random() * (bucket[1] - bucket[0]));
+    };
+
+    // Schedule next organic tick
+    const scheduleTick = () => {
+      const delay = ANIMATION_CONFIG.TICK_MIN_MS +
+        Math.random() * (ANIMATION_CONFIG.TICK_MAX_MS - ANIMATION_CONFIG.TICK_MIN_MS);
+      animTickRef.current = setTimeout(() => {
         setDisplayedPeople(prev => {
-          // Shift: move first 3 to end and add 3 new from pool
-          const shifted = [...people].sort(() => Math.random() - 0.5).slice(0, 20);
-          return shifted;
+          const scores = simulatedScores.current;
+          const origRanks = originalRanks.current;
+          const copy = [...prev];
+
+          // Pick N people and add a random increment to their simulated score
+          for (let p = 0; p < ANIMATION_CONFIG.PICKS_PER_TICK; p++) {
+            const idx = pickRandomPerson(copy);
+            if (idx < copy.length) {
+              const person = copy[idx];
+              const current = scores.get(person.id) || person.total_votes;
+              const increment = ANIMATION_CONFIG.INCREMENT_MIN +
+                Math.floor(Math.random() * (ANIMATION_CONFIG.INCREMENT_MAX - ANIMATION_CONFIG.INCREMENT_MIN + 1));
+              scores.set(person.id, current + increment);
+            }
+          }
+
+          // Re-sort by simulated score
+          copy.sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
+
+          // Enforce ±MAX_DRIFT from original rank
+          const clamped = [...copy];
+          for (let i = 0; i < clamped.length; i++) {
+            const origRank = origRanks.get(clamped[i].id);
+            if (origRank !== undefined) {
+              const drift = i - origRank;
+              if (Math.abs(drift) > ANIMATION_CONFIG.MAX_DRIFT) {
+                // Reset simulated score slightly to pull back toward original rank
+                const baseVotes = clamped[i].total_votes;
+                scores.set(clamped[i].id, baseVotes + Math.floor(Math.random() * 10));
+              }
+            }
+          }
+
+          // Final sort after clamping
+          copy.sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
+
+          // Check if order actually changed
+          const changed = copy.some((p, i) => p.id !== prev[i]?.id);
+          if (changed) {
+            LayoutAnimation.configureNext(
+              LayoutAnimation.create(350, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+            );
+          }
+
+          return copy;
         });
-        // Fade in
-        Animated.timing(listFadeAnim, {
-          toValue: 1,
-          duration: 400,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 6000);
-    return () => clearInterval(shuffleInterval);
+
+        scheduleTick(); // Chain next tick
+      }, delay);
+    };
+
+    scheduleTick();
+
+    return () => {
+      if (animTickRef.current) clearTimeout(animTickRef.current);
+    };
   }, [people]);
 
   // Rotate outsider of the day every 10 seconds
@@ -644,7 +743,7 @@ export default function HomeScreen() {
           )}
 
           {!loading && !error && (
-            <Animated.View style={{ opacity: listFadeAnim }}>
+            <View>
               {displayedPeople.map((person, index) => {
                 // Determine trend arrow with visual variety (deterministic)
                 const nameHash = person.name.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
@@ -675,7 +774,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </Animated.View>
+            </View>
           )}
         </View>
 
