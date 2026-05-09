@@ -55,7 +55,8 @@
     "baseline": "Vota per le tue star preferite e scala la classifica mondiale.",
     "spot_title": "Your spot is waiting",
     "spot_subtitle": "Mettiti accanto alle star. Attiva un Booster per entrare nella classifica Outsiders.",
-    "spot_you": "YOU"
+    "spot_you": "YOU",
+    "outsiderSectionTitle": "Scopri i talenti emergenti nella classifica"
   },
   "popular": {
     "title": "Sondaggio in diretta"

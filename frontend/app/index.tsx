@@ -23,6 +23,7 @@ import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg"
 import { CreditsService, type OutsiderData } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -264,21 +265,23 @@ function TimeRemainingBadge({ hours }: { hours: number }) {
   );
 }
 
-// ---- Outsider Card ----
+// ---- Outsider Card (Home) — BLOC 2.4: Heart + Social buttons ----
 
-function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden: boolean }) {
+function OutsiderCard({ outsider, isGolden, onLike }: { outsider: OutsiderData; isGolden: boolean; onLike: (id: string) => void }) {
   const router = useRouter();
 
+  const initials = outsider.avatar_initials ||
+    outsider.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+
   return (
-    <TouchableOpacity
+    <View
       style={[
         styles.outsiderCard,
         isGolden ? styles.goldenCard : styles.regularCard,
         isGolden && { minWidth: 260 },
       ]}
-      onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
-      activeOpacity={0.7}
     >
+      {/* Tier badge */}
       <View style={styles.outsiderBadge}>
         <Ionicons
           name={isGolden ? "trophy" : "rocket"}
@@ -291,7 +294,12 @@ function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden
         <TimeRemainingBadge hours={outsider.hours_remaining} />
       </View>
 
-      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+      {/* Avatar + Name — tappable to go to person page */}
+      <TouchableOpacity
+        style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
+        onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
+        activeOpacity={0.7}
+      >
         <View
           style={{
             width: 32,
@@ -306,16 +314,37 @@ function OutsiderCard({ outsider, isGolden }: { outsider: OutsiderData; isGolden
           }}
         >
           <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>
-            {outsider.avatar_initials || outsider.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+            {initials}
           </Text>
         </View>
         <Text style={[styles.outsiderName, isGolden && { color: PALETTE.gold }]}>
           {outsider.name}
         </Text>
-      </View>
+      </TouchableOpacity>
 
-      <SocialLinksRow links={outsider.social_links} />
-    </TouchableOpacity>
+      {/* BLOC 2.4: Heart + Social row */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+        <TouchableOpacity
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "rgba(255, 71, 87, 0.12)",
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 20,
+          }}
+          onPress={() => onLike(outsider.id)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="heart" size={16} color="#FF4757" />
+          <Text style={{ color: "#FF4757", fontWeight: "700", fontSize: 13, marginLeft: 4 }}>
+            {outsider.likes || 0}
+          </Text>
+        </TouchableOpacity>
+
+        <SocialLinksRow links={outsider.social_links} />
+      </View>
+    </View>
   );
 }
 
@@ -380,6 +409,26 @@ export default function HomeScreen() {
     loadData();
     const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // BLOC 2.4: Like an outsider directly from the Home card
+  const handleLikeOutsider = useCallback(async (personId: string) => {
+    try {
+      const userId = await AsyncStorage.getItem('popular_user_id') || `user_temp_${Date.now()}`;
+      const res = await fetch(API(`/people/${personId}/vote`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, delta: 1 }),
+      });
+      if (res.ok) {
+        // Optimistic update on the golden outsiders state
+        setGoldenOutsiders(prev =>
+          prev.map(o => o.id === personId ? { ...o, likes: (o.likes || 0) + 1 } : o)
+        );
+      }
+    } catch (err) {
+      console.error('Like outsider error:', err);
+    }
   }, []);
 
   // ===== ALGO A: Organic Ranking Movement =====
@@ -700,7 +749,31 @@ export default function HomeScreen() {
                 </Text>
                 <TimeRemainingBadge hours={goldenOutsiders[currentOutsiderIndex]?.hours_remaining || 0} />
               </View>
-              <SocialLinksRow links={goldenOutsiders[currentOutsiderIndex]?.social_links} />
+              {/* BLOC 2.4: Heart + Social on Outsider of the Day */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255, 71, 87, 0.12)",
+                    paddingHorizontal: 14,
+                    paddingVertical: 7,
+                    borderRadius: 20,
+                  }}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    const outsider = goldenOutsiders[currentOutsiderIndex];
+                    if (outsider) handleLikeOutsider(outsider.id);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="heart" size={18} color="#FF4757" />
+                  <Text style={{ color: "#FF4757", fontWeight: "700", fontSize: 14, marginLeft: 5 }}>
+                    {goldenOutsiders[currentOutsiderIndex]?.likes || 0}
+                  </Text>
+                </TouchableOpacity>
+                <SocialLinksRow links={goldenOutsiders[currentOutsiderIndex]?.social_links} />
+              </View>
             </TouchableOpacity>
           </Animated.View>
         )}

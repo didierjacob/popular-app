@@ -81,9 +81,10 @@ interface LiveVoteEntry {
   timestamp: number;
 }
 
-function generateDummyVote(idCounter: number): LiveVoteEntry {
+function generateDummyVote(idCounter: number, isOutsider: boolean = false): LiveVoteEntry {
   const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
-  const action = Math.random() > 0.3 ? "liked" : "disliked";
+  // BLOC 2.1: Outsiders only receive likes, no dislikes
+  const action = isOutsider ? "liked" : (Math.random() > 0.3 ? "liked" : "disliked");
   const country = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
   return {
     id: idCounter,
@@ -326,52 +327,55 @@ export default function Person() {
 
   useEffect(() => {
     fetchData(false);
-    const i = setInterval(() => fetchData(true), 10000);
-    return () => clearInterval(i);
+    // Note: periodic refetch removed to preserve BLOC 1.7 visual vote counter sync
+    // The live feed is simulated locally, so polling the API would overwrite the
+    // accumulated deltas and cause the counter to jump down every 10s.
   }, [fetchData]);
 
-  // Live feed: generate dummy votes every 2-4 seconds
+  // BLOC 1.7: Track accumulated live feed votes for visual sync
+  const liveLikesDelta = useRef(0);
+  const liveDislikesDelta = useRef(0);
+  const isOutsider = person?.source === "self_boosted";
+
+  // Live feed: generate dummy votes
+  // BLOC 2.2: Outsiders get slower refresh (60-120s) and only "liked" actions
   useEffect(() => {
+    const outsiderMode = person?.source === "self_boosted";
     // Seed initial votes
     const initial: LiveVoteEntry[] = [];
-    for (let i = 0; i < 8; i++) {
+    const seedCount = outsiderMode ? 3 : 8;
+    for (let i = 0; i < seedCount; i++) {
       voteIdCounter.current++;
-      const entry = generateDummyVote(voteIdCounter.current);
-      entry.timestamp = Date.now() - (8 - i) * 3000;
+      const entry = generateDummyVote(voteIdCounter.current, outsiderMode);
+      entry.timestamp = Date.now() - (seedCount - i) * (outsiderMode ? 30000 : 3000);
       initial.push(entry);
     }
     setLiveVotes(initial);
 
     const addVote = () => {
       voteIdCounter.current++;
-      const newEntry = generateDummyVote(voteIdCounter.current);
+      const newEntry = generateDummyVote(voteIdCounter.current, outsiderMode);
       newEntry.timestamp = Date.now();
       setLiveVotes((prev) => [newEntry, ...prev].slice(0, 30));
 
-      // BLOC 1.7: Sync visual vote counter with live feed
-      setPerson((prev: any) => {
-        if (!prev) return prev;
-        if (newEntry.action === "liked") {
-          return {
-            ...prev,
-            likes: (prev.likes || 0) + 1,
-            total_votes: (prev.total_votes || 0) + 1,
-          };
-        } else {
-          return {
-            ...prev,
-            dislikes: (prev.dislikes || 0) + 1,
-            total_votes: (prev.total_votes || 0) + 1,
-          };
-        }
-      });
+      // BLOC 1.7: Accumulate deltas for visual sync
+      if (newEntry.action === "liked") {
+        liveLikesDelta.current += 1;
+      } else {
+        liveDislikesDelta.current += 1;
+      }
     };
 
-    liveIntervalRef.current = setInterval(addVote, 2500 + Math.random() * 2000);
+    // BLOC 2.2: Outsiders = 60-120s interval, regular = 2.5-4.5s
+    const interval = outsiderMode
+      ? 60000 + Math.random() * 60000
+      : 2500 + Math.random() * 2000;
+
+    liveIntervalRef.current = setInterval(addVote, interval);
     return () => {
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
     };
-  }, []);
+  }, [person?.source]);
 
   // Force re-render every second to update relative times
   const [, setTick] = useState(0);
@@ -482,11 +486,18 @@ export default function Person() {
     }
   };
 
+  // BLOC 1.7: Computed display values with live feed deltas
+  // liveLikesDelta.current is updated by addVote and read on each render
+  // The 1-second setTick timer ensures periodic re-renders to pick up new values
+  const displayLikes = (person?.likes || 0) + liveLikesDelta.current;
+  const displayDislikes = (person?.dislikes || 0) + liveDislikesDelta.current;
+  const displayTotalVotes = (person?.total_votes || 0) + liveLikesDelta.current + liveDislikesDelta.current;
+
   // Share
   const shareMessage = t("person.shareMessage", {
     name,
     score: Math.round(person?.score || 0),
-    votes: formatNumber(person?.total_votes || 0),
+    votes: formatNumber(displayTotalVotes),
   });
 
   const shareToFacebook = async () => {
@@ -542,8 +553,8 @@ export default function Person() {
               <Text style={styles.title}>{name}</Text>
               <Text style={styles.meta}>
                 {person?.source === "self_boosted"
-                  ? `${formatNumber(person?.likes || 0)} supporters`
-                  : `${formatNumber(person?.likes || 0)} likes \u2022 ${formatNumber(person?.dislikes || 0)} dislikes`}
+                  ? `${formatNumber(displayLikes)} supporters`
+                  : `${formatNumber(displayLikes)} likes \u2022 ${formatNumber(displayDislikes)} dislikes`}
               </Text>
             </View>
 
@@ -569,7 +580,7 @@ export default function Person() {
               </Animated.View>
               <Text style={styles.indexVotes}>
                 {t("person.totalVotes", {
-                  count: formatNumber(person?.total_votes || 0),
+                  count: formatNumber(displayTotalVotes),
                 })}
               </Text>
               <TrendStatusBadge status={trendStatus} />

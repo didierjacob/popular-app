@@ -1,315 +1,512 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, Animated, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useTranslation } from "react-i18next";
+import React, { useState, useEffect, useCallback } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  RefreshControl,
+  Linking,
+  Alert,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { CreditsService, type OutsiderData } from '../services/creditsService';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PALETTE = {
-  bg: "#0F2F22", // greener
-  card: "#1C3A2C",
-  text: "#EAEAEA",
-  subtext: "#C9D8D2",
-  accent: "#8B0000", // dark red (up)
-  green: "#009B4D", // dark green (down)
-  accent2: "#E04F5F",
-  border: "#2E6148",
+  bg: '#0F2F22',
+  card: '#162E23',
+  cardBorder: '#1E4433',
+  text: '#EAEAEA',
+  subtext: '#8FA89B',
+  accent: '#009B4D',
+  accent2: '#2ECC71',
+  gold: '#FFD700',
+  heart: '#FF4757',
 };
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
-// Helper to capitalize first letter
-const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
-
-// Helper to format numbers without decimals
-const formatNumber = (num: number) => Math.round(num).toLocaleString();
-
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(API(path));
-  if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
-  return res.json();
-}
-
-interface Person {
-  id: string;
-  name: string;
-  category?: "politics" | "culture" | "business" | "other";
-  score: number;
-  total_votes: number;
-}
-
-type Direction = "up" | "down" | "flat";
-
-type FilterCat = "all" | "politics" | "culture" | "business" | "sport";
-
-async function apiPost<T>(path: string, body?: any, headers?: Record<string, string>): Promise<T> {
-  const res = await fetch(API(path), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(headers || {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`POST ${path} ${res.status}`);
-  return res.json();
-}
-
-const DEVICE_KEY = "popularity_device_id";
-async function getDeviceId() {
-  let id = await AsyncStorage.getItem(DEVICE_KEY);
-  if (!id) {
-    id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    await AsyncStorage.setItem(DEVICE_KEY, id);
-  }
-  return id;
-}
-
-export default function Popular() {
+// ---- Outsider Feed Card with Heart + Social ----
+function OutsiderFeedCard({ outsider, onLike }: { outsider: OutsiderData; onLike: (id: string) => void }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const [items, setItems] = useState<Person[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const prevScoresRef = useRef<Record<string, number>>({});
-  const [dirs, setDirs] = useState<Record<string, Direction>>({});
-  const [filter, setFilter] = useState<FilterCat>("all");
-  const { width: screenWidth } = useWindowDimensions();
-  const isTablet = screenWidth > 768;
+  const isGolden = outsider.tier === 'golden_booster';
 
-  // persist last selected category
-  const loadSavedFilter = useCallback(async () => {
-    try {
-      const saved = await AsyncStorage.getItem("popularity_popular_filter");
-      if (saved === "all" || saved === "politics" || saved === "culture" || saved === "business" || saved === "sport") {
-        setFilter(saved as FilterCat);
-      }
-    } catch {}
-  }, []);
+  const initials = outsider.avatar_initials ||
+    outsider.name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
 
-  useEffect(() => { loadSavedFilter(); }, [loadSavedFilter]);
-  useEffect(() => { AsyncStorage.setItem("popularity_popular_filter", filter).catch(() => {}); }, [filter]);
-
-  const load = useCallback(async () => {
-    try {
-      const qry = filter === "all" ? "" : `?category=${filter}`;
-      const list = await apiGet<Person[]>(`/people${qry}`);
-      
-      // Select random 15 personalities for instant polling
-      const shuffled = [...list].sort(() => Math.random() - 0.5);
-      const randomSelection = shuffled.slice(0, 15);
-      
-      // Compute direction animation for new scores
-      const nextDirs: Record<string, Direction> = {};
-      randomSelection.forEach((p) => {
-        const prev = prevScoresRef.current[p.id];
-        if (prev !== undefined) {
-          if (p.score > prev) nextDirs[p.id] = "up";
-          else if (p.score < prev) nextDirs[p.id] = "down";
-          else nextDirs[p.id] = "flat";
-        } else {
-          nextDirs[p.id] = "flat";
-        }
-      });
-      // update caches
-      prevScoresRef.current = Object.fromEntries(randomSelection.map(p => [p.id, p.score]));
-      setDirs(nextDirs);
-      setItems(randomSelection);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 5000);
-    return () => clearInterval(i);
-  }, [load]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }, [load]);
-
-  const displayed = useMemo(() => {
-    return items; // filtering now handled in load function
-  }, [items]);
-
-  const renderItem = ({ item }: { item: Person }) => (
-    <Row 
-      item={item} 
-      dir={dirs[item.id] || "flat"} 
-      onOpen={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
-    />
-  );
+  const hoursLeft = outsider.hours_remaining || 0;
+  const d = Math.floor(hoursLeft / 24);
+  const h = Math.floor(hoursLeft % 24);
+  const timeStr = d > 0 ? `${d}d ${h}h` : `${h}h`;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
-      <View style={{ flex: 1, maxWidth: isTablet ? 600 : undefined, width: '100%', alignSelf: 'center' }}>
-      {loading ? (
-        <View style={styles.center}><ActivityIndicator color={PALETTE.accent2} /></View>
-      ) : (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{t("popular.title")}</Text>
-          </View>
-          <FilterBar filter={filter} setFilter={setFilter} />
-          <FlatList
-            data={displayed}
-            keyExtractor={(it) => it.id}
-            renderItem={renderItem}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
-            contentContainerStyle={{ paddingBottom: 24 }}
-          />
-        </>
-      )}
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function FilterBar({ filter, setFilter }: { filter: FilterCat; setFilter: (v: FilterCat) => void }) {
-  const tabs: { key: FilterCat; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "politics", label: "Politics" },
-    { key: "culture", label: "Culture" },
-    { key: "business", label: "Business" },
-    { key: "sport", label: "Sport" },
-  ];
-  return (
-    <View style={styles.filterContainer}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
-        contentContainerStyle={styles.filterScrollContent}
+    <View style={[styles.feedCard, isGolden && styles.feedCardGolden]}>
+      {/* Header row: avatar + name + tier */}
+      <TouchableOpacity
+        style={styles.feedCardHeader}
+        onPress={() => router.push({ pathname: '/person', params: { id: outsider.id, name: outsider.name } })}
+        activeOpacity={0.7}
       >
-        {tabs.map(t => {
-          const active = filter === t.key;
-          return (
-            <TouchableOpacity 
-              key={t.key} 
-              onPress={() => setFilter(t.key)} 
-              style={[styles.chip, active && styles.chipActive]}
+        <View style={[
+          styles.feedAvatar,
+          { backgroundColor: outsider.avatar_color || '#1C3A2C' },
+          isGolden && { borderColor: PALETTE.gold, borderWidth: 2 },
+        ]}>
+          <Text style={styles.feedAvatarText}>{initials}</Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={[styles.feedName, isGolden && { color: PALETTE.gold }]} numberOfLines={1}>
+            {outsider.name}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, flexWrap: 'wrap' }}>
+            <View style={[styles.tierBadge, isGolden && { backgroundColor: PALETTE.gold + '22', borderColor: PALETTE.gold + '44' }]}>
+              <Ionicons name={isGolden ? 'trophy' : 'rocket'} size={11} color={isGolden ? PALETTE.gold : PALETTE.accent2} />
+              <Text style={[styles.tierText, isGolden && { color: PALETTE.gold }]}>{outsider.tier_name}</Text>
+            </View>
+            {hoursLeft > 0 && (
+              <View style={styles.timeBadge}>
+                <Ionicons name="time-outline" size={10} color={PALETTE.accent2} />
+                <Text style={styles.timeText}>{timeStr}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Action row: Heart + Social links */}
+      <View style={styles.feedActions}>
+        {/* Heart (Like) Button */}
+        <TouchableOpacity
+          style={styles.heartButton}
+          onPress={() => onLike(outsider.id)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="heart" size={22} color={PALETTE.heart} />
+          <Text style={styles.heartText}>{outsider.likes || 0}</Text>
+        </TouchableOpacity>
+
+        {/* Social Links */}
+        <View style={styles.socialRow}>
+          {outsider.social_links?.instagram && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: '#E1306C' }]}
+              onPress={() => {
+                const u = outsider.social_links.instagram?.replace('@', '') || '';
+                Linking.openURL(`https://instagram.com/${u}`).catch(() => {});
+              }}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t.label}</Text>
+              <Ionicons name="logo-instagram" size={16} color="#fff" />
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+          {outsider.social_links?.tiktok && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: '#111' }]}
+              onPress={() => {
+                const u = outsider.social_links.tiktok?.replace('@', '') || '';
+                Linking.openURL(`https://tiktok.com/@${u}`).catch(() => {});
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-tiktok" size={16} color="#fff" />
+            </TouchableOpacity>
+          )}
+          {outsider.social_links?.x && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: '#000' }]}
+              onPress={() => {
+                const u = outsider.social_links.x?.replace('@', '') || '';
+                Linking.openURL(`https://x.com/${u}`).catch(() => {});
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-twitter" size={16} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
     </View>
   );
 }
 
-function Row({ item, dir, onOpen }: { item: Person; dir: Direction; onOpen: () => void }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const rot = useRef(new Animated.Value(0)).current; // 0..1
+// ---- Booster Promo Card (injected every 10 items) ----
+function BoosterPromoCard({ variant }: { variant: number }) {
+  const router = useRouter();
+  const { t } = useTranslation();
 
-  useEffect(() => {
-    if (dir === "flat") return;
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.08, duration: 120, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1.0, duration: 120, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(rot, { toValue: 1, duration: 120, useNativeDriver: true }),
-        Animated.timing(rot, { toValue: 0, duration: 120, useNativeDriver: true }),
-      ]),
-    ]).start();
-  }, [dir, scale, rot]);
-
-  // Arrow based on score (like List page): score > 50 = up, score < 50 = down
-  const score = item.score;
-  const isUp = score > 50;
-  const isDown = score < 50;
-  const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
-  const iconColor = isUp ? PALETTE.green : isDown ? PALETTE.accent : PALETTE.subtext;
-  
-  const styleAnim = {
-    transform: [
-      { scale },
-      { rotate: rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", isUp ? "-6deg" : "6deg"] }) },
-    ],
-  } as any;
+  const promos = [
+    { icon: 'rocket' as const, title: t('premium.title'), sub: t('premium.subtitle'), color: PALETTE.accent },
+    { icon: 'trophy' as const, title: 'Golden Booster', sub: 'Top ranking position', color: PALETTE.gold },
+    { icon: 'star' as const, title: 'Super Booster', sub: 'Accelerate your rise', color: '#9B59B6' },
+  ];
+  const promo = promos[variant % promos.length];
 
   return (
-    <TouchableOpacity style={styles.row} onPress={onOpen}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.meta}>{capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}</Text>
+    <TouchableOpacity
+      style={[styles.promoCard, { borderColor: promo.color }]}
+      onPress={() => router.push('/premium')}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.promoIcon, { backgroundColor: promo.color + '22' }]}>
+        <Ionicons name={promo.icon} size={28} color={promo.color} />
       </View>
-      <View style={styles.indicator}>
-        <Animated.View accessible accessibilityLabel={`direction-${isUp ? 'up' : isDown ? 'down' : 'flat'}`} style={styleAnim}>
-          <Ionicons name={arrowIcon as any} size={22} color={iconColor} />
-        </Animated.View>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.promoTitle, { color: promo.color }]}>{promo.title}</Text>
+        <Text style={styles.promoSub}>{promo.sub}</Text>
       </View>
+      <Ionicons name="chevron-forward" size={20} color={promo.color} />
     </TouchableOpacity>
   );
 }
 
+// ---- Main Outsiders Page ----
+export default function OutsidersScreen() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadOutsiders = useCallback(async () => {
+    try {
+      const data = await CreditsService.getOutsiders();
+      // Merge golden (top position) and regular into a single feed
+      const all = [...(data.golden || []), ...(data.regular || [])];
+      setOutsiders(all);
+    } catch (err) {
+      console.error('Failed to load outsiders:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOutsiders();
+  }, [loadOutsiders]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadOutsiders();
+  }, [loadOutsiders]);
+
+  // BLOC 2.4: Like an outsider directly from the card
+  const handleLike = useCallback(async (personId: string) => {
+    try {
+      const userId = await AsyncStorage.getItem('popular_user_id') || `user_temp_${Date.now()}`;
+      const res = await fetch(API(`/people/${personId}/vote`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, delta: 1 }),
+      });
+
+      if (res.ok) {
+        // Optimistic update
+        setOutsiders(prev =>
+          prev.map(o => o.id === personId ? { ...o, likes: (o.likes || 0) + 1 } : o)
+        );
+      } else {
+        const data = await res.json();
+        if (data?.detail) {
+          Alert.alert(
+            t('person.alreadyVotedTitle'),
+            typeof data.detail === 'string' ? data.detail : t('person.alreadyVotedMessage', { name: '' })
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Vote error:', err);
+    }
+  }, [t]);
+
+  // Build feed: outsider cards + promo cards every 10 items
+  const buildFeed = () => {
+    const items: { type: 'outsider' | 'promo'; data?: OutsiderData; variant?: number }[] = [];
+    let promoCount = 0;
+
+    outsiders.forEach((o, i) => {
+      items.push({ type: 'outsider', data: o });
+      if ((i + 1) % 10 === 0) {
+        items.push({ type: 'promo', variant: promoCount });
+        promoCount++;
+      }
+    });
+
+    return items;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color={PALETTE.accent} style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
+  const feed = buildFeed();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent} />}
+      >
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <Text style={styles.headerTitle}>{t('tabs.outsiders')}</Text>
+          <Text style={styles.headerSub}>
+            {t('home.outsiderSectionTitle') || 'Discover emerging talents'}
+          </Text>
+        </View>
+
+        {/* Feed */}
+        {feed.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={48} color={PALETTE.subtext} />
+            <Text style={styles.emptyText}>No Outsiders yet</Text>
+            <TouchableOpacity
+              style={styles.boostCta}
+              onPress={() => router.push('/premium')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.boostCtaText}>{t('premium.title')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          feed.map((item, index) => {
+            if (item.type === 'promo') {
+              return <BoosterPromoCard key={`promo-${index}`} variant={item.variant || 0} />;
+            }
+            return (
+              <OutsiderFeedCard
+                key={item.data!.id}
+                outsider={item.data!}
+                onLike={handleLike}
+              />
+            );
+          })
+        )}
+
+        {/* Bottom CTA */}
+        {outsiders.length > 0 && (
+          <TouchableOpacity
+            style={styles.bottomCta}
+            onPress={() => router.push('/premium')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="rocket" size={20} color={PALETTE.accent} />
+            <Text style={styles.bottomCtaText}>{t('premium.title')}</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: PALETTE.bg },
-  header: {
+  container: {
+    flex: 1,
+    backgroundColor: PALETTE.bg,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
+  },
+  headerSection: {
+    marginBottom: 20,
   },
   headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
     color: PALETTE.text,
-    fontSize: 24,
-    fontWeight: '700',
+    marginBottom: 4,
   },
-  filterContainer: {
-    backgroundColor: PALETTE.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
+  headerSub: {
+    fontSize: 14,
+    color: PALETTE.subtext,
+    lineHeight: 20,
   },
-  filterScrollContent: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomColor: PALETTE.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-  },
-  name: { color: PALETTE.text, fontSize: 16, fontWeight: '600' },
-  meta: { color: PALETTE.subtext, marginTop: 4 },
-  indicator: { width: 28, alignItems: 'center' },
-  chip: {
+  // Feed Card
+  feedCard: {
     backgroundColor: PALETTE.card,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderColor: PALETTE.border,
+    borderRadius: 16,
     borderWidth: 1,
-    marginRight: 8,
-    minWidth: 50,
+    borderColor: PALETTE.cardBorder,
+    padding: 16,
+    marginBottom: 12,
+  },
+  feedCardGolden: {
+    borderColor: PALETTE.gold + '66',
+    backgroundColor: '#1C3524',
+  },
+  feedCardHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  feedAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedAvatarText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  feedName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: PALETTE.text,
+  },
+  feedMeta: {
+    fontSize: 13,
+    color: PALETTE.subtext,
+    marginTop: 2,
+  },
+  tierBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46,204,113,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(46,204,113,0.25)',
+    marginRight: 6,
+  },
+  tierText: {
+    color: PALETTE.accent2,
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,155,77,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  timeText: {
+    color: PALETTE.accent2,
+    fontSize: 10,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  feedActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.cardBorder,
+  },
+  heartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 71, 87, 0.12)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    minWidth: 80,
     justifyContent: 'center',
   },
-  chipActive: {
+  heartText: {
+    color: '#FF4757',
+    fontWeight: '700',
+    fontSize: 15,
+    marginLeft: 6,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  socialBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Promo Card
+  promoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PALETTE.card,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 12,
+    marginVertical: 4,
+  },
+  promoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  promoSub: {
+    fontSize: 13,
+    color: PALETTE.subtext,
+    marginTop: 2,
+  },
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: PALETTE.subtext,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  boostCta: {
     backgroundColor: PALETTE.accent,
-    borderColor: PALETTE.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
   },
-  chipText: { 
-    color: PALETTE.text, 
-    fontWeight: '600', 
-    fontSize: 14, 
-    textAlign: 'center',
+  boostCtaText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 15,
   },
-  chipTextActive: {
-    color: 'white',
+  // Bottom CTA
+  bottomCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PALETTE.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.accent + '44',
+    padding: 16,
+    marginTop: 8,
+    gap: 8,
+  },
+  bottomCtaText: {
+    color: PALETTE.accent,
+    fontWeight: '700',
+    fontSize: 15,
   },
 });
-// sync
