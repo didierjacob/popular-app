@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Popularoo</title>
+<meta name="description" content="Terms of Service of the Popularoo application, published by EN HAUT DES MARCHES SARL.">
+<style>
+  :root {
+    --bg: #0F2F22;
+    --bg-soft: #143A2A;
+    --green: #009B4D;
+    --green-light: #2ECC71;
+    --gold: #FFD700;
+    --red: #E04F5F;
+    --text: #F4F4F2;
+    --text-soft: #C8D5CE;
+    --rule: #1F4A36;
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 17px;
+    padding: 0;
+  }
+  .wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 60px 32px 100px;
+  }
+  header {
+    border-bottom: 2px solid var(--green);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .brand {
+    display: inline-block;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+  .meta {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text-soft);
+    letter-spacing: 0.02em;
+  }
+  .meta strong { color: var(--gold); font-weight: 600; }
+
+  nav.toc {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--gold);
+    padding: 24px 28px;
+    margin: 40px 0 48px;
+    border-radius: 4px;
+  }
+  nav.toc h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+  nav.toc ol {
+    list-style: none;
+    counter-reset: toc;
+    column-count: 2;
+    column-gap: 32px;
+  }
+  nav.toc ol li {
+    counter-increment: toc;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  nav.toc ol li::before {
+    content: counter(toc) ". ";
+    color: var(--gold);
+    font-weight: 600;
+  }
+  nav.toc a {
+    color: var(--text-soft);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  nav.toc a:hover { color: var(--green-light); }
+
+  h2.article {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.3;
+    scroll-margin-top: 24px;
+  }
+  h2.article .num {
+    color: var(--green-light);
+    font-weight: 800;
+    margin-right: 10px;
+  }
+  h3 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 28px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin: 16px 0 20px 24px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--gold); font-weight: 700; }
+  em { color: var(--text-soft); font-style: italic; }
+  a { color: var(--green-light); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--gold); }
+
+  .callout {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--green);
+    padding: 18px 22px;
+    margin: 24px 0;
+    font-size: 15px;
+    border-radius: 4px;
+  }
+  .callout.warning { border-left-color: var(--red); }
+  .callout.info { border-left-color: var(--gold); }
+
+  .contact-block {
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    padding: 24px;
+    margin: 24px 0;
+    border-radius: 4px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+  }
+  .contact-block .label {
+    color: var(--gold);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .contact-block p { margin-bottom: 14px; }
+  .contact-block p:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    color: var(--text-soft);
+    text-align: center;
+  }
+  footer a { color: var(--green-light); }
+
+  @media (max-width: 640px) {
+    .wrapper { padding: 40px 20px 80px; }
+    h1 { font-size: 28px; }
+    h2.article { font-size: 19px; margin-top: 44px; }
+    nav.toc ol { column-count: 1; }
+    body { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<header>
+  <span class="brand">Popularoo · Legal document</span>
+  <h1>Terms of Service</h1>
+  <p class="meta">Version <strong>2.1</strong> · Effective from <strong>5 May 2026</strong></p>
+</header>
+
+<div class="callout info">
+  <p style="margin-bottom:0"><strong>Governing language notice.</strong> This English version is provided for the convenience of international users. The French version (<a href="/terms-fr.html">terms-fr.html</a>) is the legally binding text. In case of any discrepancy between the two versions, the French version shall prevail.</p>
+</div>
+
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#a1">Preamble and acceptance</a></li>
+    <li><a href="#a2">Definitions</a></li>
+    <li><a href="#a3">Access to the Service and minimum age</a></li>
+    <li><a href="#a4">User account and device identifier</a></li>
+    <li><a href="#a5">Description of the Service</a></li>
+    <li><a href="#a6">Hosting status under LCEN and DSA</a></li>
+    <li><a href="#a7">Rights of public figures featured on Popularoo</a></li>
+    <li><a href="#a8">In-app purchases and Boosters</a></li>
+    <li><a href="#a9">Right of withdrawal and refunds</a></li>
+    <li><a href="#a10">Intellectual property</a></li>
+    <li><a href="#a11">Moderation and reporting</a></li>
+    <li><a href="#a12">Personal data</a></li>
+    <li><a href="#a13">Liability</a></li>
+    <li><a href="#a14">Suspension and termination</a></li>
+    <li><a href="#a15">Consumer mediation</a></li>
+    <li><a href="#a16">Amendments to the Terms</a></li>
+    <li><a href="#a17">Governing law and jurisdiction</a></li>
+    <li><a href="#a18">Voting system</a></li>
+    <li><a href="#a19">Popularoo Index</a></li>
+    <li><a href="#a20">Daily Runs and Strikes</a></li>
+    <li><a href="#a21">Outsiders and Booster profiles</a></li>
+    <li><a href="#a22">Demonstration elements</a></li>
+  </ol>
+</nav>
+
+<h2 class="article" id="a1"><span class="num">Article 1.</span>Preamble and acceptance</h2>
+
+<p>These Terms of Service (hereinafter the "<strong>Terms</strong>") govern the use of the mobile application and website <strong>Popularoo</strong> (hereinafter the "<strong>Service</strong>"), published by <strong>EN HAUT DES MARCHES</strong>, a French <em>société à responsabilité limitée</em> (SARL) with share capital as set forth in its articles of association, registered with the Paris Trade and Companies Register (<em>Registre du Commerce et des Sociétés</em>) under number 504 747 932, with registered office at 147 rue Léon-Maurice Nordmann, 75013 Paris, France, represented by its acting manager (hereinafter the "<strong>Publisher</strong>").</p>
+
+<p>Use of the Service implies full, complete and unreserved acceptance of these Terms by the user (hereinafter the "<strong>User</strong>"). If the User does not accept all or part of these Terms, the User must refrain from using the Service.</p>
+
+<p>The User acknowledges having read these Terms before any use of the Service. Acceptance of the Terms is materialised by the first effective use of the Service.</p>
+
+<h2 class="article" id="a2"><span class="num">Article 2.</span>Definitions</h2>
+
+<p>For the purposes of these Terms, the following terms shall have the following meanings:</p>
+
+<ul>
+  <li><strong>Public Figure</strong>: a public personality referenced in the Service (artist, athlete, political official, media personality or any individual with verifiable public notoriety).</li>
+  <li><strong>Outsider</strong>: a User who has activated a Booster in order to appear in the Outsiders ranking.</li>
+  <li><strong>Booster</strong>: a paid product allowing a User to appear in the Outsiders ranking for a defined period.</li>
+  <li><strong>Vote</strong>: action of Like, Dislike or Superlike performed by a User towards a Public Figure or an Outsider, under the conditions of Article 18.</li>
+  <li><strong>Popularoo Index</strong>: synthetic popularity indicator computed by the Service, under the conditions of Article 19.</li>
+  <li><strong>Daily Run</strong>: 24-hour challenge allowing an Outsider to attempt to surpass the momentum of a Public Figure, under the conditions of Article 20.</li>
+  <li><strong>Strike</strong>: amplification event triggered by sustained mobilisation, under the conditions of Article 20.</li>
+  <li><strong>Device Identifier</strong>: unique technical identifier assigned to the User's device, used for abuse prevention and vote tracking.</li>
+</ul>
+
+<h2 class="article" id="a3"><span class="num">Article 3.</span>Access to the Service and minimum age</h2>
+
+<p>Access to the Service is reserved for natural persons aged at least <strong>16 years</strong>. This age corresponds to the European threshold provided by the General Data Protection Regulation (GDPR — <em>Règlement Général sur la Protection des Données</em>) for use of digital services without parental consent.</p>
+
+<p>The User declares having the legal capacity to accept these Terms. In the event of use of the Service by a minor, the liability of the holders of parental authority is engaged.</p>
+
+<p>The Publisher reserves the right to request proof of age in case of doubt, and to suspend or terminate without notice any account not meeting this condition.</p>
+
+<h2 class="article" id="a4"><span class="num">Article 4.</span>User account and device identifier</h2>
+
+<p>Use of the Service does not require the creation of an account in the traditional sense: the User is identified by a <strong>device identifier</strong> automatically generated upon first launch of the application.</p>
+
+<p>The User may, optionally, enrich their identifier by:</p>
+<ul>
+  <li>Choosing a public display name when activating a Booster;</li>
+  <li>Providing an email address for receiving notifications related to their purchases (receipts, Booster expiration alerts);</li>
+  <li>Providing their social media accounts (Instagram, TikTok, X), publicly displayed on their Outsider page, under the conditions of Article 21;</li>
+  <li>Modifying their reference country and display language in the settings.</li>
+</ul>
+
+<p>The User undertakes not to use multiple devices or circumvention techniques (changing device identifier, using a VPN, multi-accounts) for the purpose of artificially influencing votes or rankings. Any circumvention identified shall result in the immediate suspension of the accounts concerned and the invalidation of fraudulent votes.</p>
+
+<h2 class="article" id="a5"><span class="num">Article 5.</span>Description of the Service</h2>
+
+<p>Popularoo is a platform for rating the popularity of public figures, presented in the metaphorical form of a "popularity market". The Service allows Users to:</p>
+
+<ul>
+  <li>Vote in favour of or against referenced Public Figures;</li>
+  <li>Consult rankings in real time;</li>
+  <li>Themselves appear in the Outsiders ranking by purchasing a Booster;</li>
+  <li>Take part in challenges (Daily Runs) when their Booster tier permits;</li>
+  <li>Suggest the addition of new Public Figures to the database, subject to validation and compliance.</li>
+</ul>
+
+<p>The Service is provided free of charge, with the exception of paid features described in Article 8 (Boosters). The Publisher reserves the right to modify the features of the Service at any time.</p>
+
+<p>The Service uses metaphorical vocabulary inspired by stock market language ("market", "rise", "fall", "index"). This terminology is <strong>strictly editorial and playful</strong> and shall not be interpreted as the exercise of a regulated financial market activity. Popularoo is in no case a financial product, is not regulated by the French Financial Markets Authority (<em>Autorité des Marchés Financiers</em> — AMF), and does not provide any investment advice.</p>
+
+<h2 class="article" id="a6"><span class="num">Article 6.</span>Hosting status under LCEN and DSA</h2>
+
+<p>The Publisher acts as a <strong>content host</strong> within the meaning of Article 6.I.2 of French Law no. 2004-575 of 21 June 2004 on confidence in the digital economy (<em>Loi pour la Confiance dans l'Économie Numérique</em> — LCEN) and of Regulation (EU) 2022/2065 of 19 October 2022 on digital services (Digital Services Act, "<strong>DSA</strong>").</p>
+
+<p>As such:</p>
+<ul>
+  <li>The Publisher does not exercise <em>a priori</em> exhaustive control over content uploaded by Users (suggested Public Figures, display names, social media accounts provided, various contributions);</li>
+  <li>The Publisher is only required to act <em>a posteriori</em>, after notification of manifestly illicit content, under the conditions of Articles 11 and 15;</li>
+  <li>The Publisher provides a reporting mechanism accessible to any person, in accordance with Article 16 of the DSA.</li>
+</ul>
+
+<p>The Publisher is not the author of content added by Users and does not assume editorial responsibility for it, subject to its obligation to remove content after notification.</p>
+
+<h2 class="article" id="a7"><span class="num">Article 7.</span>Rights of public figures featured on Popularoo</h2>
+
+<p>Any Public Figure featured on Popularoo, or their duly mandated legal representative, has an absolute right to request the <strong>removal</strong> of their entry from the Service, without having to provide any reason.</p>
+
+<p>Any removal request must be sent by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, accompanied by a document justifying the identity of the requester and, where applicable, their mandate of representation.</p>
+
+<p>The Publisher undertakes to process any duly formulated removal request within a maximum period of <strong>72 working hours</strong> from receipt. For manifestly well-founded requests (a readily identifiable public figure requesting their own removal), removal may be carried out as a precautionary measure upon receipt of the request, pending in-depth examination.</p>
+
+<p>The inclusion of a Public Figure in Popularoo is strictly reserved for public figures within the meaning of French and European case law, that is, persons who have voluntarily exposed their image and their action to the public (artists, athletes, political officials, executives, media personalities). <strong>Any inclusion of a private person, a minor, or a person who has expressed opposition to appearing on the Service is strictly prohibited</strong> and shall be subject to immediate removal upon report.</p>
+
+<h2 class="article" id="a8"><span class="num">Article 8.</span>In-app purchases and Boosters</h2>
+
+<p>The Service offers several tiers of paid Boosters allowing a User to appear in the Outsiders ranking:</p>
+
+<ul>
+  <li><strong>Booster</strong>: 1-hour visibility in the Outsiders ranking;</li>
+  <li><strong>Super Booster</strong>: 24-hour visibility in the Outsiders ranking with priority placement and 1 Daily Run included;</li>
+  <li><strong>Golden Booster</strong>: 7-day priority visibility in the Outsiders ranking and priority rotation on the home page, with 7 Daily Runs included (1 per 24 rolling hours).</li>
+</ul>
+
+<p>Prices in force are displayed in the application, in the User's local currency. Prices may evolve at any time; the applicable price is the one displayed at the moment of purchase confirmation.</p>
+
+<p>Purchases are processed <strong>exclusively</strong> by the Apple App Store and Google Play Store platforms, in accordance with their respective general terms of sale. The Publisher does not collect or process any User banking data directly.</p>
+
+<p>Boosters are digital products for immediate and personal use, non-transferable, non-cumulative (only one Booster active per User at a time) and non-exchangeable for cash.</p>
+
+<h2 class="article" id="a9"><span class="num">Article 9.</span>Right of withdrawal and refunds</h2>
+
+<p>In accordance with Article L.221-28 13° of the French Consumer Code (<em>Code de la consommation</em>), the User acknowledges that Boosters constitute <strong>the supply of digital content not provided on a tangible medium</strong> whose performance begins upon confirmation of the purchase, with the User's express prior consent and the User's express waiver of the right of withdrawal.</p>
+
+<p>Consequently, the 14-day right of withdrawal provided for by the French Consumer Code does not apply to Boosters whose performance has begun.</p>
+
+<p>Any refund request must be addressed:</p>
+<ul>
+  <li>To Apple via the App Store (<a href="https://reportaproblem.apple.com" target="_blank" rel="noopener">reportaproblem.apple.com</a>) for purchases made on iOS;</li>
+  <li>To Google via the Play Store for purchases made on Android.</li>
+</ul>
+
+<p>The Publisher is not in a position to process refunds directly and shall systematically invite the User to contact the relevant payment platform.</p>
+
+<h2 class="article" id="a10"><span class="num">Article 10.</span>Intellectual property</h2>
+
+<p>All elements composing the Service (the name "Popularoo", logo, graphic identity, source code, architecture, editorial texts, illustrations, animations, proprietary algorithms including the Popularoo Index) are the exclusive property of the Publisher or are subject to a licence to its benefit. They are protected by copyright, trademark law and any other applicable intellectual property right.</p>
+
+<p>Any reproduction, representation, modification, adaptation or exploitation, in whole or in part, for commercial or non-commercial purposes, without the prior written authorisation of the Publisher, is strictly prohibited and constitutes infringement punishable under Articles L.335-2 et seq. of the French Intellectual Property Code (<em>Code de la propriété intellectuelle</em>).</p>
+
+<p>The images and names of Public Figures featured on the Service are used for information and editorial commentary purposes, within the limits authorised by the right to information and the right of short citation. Any concerned Public Figure may exercise the rights provided in Article 7.</p>
+
+<h2 class="article" id="a11"><span class="num">Article 11.</span>Moderation and reporting</h2>
+
+<p>Any User may report to the Publisher:</p>
+<ul>
+  <li>A Public Figure whose presence is contested (private person, minor, removal request);</li>
+  <li>Manifestly illicit content (hatred, discrimination, infringement of privacy, defamation);</li>
+  <li>Fraudulent behaviour (multi-accounts, vote manipulation);</li>
+  <li>Any other fact likely to require moderation action.</li>
+</ul>
+
+<p>Reports must be sent by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a> or via the reporting functions integrated into the Service when available.</p>
+
+<p>In accordance with the DSA, the Publisher processes reports within a reasonable time and may take the following measures: removal of reported content, suspension of the concerned Outsider, invalidation of fraudulent votes, banning of the device identifier, reporting to the competent authorities in the event of a criminally punishable act.</p>
+
+<p>A User whose content has been removed or whose account has been suspended may contest such decision by writing to the same email address.</p>
+
+<h2 class="article" id="a12"><span class="num">Article 12.</span>Personal data</h2>
+
+<p>The processing of personal data within the framework of the Service is governed by the <a href="/privacy-en.html">Privacy Policy</a>, which forms an integral part of these Terms.</p>
+
+<p>The User has the rights provided by the General Data Protection Regulation (GDPR): right of access, rectification, erasure, objection, restriction of processing, portability, and definition of post-mortem instructions. These rights may be exercised by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>.</p>
+
+<p>The User also has the right to lodge a complaint with the French Data Protection Authority (CNIL — <em>Commission Nationale de l'Informatique et des Libertés</em>, <a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).</p>
+
+<h2 class="article" id="a13"><span class="num">Article 13.</span>Liability</h2>
+
+<p>The Publisher endeavours to ensure the availability, security and reliability of the Service. However, the Publisher cannot be held liable for interruptions due to maintenance operations, force majeure events, network failures, or third-party failures (hosts, payment platforms, API providers).</p>
+
+<p>The Publisher does not guarantee the accuracy of information relating to Public Figures (sourced from third parties such as Wikipedia or User contributions), nor the outcome of Daily Runs, nor the permanent nature of any ranking, which by nature evolves according to votes and User behaviour.</p>
+
+<p>The Publisher shall in no case be liable for indirect, immaterial or unforeseeable damages resulting from the use of the Service. The Publisher's liability, in the event of proven failure, is limited to the total amount actually paid by the User in respect of Boosters during the twelve (12) months preceding the triggering event.</p>
+
+<h2 class="article" id="a14"><span class="num">Article 14.</span>Suspension and termination</h2>
+
+<p>The Publisher reserves the right, at any time and without notice, to suspend or terminate access to the Service for any User in case of breach of these Terms, fraudulent behaviour, well-founded report, or any other legitimate reason.</p>
+
+<p>The User may, at any time, cease using the Service and uninstall the application. The definitive deletion of the User's data may be obtained by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, under the conditions provided in the Privacy Policy.</p>
+
+<p>Termination, whether at the initiative of the User or of the Publisher, does not give rise to any refund of Boosters already acquired or to any compensation.</p>
+
+<h2 class="article" id="a15"><span class="num">Article 15.</span>Consumer mediation</h2>
+
+<p>In accordance with Articles L.611-1 et seq. of the French Consumer Code (<em>Code de la consommation</em>), the consumer User has the possibility, in the event of a dispute with the Publisher that could not be resolved amicably through a prior written claim addressed to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, to refer the matter free of charge to a consumer mediator.</p>
+
+<p>The Publisher has designated as competent mediator:</p>
+
+<div class="contact-block">
+  <span class="label">Consumer mediator</span>
+  <p><strong>MÉDIATION CONSOMMATION DÉVELOPPEMENT</strong><br>
+  Simplified joint-stock company (<em>SAS</em>) with share capital of €10,000<br>
+  Saint-Étienne Trade and Companies Register no. 852 787 472<br>
+  Centre d'Affaires Stéphanois — Immeuble L'Horizon<br>
+  Esplanade de France — 3, rue J. Constant Milleret<br>
+  42000 Saint-Étienne — France</p>
+  <span class="label">Online claim</span>
+  <p><a href="https://www.medconsodev.eu" target="_blank" rel="noopener">www.medconsodev.eu</a></p>
+  <span class="label">Professional reference</span>
+  <p>EN HAUT DES MARCHES — Popularoo · File MED60521</p>
+</div>
+
+<p>A claim before the mediator is admissible only if the User has previously addressed a written claim to the Publisher and such claim has not been successful within a reasonable time. Mediation is free of charge for the consumer. The parties remain free to accept or refuse the solution proposed by the mediator, and to refer the matter to the competent court in case of failure of the mediation.</p>
+
+<p>In accordance with Regulation (EU) no. 524/2013, the User may also use the European Online Dispute Resolution platform (<a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>) for cross-border disputes.</p>
+
+<h2 class="article" id="a16"><span class="num">Article 16.</span>Amendments to the Terms</h2>
+
+<p>The Publisher reserves the right to amend these Terms at any time, in particular to reflect changes in the Service, its features, or applicable regulation.</p>
+
+<p>Any substantial amendment shall be brought to the attention of Users by notification in the application and/or by email when an address has been provided, at least fifteen (15) days before its entry into force. Continued use of the Service after the entry into force of the new version shall constitute acceptance thereof.</p>
+
+<p>A User who does not accept a new version of the Terms must cease using the Service.</p>
+
+<h2 class="article" id="a17"><span class="num">Article 17.</span>Governing law and jurisdiction</h2>
+
+<p>These Terms are governed by <strong>French law</strong>, to the exclusion of any other law.</p>
+
+<p>Any dispute relating to their interpretation, performance or validity shall be submitted to the competent courts within the jurisdiction of the Paris Court of Appeal, subject, for Users having the status of consumer residing in the European Union, to the application of mandatory consumer protection rules, which notably allow them to bring proceedings before the courts of their place of residence.</p>
+
+<p>Prior to any judicial action, the parties undertake to attempt to resolve their dispute amicably, where applicable through recourse to the consumer mediation provided in Article 15.</p>
+
+<h2 class="article" id="a18"><span class="num">Article 18.</span>Voting system</h2>
+
+<p>The Service allows Users to express their opinion towards Public Figures and Outsiders according to a differentiated voting system.</p>
+
+<h3>On Public Figure pages</h3>
+<ul>
+  <li><strong>Like</strong>: positive vote, free, limited to one (1) per Public Figure per device per 24 rolling hours;</li>
+  <li><strong>Dislike</strong>: negative vote, free, limited to one (1) per Public Figure per device per 24 rolling hours.</li>
+</ul>
+
+<h3>On Outsider pages</h3>
+<ul>
+  <li><strong>Like</strong>: positive vote, free, limited to one (1) per Outsider per device per 24 rolling hours;</li>
+  <li><strong>Superlike</strong>: enhanced positive vote, free, limited to one (1) per Outsider per user per day, whose weight in the calculation of the Popularoo Index is greater than that of a Like;</li>
+  <li><strong>No Dislike</strong>: it is not possible to vote negatively against an Outsider. This asymmetry is intentional and is intended to protect Users who have made the financial effort to appear publicly against any organised denigration campaign.</li>
+</ul>
+
+<h3>Tracking and limits</h3>
+
+<p>Vote limit tracking is performed by device identifier. The Publisher reserves the right to invalidate any vote presenting indications of fraud (multi-devices, automation, circumvention of limits) and to ban the concerned device identifier in accordance with Article 11.</p>
+
+<h2 class="article" id="a19"><span class="num">Article 19.</span>Popularoo Index</h2>
+
+<p>The <strong>Popularoo Index</strong> is a synthetic, proprietary and confidential popularity indicator, computed in real time by the Service for each Public Figure and each active Outsider. It is expressed as a number between 0 and 100.</p>
+
+<p>The Popularoo Index algorithm combines several factors, including:</p>
+<ul>
+  <li>The total volume of votes received, weighted logarithmically;</li>
+  <li>The ratio between positive votes (Likes, Superlikes) and negative votes (Dislikes);</li>
+  <li>The momentum over the last 24 hours (recent change in popularity);</li>
+  <li>The regularity of votes over the last 7 days;</li>
+  <li>Where applicable, bonuses linked to Strikes (Article 20) for Outsiders.</li>
+</ul>
+
+<p>The exact coefficients applied to each factor are confidential and are not published. The Publisher reserves the right to adjust them at any time, in particular to combat any attempted manipulation, without prior notice to Users.</p>
+
+<p>The Popularoo Index is an editorial and playful instrument. It does not constitute an objective evaluation of the quality of a Public Figure, nor an opinion poll with statistical value, nor a scientific measurement of notoriety. No personal, professional, contractual or financial decision shall be made on the sole basis of the Popularoo Index.</p>
+
+<h2 class="article" id="a20"><span class="num">Article 20.</span>Daily Runs and Strikes</h2>
+
+<h3>Daily Run</h3>
+
+<p>A <strong>Daily Run</strong> is a 24 rolling-hour challenge during which an Outsider attempts to surpass the momentum of a Public Figure of their choice over the same period. The victory condition is defined by the Service algorithm; the gap between the Outsider's Popularoo Index and that of the target determines the applicable victory tier:</p>
+
+<ul>
+  <li><strong>Standard Win</strong>: Index gap below 20 points;</li>
+  <li><strong>Underdog Win</strong>: Index gap between 20 and 50 points;</li>
+  <li><strong>Legendary Strike</strong>: Index gap above 50 points.</li>
+</ul>
+
+<p>The number of Daily Runs available depends on the Booster tier acquired:</p>
+<ul>
+  <li><strong>Booster</strong>: no Daily Run included;</li>
+  <li><strong>Super Booster</strong>: 1 Daily Run included, activatable once during the 24 hours of visibility;</li>
+  <li><strong>Golden Booster</strong>: 7 Daily Runs included, with a maximum of one per 24 rolling hours; unused Daily Runs are lost upon expiry of the Booster.</li>
+</ul>
+
+<p>If the Booster expires during an active Daily Run, the Daily Run continues until its 24-hour term, but the Outsider's visibility in the ranking ceases upon expiry of the Booster.</p>
+
+<h3>Strikes</h3>
+
+<p><strong>Strikes</strong> are amplification events automatically triggered upon sustained mobilisation of an Outsider's supporters. Three types of Strikes may be triggered:</p>
+<ul>
+  <li><strong>Strike Flash</strong>: 5 Superlikes received in less than 30 minutes;</li>
+  <li><strong>Strike Diversity</strong>: 10 Superlikes received from 10 different Users in 24 hours;</li>
+  <li><strong>Strike Series</strong>: 3 consecutive Superlikes within the same hour.</li>
+</ul>
+
+<p>The number of active Strikes determines the level of amplification, expressed as a visual label (Heating Up, On Fire, Trending, Going Viral, Legend Mode). Each active Strike contributes to the Popularoo Index of the concerned Outsider according to confidential coefficients.</p>
+
+<h2 class="article" id="a21"><span class="num">Article 21.</span>Outsiders and Booster profiles</h2>
+
+<p>Any User who has acquired a Booster becomes an <strong>Outsider</strong> for the duration of validity of their Booster.</p>
+
+<h3>Geographic visibility</h3>
+
+<p>Outsiders are visible only to Users identified as residing in the same country as the one associated with the Booster acquired. This perimeter is determined from the Outsider's App Store or Google Play account country at the time of purchase, with the possibility for Users to modify their reference country in the Service settings.</p>
+
+<h3>Social media accounts</h3>
+
+<p>The Outsider may, on a <strong>strictly optional basis</strong>, provide their Instagram, TikTok and X accounts in their profile. These accounts are then publicly displayed on their Outsider page and may be consulted by other Users. The Outsider retains complete control over this information and may delete it at any time from their profile settings.</p>
+
+<p>The Publisher does not verify the truthfulness of the accounts provided and performs no identity verification. Any identity theft shall be subject to immediate removal upon report, in accordance with Article 11.</p>
+
+<h3>Deactivation</h3>
+
+<p>The Outsider may, at any time, deactivate their public visibility before the expiry of their Booster by writing by email to <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>. Such deactivation does not give rise to any refund.</p>
+
+<h2 class="article" id="a22"><span class="num">Article 22.</span>Demonstration elements</h2>
+
+<p>In order to ensure the fluidity, richness and liveliness of the user experience from the launch of the Service and during its scale-up phase, the Publisher may incorporate <strong>demonstration elements</strong> into the Service, intended to illustrate its operation. Such elements may relate to any aspect of the Service, including the display of profiles, the animation of rankings and the activity indicators visible to Users.</p>
+
+<p>Such demonstration elements have no impact on the actual votes cast by Users or on the purchases made by Outsiders, which are recorded and counted independently. They are progressively replaced by the actual activity of Users as the Service grows.</p>
+
+
+<h2 class="article" id="a23"><span class="num">Article 23.</span>External links</h2>
+
+<p>The Service may display hyperlinks redirecting to third-party websites and services, including:</p>
+<ul>
+  <li>Social media profiles (Instagram, TikTok, X) provided by Outsiders under the conditions of Article 21;</li>
+  <li>External information sources (Wikipedia, media outlets) used to enrich Public Figure entries;</li>
+  <li>The Apple App Store and Google Play Store platforms for managing purchases and subscriptions;</li>
+  <li>The European Online Dispute Resolution platform (<a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>) referred to in Article 15;</li>
+  <li>Any other third-party website referenced for informational purposes.</li>
+</ul>
+
+<p>The Publisher does not control the content, availability, or personal data practices of the third-party websites to which these links redirect. Activating an external link is at the sole initiative of the User, who then leaves the Service environment.</p>
+
+<p>The Publisher disclaims all responsibility for the content, products, services, or practices of third-party websites, including with respect to the processing of personal data carried out by such websites. The User is invited to consult the terms of service and privacy policy of each third-party website visited.</p>
+
+<p>The presence of a link to a third-party website does not in any case constitute an endorsement, partnership, or recommendation by the Publisher, unless explicitly stated otherwise.</p>
+
+<footer>
+  <p>EN HAUT DES MARCHES — SARL · 147 rue Léon-Maurice Nordmann, 75013 Paris · SIRET 504 747 932 00011</p>
+  <p>For any question relating to these Terms: <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a></p>
+  <p>See also: <a href="/privacy-en.html">Privacy Policy</a> · <a href="/legal-notice.html">Legal Notice</a> · <a href="/terms-fr.html">Version française</a></p>
+</footer>
+
+</div>
+</body>
+</html>
