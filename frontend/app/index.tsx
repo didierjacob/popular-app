@@ -307,7 +307,7 @@ export default function HomeScreen() {
       const data = await peopleRes.json();
 
       const sortedByVotes = [...data]
-        .filter((p: Person) => p.source !== "self_boosted") // P0 BUG FIX: Never show outsiders in Top list
+        .filter((p: Person) => p.source !== "self_boosted" && p.category !== "outsider") // P0 BUG FIX: Never show outsiders (self_boosted or seeds) in Top list
         .sort((a: Person, b: Person) => b.total_votes - a.total_votes);
       setPeople(sortedByVotes);
 

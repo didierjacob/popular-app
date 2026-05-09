@@ -874,9 +874,10 @@ async def list_people(
     """
     filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}}
     
-    # Exclude "outsiders" (self_boosted) from main lists unless explicitly requested
+    # Exclude ALL outsiders (self_boosted + seeds) from main lists unless explicitly requested
     if not include_outsiders:
-        filter_q["source"] = {"$ne": "self_boosted"}
+        filter_q["category"] = {"$ne": "outsider"}
+        filter_q["is_outsider"] = {"$ne": True}
     
     if query:
         # Search for partial matches in name (case-insensitive)
@@ -5207,6 +5208,72 @@ async def calibrate_outsider_votes(request: Request):
     
     logger.info(f"🎯 Calibrated {results['updated']} outsider vote counts")
     return {"success": True, **results}
+
+
+# ==================== ADMIN: Secure Data Maintenance Endpoints ====================
+
+@api_router.post("/admin/update-person-category")
+@limiter.limit("10/15minutes")
+async def admin_update_person_category(request: Request):
+    """
+    Admin: Update a person's category by name.
+    Body: { "name": "Ted Sarandos", "new_category": "business" }
+    Idempotent: safe to call multiple times.
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    new_category = body.get("new_category", "").strip().lower()
+    
+    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other"}
+    if new_category not in valid_categories:
+        raise HTTPException(status_code=400, detail=f"Invalid category '{new_category}'. Valid: {', '.join(valid_categories)}")
+    
+    result = await db.persons.update_one(
+        {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+        {"$set": {"category": new_category, "updated_at": now_utc()}}
+    )
+    
+    if result.matched_count == 0:
+        return {"success": False, "error": f"Person '{name}' not found in database"}
+    
+    logger.info(f"🏷️ Admin: Updated category for '{name}' → {new_category}")
+    return {"success": True, "name": name, "new_category": new_category, "modified": result.modified_count}
+
+
+@api_router.delete("/admin/delete-person-by-name")
+@limiter.limit("10/15minutes")
+async def admin_delete_person_by_name(request: Request):
+    """
+    Admin: Delete a person by exact name (case-insensitive).
+    Body: { "name": "Test" }
+    Also removes associated ticks and votes.
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    
+    person = await db.persons.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+    if not person:
+        return {"success": False, "error": f"Person '{name}' not found in database"}
+    
+    person_id = person["_id"]
+    person_name = person.get("name", name)
+    
+    # Delete person
+    await db.persons.delete_one({"_id": person_id})
+    # Delete associated ticks
+    ticks_deleted = await db.person_ticks.delete_many({"person_id": person_id})
+    # Delete associated votes
+    votes_deleted = await db.votes.delete_many({"person_id": str(person_id)})
+    
+    logger.info(f"🗑️ Admin: Deleted person '{person_name}' (ticks={ticks_deleted.deleted_count}, votes={votes_deleted.deleted_count})")
+    return {
+        "success": True,
+        "deleted_person": person_name,
+        "ticks_deleted": ticks_deleted.deleted_count,
+        "votes_deleted": votes_deleted.deleted_count,
+    }
 
 
 # ==================== BLOC 3.4: Test Email Endpoint (Temporary) ====================
