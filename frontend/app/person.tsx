@@ -586,8 +586,8 @@ export default function Person() {
               <TrendStatusBadge status={trendStatus} />
             </View>
 
-            {/* Vote Buttons - Immediately accessible */}
-            {person?.source === "self_boosted" ? (
+            {/* Vote Buttons - Outsiders: Like only / Celebrities: Like + Dislike */}
+            {(person?.source === "self_boosted" || person?.category === "outsider") ? (
               <View style={[styles.voteRow, { justifyContent: "center" }]}>
                 <Animated.View
                   style={{

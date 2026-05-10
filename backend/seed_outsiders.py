@@ -23,78 +23,78 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────
 
 SEED_OUTSIDERS: List[Dict[str, Any]] = [
-    # ── 🇺🇸 US (5 seeds) ──
-    {"name": "Jordan Mitchell",  "country": "US", "tier": "super_booster",  "votes": 5200,  "index": 42},
-    {"name": "Destiny Barnes",   "country": "US", "tier": "golden_booster", "votes": 12400, "index": 61},
-    {"name": "Marcus Reed",      "country": "US", "tier": "super_booster",  "votes": 3800,  "index": 34},
-    {"name": "Ava Sinclair",     "country": "US", "tier": "booster",        "votes": 1100,  "index": 19},
-    {"name": "Tyler Caldwell",   "country": "US", "tier": "super_booster",  "votes": 6700,  "index": 48},
+    # ── 🇺🇸 US (5 seeds) ──  Realistic V1.0 vote counts (10-200 range)
+    {"name": "Jordan Mitchell",  "country": "US", "tier": "super_booster",  "votes": 52,   "index": 42},
+    {"name": "Destiny Barnes",   "country": "US", "tier": "golden_booster", "votes": 124,  "index": 61},
+    {"name": "Marcus Reed",      "country": "US", "tier": "super_booster",  "votes": 38,   "index": 34},
+    {"name": "Ava Sinclair",     "country": "US", "tier": "booster",        "votes": 11,   "index": 19},
+    {"name": "Tyler Caldwell",   "country": "US", "tier": "super_booster",  "votes": 67,   "index": 48},
 
     # ── 🇫🇷 FR (5 seeds) ──
-    {"name": "Léa Morin",        "country": "FR", "tier": "golden_booster", "votes": 11800, "index": 58},
-    {"name": "Hugo Perrot",      "country": "FR", "tier": "super_booster",  "votes": 4500,  "index": 39},
-    {"name": "Inès Fabre",       "country": "FR", "tier": "super_booster",  "votes": 7200,  "index": 50},
-    {"name": "Maxime Lefèvre",   "country": "FR", "tier": "booster",        "votes": 900,   "index": 16},
-    {"name": "Camille Duval",    "country": "FR", "tier": "golden_booster", "votes": 9800,  "index": 54},
+    {"name": "Léa Morin",        "country": "FR", "tier": "golden_booster", "votes": 118,  "index": 58},
+    {"name": "Hugo Perrot",      "country": "FR", "tier": "super_booster",  "votes": 45,   "index": 39},
+    {"name": "Inès Fabre",       "country": "FR", "tier": "super_booster",  "votes": 72,   "index": 50},
+    {"name": "Maxime Lefèvre",   "country": "FR", "tier": "booster",        "votes": 14,   "index": 16},
+    {"name": "Camille Duval",    "country": "FR", "tier": "golden_booster", "votes": 98,   "index": 54},
 
     # ── 🇬🇧 GB (5 seeds) ──
-    {"name": "Oscar Bennett",    "country": "GB", "tier": "super_booster",  "votes": 3400,  "index": 35},
-    {"name": "Amelia Walsh",     "country": "GB", "tier": "golden_booster", "votes": 10500, "index": 56},
-    {"name": "Jack Griffiths",   "country": "GB", "tier": "super_booster",  "votes": 5900,  "index": 44},
-    {"name": "Freya Chapman",    "country": "GB", "tier": "booster",        "votes": 1400,  "index": 21},
-    {"name": "Noah Hartley",     "country": "GB", "tier": "super_booster",  "votes": 4200,  "index": 37},
+    {"name": "Oscar Bennett",    "country": "GB", "tier": "super_booster",  "votes": 34,   "index": 35},
+    {"name": "Amelia Walsh",     "country": "GB", "tier": "golden_booster", "votes": 105,  "index": 56},
+    {"name": "Jack Griffiths",   "country": "GB", "tier": "super_booster",  "votes": 59,   "index": 44},
+    {"name": "Freya Chapman",    "country": "GB", "tier": "booster",        "votes": 18,   "index": 21},
+    {"name": "Noah Hartley",     "country": "GB", "tier": "super_booster",  "votes": 42,   "index": 37},
 
     # ── 🇩🇪 DE (5 seeds) ──
-    {"name": "Lena Hoffmann",    "country": "DE", "tier": "super_booster",  "votes": 4100,  "index": 38},
-    {"name": "Finn Schreiber",   "country": "DE", "tier": "golden_booster", "votes": 13200, "index": 63},
-    {"name": "Mila Krause",      "country": "DE", "tier": "super_booster",  "votes": 6300,  "index": 46},
-    {"name": "Jonas Baumann",    "country": "DE", "tier": "booster",        "votes": 1300,  "index": 20},
-    {"name": "Emilia Vogt",      "country": "DE", "tier": "super_booster",  "votes": 7800,  "index": 51},
+    {"name": "Lena Hoffmann",    "country": "DE", "tier": "super_booster",  "votes": 41,   "index": 38},
+    {"name": "Finn Schreiber",   "country": "DE", "tier": "golden_booster", "votes": 132,  "index": 63},
+    {"name": "Mila Krause",      "country": "DE", "tier": "super_booster",  "votes": 63,   "index": 46},
+    {"name": "Jonas Baumann",    "country": "DE", "tier": "booster",        "votes": 13,   "index": 20},
+    {"name": "Emilia Vogt",      "country": "DE", "tier": "super_booster",  "votes": 78,   "index": 51},
 
     # ── 🇪🇸 ES (4 seeds) ──
-    {"name": "Sofía Herrera",    "country": "ES", "tier": "super_booster",  "votes": 6800,  "index": 47},
-    {"name": "Pablo Navarro",    "country": "ES", "tier": "golden_booster", "votes": 10200, "index": 55},
-    {"name": "Lucía Delgado",    "country": "ES", "tier": "super_booster",  "votes": 3600,  "index": 33},
-    {"name": "Álvaro Ruiz",      "country": "ES", "tier": "booster",        "votes": 1500,  "index": 22},
+    {"name": "Sofía Herrera",    "country": "ES", "tier": "super_booster",  "votes": 68,   "index": 47},
+    {"name": "Pablo Navarro",    "country": "ES", "tier": "golden_booster", "votes": 102,  "index": 55},
+    {"name": "Lucía Delgado",    "country": "ES", "tier": "super_booster",  "votes": 36,   "index": 33},
+    {"name": "Álvaro Ruiz",      "country": "ES", "tier": "booster",        "votes": 15,   "index": 22},
 
     # ── 🇮🇹 IT (4 seeds) ──
-    {"name": "Giulia Ferretti",  "country": "IT", "tier": "super_booster",  "votes": 4100,  "index": 38},
-    {"name": "Alessandro Conti", "country": "IT", "tier": "golden_booster", "votes": 8900,  "index": 53},
-    {"name": "Chiara Bianchi",   "country": "IT", "tier": "super_booster",  "votes": 5500,  "index": 43},
-    {"name": "Marco Esposito",   "country": "IT", "tier": "booster",        "votes": 1000,  "index": 17},
+    {"name": "Giulia Ferretti",  "country": "IT", "tier": "super_booster",  "votes": 41,   "index": 38},
+    {"name": "Alessandro Conti", "country": "IT", "tier": "golden_booster", "votes": 89,   "index": 53},
+    {"name": "Chiara Bianchi",   "country": "IT", "tier": "super_booster",  "votes": 55,   "index": 43},
+    {"name": "Marco Esposito",   "country": "IT", "tier": "booster",        "votes": 16,   "index": 17},
 
     # ── 🇧🇷 BR (4 seeds) ──
-    {"name": "Lucas Ferreira",   "country": "BR", "tier": "golden_booster", "votes": 9500,  "index": 52},
-    {"name": "Isabela Santos",   "country": "BR", "tier": "super_booster",  "votes": 5800,  "index": 45},
-    {"name": "Matheus Oliveira", "country": "BR", "tier": "super_booster",  "votes": 3200,  "index": 31},
-    {"name": "Valentina Costa",  "country": "BR", "tier": "booster",        "votes": 1200,  "index": 19},
+    {"name": "Lucas Ferreira",   "country": "BR", "tier": "golden_booster", "votes": 95,   "index": 52},
+    {"name": "Isabela Santos",   "country": "BR", "tier": "super_booster",  "votes": 58,   "index": 45},
+    {"name": "Matheus Oliveira", "country": "BR", "tier": "super_booster",  "votes": 32,   "index": 31},
+    {"name": "Valentina Costa",  "country": "BR", "tier": "booster",        "votes": 12,   "index": 19},
 
     # ── 🇨🇦 CA (4 seeds) ──
-    {"name": "Ethan Campbell",   "country": "CA", "tier": "super_booster",  "votes": 4800,  "index": 40},
-    {"name": "Sophie Tremblay",  "country": "CA", "tier": "golden_booster", "votes": 11200, "index": 57},
-    {"name": "Liam Mackenzie",   "country": "CA", "tier": "super_booster",  "votes": 3500,  "index": 32},
-    {"name": "Chloé Gagnon",     "country": "CA", "tier": "booster",        "votes": 800,   "index": 15},
+    {"name": "Ethan Campbell",   "country": "CA", "tier": "super_booster",  "votes": 48,   "index": 40},
+    {"name": "Sophie Tremblay",  "country": "CA", "tier": "golden_booster", "votes": 112,  "index": 57},
+    {"name": "Liam Mackenzie",   "country": "CA", "tier": "super_booster",  "votes": 35,   "index": 32},
+    {"name": "Chloé Gagnon",     "country": "CA", "tier": "booster",        "votes": 10,   "index": 15},
 
     # ── 🇲🇽 MX (4 seeds) ──
-    {"name": "Diego Ramírez",    "country": "MX", "tier": "super_booster",  "votes": 5100,  "index": 41},
-    {"name": "Valeria Torres",   "country": "MX", "tier": "golden_booster", "votes": 8700,  "index": 52},
-    {"name": "Andrés Morales",   "country": "MX", "tier": "super_booster",  "votes": 3900,  "index": 36},
-    {"name": "Ximena Vega",      "country": "MX", "tier": "booster",        "votes": 700,   "index": 14},
+    {"name": "Diego Ramírez",    "country": "MX", "tier": "super_booster",  "votes": 51,   "index": 41},
+    {"name": "Valeria Torres",   "country": "MX", "tier": "golden_booster", "votes": 87,   "index": 52},
+    {"name": "Andrés Morales",   "country": "MX", "tier": "super_booster",  "votes": 39,   "index": 36},
+    {"name": "Ximena Vega",      "country": "MX", "tier": "booster",        "votes": 11,   "index": 14},
 
     # ── 🇦🇷 AR (3 seeds) ──
-    {"name": "Martina Lagos",    "country": "AR", "tier": "super_booster",  "votes": 4600,  "index": 39},
-    {"name": "Tomás Aguirre",    "country": "AR", "tier": "golden_booster", "votes": 9100,  "index": 53},
-    {"name": "Catalina Ponce",   "country": "AR", "tier": "booster",        "votes": 1100,  "index": 18},
+    {"name": "Martina Lagos",    "country": "AR", "tier": "super_booster",  "votes": 46,   "index": 39},
+    {"name": "Tomás Aguirre",    "country": "AR", "tier": "golden_booster", "votes": 91,   "index": 53},
+    {"name": "Catalina Ponce",   "country": "AR", "tier": "booster",        "votes": 15,   "index": 18},
 
     # ── 🇧🇪 BE (3 seeds) ──
-    {"name": "Louise Claes",     "country": "BE", "tier": "super_booster",  "votes": 3700,  "index": 34},
-    {"name": "Arthur Janssens",  "country": "BE", "tier": "golden_booster", "votes": 8500,  "index": 51},
-    {"name": "Emma Peeters",     "country": "BE", "tier": "super_booster",  "votes": 5300,  "index": 42},
+    {"name": "Louise Claes",     "country": "BE", "tier": "super_booster",  "votes": 37,   "index": 34},
+    {"name": "Arthur Janssens",  "country": "BE", "tier": "golden_booster", "votes": 85,   "index": 51},
+    {"name": "Emma Peeters",     "country": "BE", "tier": "super_booster",  "votes": 53,   "index": 42},
 
     # ── 🇨🇭 CH (3 seeds) ──
-    {"name": "Noé Bonvin",       "country": "CH", "tier": "super_booster",  "votes": 4300,  "index": 37},
-    {"name": "Elena Brunner",    "country": "CH", "tier": "golden_booster", "votes": 10800, "index": 56},
-    {"name": "Lara Meier",       "country": "CH", "tier": "super_booster",  "votes": 6100,  "index": 45},
+    {"name": "Noé Bonvin",       "country": "CH", "tier": "super_booster",  "votes": 43,   "index": 37},
+    {"name": "Elena Brunner",    "country": "CH", "tier": "golden_booster", "votes": 108,  "index": 56},
+    {"name": "Lara Meier",       "country": "CH", "tier": "super_booster",  "votes": 61,   "index": 45},
 ]
 
 

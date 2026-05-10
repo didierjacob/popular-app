@@ -408,6 +408,7 @@ export default function HomeScreen() {
           const copy = [...prev];
 
           // Pick N people and add a random increment to their simulated score
+          let bumpedNames: string[] = [];
           for (let p = 0; p < ANIMATION_CONFIG.PICKS_PER_TICK; p++) {
             const idx = pickRandomPerson(copy);
             if (idx < copy.length) {
@@ -416,6 +417,7 @@ export default function HomeScreen() {
               const increment = ANIMATION_CONFIG.INCREMENT_MIN +
                 Math.floor(Math.random() * (ANIMATION_CONFIG.INCREMENT_MAX - ANIMATION_CONFIG.INCREMENT_MIN + 1));
               scores.set(person.id, current + increment);
+              bumpedNames.push(`${person.name}(+${increment})`);
             }
           }
 
@@ -442,9 +444,12 @@ export default function HomeScreen() {
           // Check if order actually changed
           const changed = copy.some((p, i) => p.id !== prev[i]?.id);
           if (changed) {
+            console.log(`[Algo A] SWAP detected — bumped: ${bumpedNames.join(', ')}`);
             LayoutAnimation.configureNext(
               LayoutAnimation.create(350, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
             );
+          } else {
+            console.log(`[Algo A] tick — no swap (bumped: ${bumpedNames.join(', ')})`);
           }
 
           return copy;

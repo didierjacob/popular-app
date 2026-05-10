@@ -826,37 +826,73 @@ async def get_user_settings(device_id: str):
     }
 
 
-def person_to_out(doc: Dict[str, Any]) -> PersonOut:
-    # Apply seed decay for displayed score
-    _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
+def _safe_int(val, default=0) -> int:
+    """Safely convert to int, returning default if conversion fails."""
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
 
-    # Strike level
-    active_strikes = doc.get("active_strikes", 0)
-    s_emoji, s_label = get_strike_level(active_strikes)
+def _safe_float(val, default=0.0) -> float:
+    """Safely convert to float, returning default if conversion fails."""
+    if val is None:
+        return default
+    try:
+        result = float(val)
+        if result != result:  # NaN check
+            return default
+        return result
+    except (ValueError, TypeError):
+        return default
 
-    return PersonOut(
-        id=str(doc["_id"]),
-        name=doc.get("name"),
-        category=doc.get("category", "other"),
-        approved=bool(doc.get("approved", True)),
-        score=float(eff_score),
-        likes=int(eff_likes),
-        dislikes=int(eff_dislikes),
-        superlikes=int(doc.get("superlikes", 0)),
-        total_votes=int(eff_total),
-        popularoo_index=float(doc.get("popularoo_index", 0.0)),
-        active_strikes=active_strikes,
-        strike_emoji=s_emoji if s_emoji else None,
-        strike_label=s_label if s_label else None,
-        last_updated=doc.get("updated_at"),
-        source=doc.get("source", "seed"),
-        country_tags=doc.get("country_tags"),
-        is_international=doc.get("is_international", False),
-        primary_country=doc.get("primary_country"),
-        social_links=doc.get("social_links") or None,
-        avatar_initials=doc.get("avatar_initials"),
-        avatar_color=doc.get("avatar_color"),
-    )
+def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
+    """Convert a DB document to PersonOut. Returns None if data is fatally corrupt."""
+    try:
+        # Apply seed decay for displayed score
+        _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
+
+        # Strike level
+        active_strikes = _safe_int(doc.get("active_strikes", 0))
+        s_emoji, s_label = get_strike_level(active_strikes)
+
+        # Validate category against allowed values
+        raw_cat = doc.get("category", "other")
+        valid_cats = {"politics", "culture", "business", "sport", "influencer", "other", "outsider"}
+        category = raw_cat if raw_cat in valid_cats else "other"
+
+        name = doc.get("name")
+        if not name or not isinstance(name, str):
+            logger.warning(f"⚠️ Skipping person {doc.get('_id')} — missing or invalid name: {name!r}")
+            return None
+
+        return PersonOut(
+            id=str(doc["_id"]),
+            name=name,
+            category=category,
+            approved=bool(doc.get("approved", True)),
+            score=_safe_float(eff_score),
+            likes=_safe_int(eff_likes),
+            dislikes=_safe_int(eff_dislikes),
+            superlikes=_safe_int(doc.get("superlikes", 0)),
+            total_votes=_safe_int(eff_total),
+            popularoo_index=_safe_float(doc.get("popularoo_index", 0.0)),
+            active_strikes=active_strikes,
+            strike_emoji=s_emoji if s_emoji else None,
+            strike_label=s_label if s_label else None,
+            last_updated=doc.get("updated_at"),
+            source=doc.get("source", "seed"),
+            country_tags=doc.get("country_tags"),
+            is_international=bool(doc.get("is_international", False)),
+            primary_country=doc.get("primary_country"),
+            social_links=doc.get("social_links") or None,
+            avatar_initials=doc.get("avatar_initials"),
+            avatar_color=doc.get("avatar_color"),
+        )
+    except Exception as e:
+        logger.error(f"❌ person_to_out CRASH for id={doc.get('_id')}, name={doc.get('name')!r}: {e}")
+        return None
 
 
 @api_router.get("/people", response_model=List[PersonOut])
@@ -947,11 +983,11 @@ async def list_people(
                 merged.append(intl_docs[ii])
                 ii += 1
 
-        return [person_to_out(d) for d in merged[:limit]]
+        return [p for p in (person_to_out(d) for d in merged[:limit]) if p is not None]
     
     cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
     docs = await cursor.to_list(length=limit)
-    return [person_to_out(d) for d in docs]
+    return [p for p in (person_to_out(d) for d in docs) if p is not None]
 
 
 @api_router.post("/people", response_model=PersonOut)
@@ -5223,20 +5259,194 @@ async def calibrate_outsider_votes(request: Request):
             })
             results["updated"] += 1
     else:
-        outsiders = await db.persons.find({"source": "self_boosted"}).to_list(length=500)
+        # Calibrate ALL outsiders: category=outsider OR source=self_boosted OR is_seed=True with category outsider
+        outsiders = await db.persons.find({
+            "$or": [
+                {"category": "outsider"},
+                {"source": "self_boosted"},
+                {"is_seed": True, "category": "outsider"},
+            ]
+        }).to_list(length=1000)
+        
         for o in outsiders:
-            new_total = random.randint(5, 50)
-            new_likes = random.randint(int(new_total * 0.4), int(new_total * 0.7))
+            # Realistic distribution: majority 15-60, some up to 200
+            # Use weighted random: 70% chance low (10-60), 25% mid (60-130), 5% high (130-200)
+            roll = random.random()
+            if roll < 0.70:
+                new_total = random.randint(10, 60)
+            elif roll < 0.95:
+                new_total = random.randint(60, 130)
+            else:
+                new_total = random.randint(130, 200)
+            
+            new_likes = random.randint(int(new_total * 0.55), int(new_total * 0.85))
             new_dislikes = new_total - new_likes
             await db.persons.update_one(
                 {"_id": o["_id"]},
-                {"$set": {"total_votes": new_total, "likes": new_likes, "dislikes": new_dislikes, "score": new_likes - new_dislikes}}
+                {"$set": {
+                    "total_votes": new_total,
+                    "likes": new_likes,
+                    "dislikes": new_dislikes,
+                    "score": new_likes - new_dislikes,
+                    "seed_votes_likes": 0,
+                    "seed_votes_dislikes": 0,
+                }}
             )
             results["details"].append({"name": o.get("name","?"), "new_total": new_total, "new_likes": new_likes})
             results["updated"] += 1
     
     logger.info(f"🎯 Calibrated {results['updated']} outsider vote counts")
     return {"success": True, **results}
+
+
+@api_router.post("/admin/audit-data-integrity")
+@limiter.limit("5/15minutes")
+async def admin_audit_data_integrity(request: Request):
+    """
+    Admin: Audit ALL persons in the DB for corrupt/invalid data.
+    Returns a list of all problematic entries with details.
+    Idempotent: read-only, doesn't modify anything.
+    """
+    _require_admin_auth(request)
+    
+    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other", "outsider"}
+    
+    all_persons = await db.persons.find({}).to_list(length=5000)
+    
+    issues = []
+    for doc in all_persons:
+        person_issues = []
+        pid = str(doc.get("_id", "?"))
+        name = doc.get("name", None)
+        
+        # Check name
+        if not name or not isinstance(name, str):
+            person_issues.append(f"name is {name!r} (expected non-empty string)")
+        
+        # Check category
+        cat = doc.get("category")
+        if cat not in valid_categories:
+            person_issues.append(f"category is {cat!r} (expected one of {valid_categories})")
+        
+        # Check numeric fields
+        for field in ["likes", "dislikes", "total_votes", "superlikes", "score"]:
+            val = doc.get(field)
+            if val is not None:
+                try:
+                    int(val)
+                except (ValueError, TypeError):
+                    person_issues.append(f"{field} is {val!r} (expected int)")
+        
+        for field in ["popularoo_index"]:
+            val = doc.get(field)
+            if val is not None:
+                try:
+                    f = float(val)
+                    if f != f:  # NaN
+                        person_issues.append(f"{field} is NaN")
+                except (ValueError, TypeError):
+                    person_issues.append(f"{field} is {val!r} (expected float)")
+        
+        # Check for None in required fields
+        if doc.get("approved") is None:
+            person_issues.append("approved is None")
+        
+        if person_issues:
+            issues.append({
+                "id": pid,
+                "name": name or "MISSING_NAME",
+                "category": doc.get("category"),
+                "source": doc.get("source"),
+                "total_votes": doc.get("total_votes"),
+                "issues": person_issues,
+            })
+    
+    return {
+        "success": True,
+        "total_persons_audited": len(all_persons),
+        "total_with_issues": len(issues),
+        "corrupt_entries": issues,
+    }
+
+
+@api_router.post("/admin/fix-corrupt-data")
+@limiter.limit("5/15minutes")
+async def admin_fix_corrupt_data(request: Request):
+    """
+    Admin: Auto-fix all corrupt data found by the audit.
+    Sets missing/invalid numeric fields to 0, invalid categories to "other".
+    Deletes entries with no name.
+    Idempotent: safe to run multiple times.
+    """
+    _require_admin_auth(request)
+    
+    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other", "outsider"}
+    
+    all_persons = await db.persons.find({}).to_list(length=5000)
+    
+    fixed = 0
+    deleted = 0
+    details = []
+    
+    for doc in all_persons:
+        pid = doc["_id"]
+        name = doc.get("name")
+        
+        # Delete entries with no name
+        if not name or not isinstance(name, str):
+            await db.persons.delete_one({"_id": pid})
+            await db.person_ticks.delete_many({"person_id": pid})
+            await db.votes.delete_many({"person_id": str(pid)})
+            deleted += 1
+            details.append({"id": str(pid), "action": "DELETED", "reason": f"name was {name!r}"})
+            continue
+        
+        updates = {}
+        
+        # Fix category
+        if doc.get("category") not in valid_categories:
+            updates["category"] = "other"
+        
+        # Fix numeric fields
+        for field, default in [("likes", 0), ("dislikes", 0), ("total_votes", 0), ("superlikes", 0), ("score", 0)]:
+            val = doc.get(field)
+            if val is None:
+                updates[field] = default
+            else:
+                try:
+                    int(val)
+                except (ValueError, TypeError):
+                    updates[field] = default
+        
+        # Fix float fields
+        for field, default in [("popularoo_index", 0.0)]:
+            val = doc.get(field)
+            if val is None:
+                updates[field] = default
+            else:
+                try:
+                    f = float(val)
+                    if f != f:  # NaN
+                        updates[field] = default
+                except (ValueError, TypeError):
+                    updates[field] = default
+        
+        # Fix approved
+        if doc.get("approved") is None:
+            updates["approved"] = True
+        
+        if updates:
+            await db.persons.update_one({"_id": pid}, {"$set": updates})
+            fixed += 1
+            details.append({"name": name, "action": "FIXED", "fields": list(updates.keys())})
+    
+    return {
+        "success": True,
+        "total_audited": len(all_persons),
+        "fixed": fixed,
+        "deleted": deleted,
+        "details": details,
+    }
 
 
 # ==================== ADMIN: Secure Data Maintenance Endpoints ====================
