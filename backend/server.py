@@ -911,9 +911,11 @@ async def list_people(
     filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}}
     
     # Exclude ALL outsiders (self_boosted + seeds) from main lists unless explicitly requested
+    # Triple protection: category + is_outsider + source
     if not include_outsiders:
         filter_q["category"] = {"$ne": "outsider"}
         filter_q["is_outsider"] = {"$ne": True}
+        filter_q["source"] = {"$nin": ["self_boosted"]}
     
     if query:
         # Search for partial matches in name (case-insensitive)
@@ -1571,12 +1573,19 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
                 person_keywords = ["born", "politician", "actor", "actress", "singer", "player", 
                                    "athlete", "businessman", "businesswoman", "president", "minister",
                                    "celebrity", "artist", "musician", "footballer", "basketball",
-                                   "tennis", "author", "director", "entrepreneur", "ceo", "founder"]
+                                   "tennis", "author", "director", "entrepreneur", "ceo", "founder",
+                                   "rapper", "comedian", "model", "journalist", "host"]
                 
                 is_person = any(keyword in snippet for keyword in person_keywords)
                 
                 words = title.split()
-                looks_like_name = 1 <= len(words) <= 5 and all(w[0].isupper() for w in words if w)
+                # Name heuristic: 2-4 capitalized words, no digits, no all-caps words (acronyms)
+                looks_like_name = (
+                    2 <= len(words) <= 4
+                    and all(w[0].isupper() for w in words if w)
+                    and not any(w.isupper() and len(w) > 1 for w in words)  # Exclude "BDHS", "XXX"
+                    and not any(c.isdigit() for c in title)  # Exclude "Super Bowl 30"
+                )
                 
                 if is_person or looks_like_name:
                     # Check for deceased — look for "died" or death year in snippet

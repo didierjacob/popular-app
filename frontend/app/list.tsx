@@ -76,7 +76,11 @@ export default function List() {
       const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
       const countryParam = regionCode ? `&country=${regionCode}` : '';
       const data = await apiGet<Person[]>(`/people?limit=300${countryParam}`);
-      setPeople(data);
+      // Defensive filter: exclude any outsider that slipped through backend filter
+      const cleaned = data.filter((p: Person) =>
+        p.category !== "outsider" && p.source !== "self_boosted"
+      );
+      setPeople(cleaned);
     } catch (error) {
       console.error("Failed to load top 300:", error);
     } finally {
