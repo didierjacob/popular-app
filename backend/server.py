@@ -5816,6 +5816,411 @@ async def gdpr_delete_my_data(
     }
 
 
+# ==================== LOT C: Identify Deceased via Wikidata ====================
+
+WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+
+async def _wikidata_search(name: str, limit: int = 3) -> list:
+    """Search Wikidata for a person name, return top `limit` candidates with QID + description."""
+    params = {
+        "action": "wbsearchentities",
+        "search": name,
+        "language": "en",
+        "format": "json",
+        "limit": limit,
+        "type": "item",
+    }
+    try:
+        headers = {"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"}
+        async with httpx.AsyncClient(timeout=15) as client_http:
+            resp = await client_http.get(WIKIDATA_API, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            results = []
+            for item in data.get("search", []):
+                results.append({
+                    "qid": item.get("id", ""),
+                    "label": item.get("label", ""),
+                    "description": item.get("description", ""),
+                })
+            return results
+    except Exception as e:
+        logger.warning(f"Wikidata search failed for '{name}': {e}")
+        return []
+
+
+async def _wikidata_check_deceased(qid: str) -> dict:
+    """Check if a Wikidata entity has P570 (date of death). Returns death_date or None."""
+    return (await _wikidata_check_deceased_batch([qid])).get(qid, {"is_deceased": False, "death_date": None})
+
+
+async def _wikidata_check_deceased_batch(qids: list) -> dict:
+    """Batch check P570 for multiple QIDs in a single request. Returns {qid: {is_deceased, death_date}}."""
+    if not qids:
+        return {}
+    params = {
+        "action": "wbgetentities",
+        "ids": "|".join(qids),
+        "props": "claims",
+        "format": "json",
+    }
+    try:
+        headers = {"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"}
+        async with httpx.AsyncClient(timeout=15) as client_http:
+            resp = await client_http.get(WIKIDATA_API, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            results = {}
+            for qid in qids:
+                entity = data.get("entities", {}).get(qid, {})
+                claims = entity.get("claims", {})
+                p570 = claims.get("P570")
+                if p570:
+                    try:
+                        time_value = p570[0]["mainsnak"]["datavalue"]["value"]["time"]
+                        death_date = time_value.lstrip("+").split("T")[0]
+                        results[qid] = {"is_deceased": True, "death_date": death_date}
+                    except (KeyError, IndexError):
+                        results[qid] = {"is_deceased": True, "death_date": "unknown"}
+                else:
+                    results[qid] = {"is_deceased": False, "death_date": None}
+            return results
+    except Exception as e:
+        logger.warning(f"Wikidata batch P570 check failed for {qids}: {e}")
+        return {qid: {"is_deceased": False, "death_date": None} for qid in qids}
+
+
+@api_router.post("/admin/identify-deceased")
+@limiter.limit("3/15minutes")
+async def admin_identify_deceased(request: Request):
+    """
+    Lot C: For each non-outsider personality, query Wikidata to detect deceased (P570).
+    Returns top 3 Wikidata candidates per person for manual validation.
+    """
+    _require_admin_auth(request)
+    import asyncio as _asyncio
+
+    all_persons = await db.persons.find(
+        {"source": {"$ne": "self_boosted"}, "category": {"$ne": "outsider"}}
+    ).to_list(length=5000)
+
+    deceased_list = []
+    alive_count = 0
+    not_found = []
+    errors = []
+
+    for idx, doc in enumerate(all_persons):
+        name = doc.get("name", "")
+        db_id = str(doc["_id"])
+
+        # Rate limiting: small delay between persons
+        if idx > 0 and idx % 10 == 0:
+            await _asyncio.sleep(0.5)
+
+        # Step 1: Search Wikidata for top 3 candidates
+        candidates = await _wikidata_search(name, limit=3)
+        if not candidates:
+            not_found.append({"name": name, "db_id": db_id})
+            continue
+
+        # Step 2: Batch check P570 for all candidates in 1 request
+        all_qids = [c["qid"] for c in candidates]
+        p570_results = await _wikidata_check_deceased_batch(all_qids)
+
+        enriched_candidates = []
+        for cand in candidates:
+            qid = cand["qid"]
+            check = p570_results.get(qid, {"is_deceased": False, "death_date": None})
+            enriched_candidates.append({
+                "qid": qid,
+                "description": cand["description"],
+                "is_deceased": check["is_deceased"],
+                "death_date": check.get("death_date"),
+            })
+
+        # Selection logic: pick the FIRST candidate (best Wikidata match)
+        selected_qid = enriched_candidates[0]["qid"]
+        selected_is_deceased = enriched_candidates[0]["is_deceased"]
+        selected_death_date = enriched_candidates[0].get("death_date")
+
+        if selected_is_deceased:
+            deceased_list.append({
+                "name": name,
+                "db_id": db_id,
+                "category": doc.get("category", "unknown"),
+                "wikidata_candidates": enriched_candidates,
+                "selected_qid": selected_qid,
+                "selected_is_deceased": True,
+                "selected_death_date": selected_death_date,
+            })
+        else:
+            alive_count += 1
+
+    logger.info(f"☠️ Lot C: Checked {len(all_persons)} persons — {len(deceased_list)} deceased, {alive_count} alive, {len(not_found)} not found")
+
+    return {
+        "total_checked": len(all_persons),
+        "deceased_count": len(deceased_list),
+        "alive_count": alive_count,
+        "not_found_count": len(not_found),
+        "deceased": deceased_list,
+        "not_found_on_wikidata": not_found,
+        "errors": errors,
+    }
+
+
+# ==================== LOT C bis: Batch Delete Persons ====================
+
+@api_router.post("/admin/delete-persons-batch")
+@limiter.limit("3/15minutes")
+async def admin_delete_persons_batch(request: Request):
+    """
+    Lot C: Delete multiple persons by name (case-insensitive).
+    Also removes associated ticks and votes.
+    Body: { "names": ["Queen Elizabeth II", "Pope Benedict XVI", ...] }
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    names = body.get("names", [])
+
+    results = {"success": True, "deleted": [], "not_found": [], "total_deleted": 0}
+
+    for name in names:
+        name = name.strip()
+        if not name:
+            continue
+        person = await db.persons.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+        if not person:
+            results["not_found"].append(name)
+            continue
+
+        person_id = person["_id"]
+        person_name = person.get("name", name)
+
+        await db.persons.delete_one({"_id": person_id})
+        ticks_del = await db.person_ticks.delete_many({"person_id": person_id})
+        votes_del = await db.votes.delete_many({"person_id": str(person_id)})
+
+        results["deleted"].append({
+            "name": person_name,
+            "ticks_removed": ticks_del.deleted_count,
+            "votes_removed": votes_del.deleted_count,
+        })
+        results["total_deleted"] += 1
+
+    logger.info(f"🗑️ Lot C batch: Deleted {results['total_deleted']} persons, {len(results['not_found'])} not found")
+    return results
+
+
+# ==================== LOT D: Audit Categories via Wikipedia ====================
+
+WIKIPEDIA_API = "https://en.wikipedia.org/api/rest_v1"
+
+# Mapping keywords → category (order matters: first match wins)
+CATEGORY_KEYWORD_MAP = [
+    ("politics", [
+        "politician", "president", "minister", "senator", "governor", "mayor",
+        "political", "prime minister", "diplomat", "monarch", "queen", "king",
+        "pope", "head of state", "representative", "congressm", "viceroy",
+        "chancellor", "secretary of state", "first lady",
+    ]),
+    ("sport", [
+        "athlete", "footballer", "soccer", "tennis", "basketball", "boxer",
+        "swimmer", "racing", "olympic", "golfer", "cricket", "rugby",
+        "sprinter", "gymnast", "skier", "martial", "baseball", "hockey",
+        "wrestling", "cyclist", "surfer", "volleyball", "handball",
+        "formula one", "f1 driver", "motor racing",
+    ]),
+    ("business", [
+        "ceo", "businessman", "businesswoman", "entrepreneur", "executive",
+        "investor", "founder", "billionaire", "philanthropist", "magnate",
+        "tycoon", "industrialist", "venture capital", "hedge fund",
+    ]),
+    ("influencer", [
+        "youtuber", "tiktoker", "influencer", "blogger", "internet personality",
+        "streamer", "content creator", "social media personality",
+    ]),
+    ("culture", [
+        "actor", "actress", "singer", "musician", "filmmaker", "director",
+        "writer", "author", "composer", "rapper", "artist", "dancer",
+        "comedian", "painter", "poet", "dj", "entertainer", "model",
+        "television presenter", "tv host", "tv presenter", "talk show host",
+        "radio host", "fashion designer", "record producer", "screenwriter",
+        "voice actor", "theatre", "theater", "opera", "choreographer",
+        "photographer", "journalist", "news anchor", "media personality",
+        "stand-up", "magician", "chef", "drag queen",
+    ]),
+]
+
+
+def _infer_category_from_description(description: str) -> tuple:
+    """
+    Infer category from Wikipedia short description.
+    Returns (category, matched_keywords) or (None, []) if no match.
+    """
+    if not description:
+        return None, []
+    desc_lower = description.lower()
+    for category, keywords in CATEGORY_KEYWORD_MAP:
+        matched = [kw for kw in keywords if kw in desc_lower]
+        if matched:
+            return category, matched
+    return None, []
+
+
+def _clean_name_parentheses(name: str) -> tuple:
+    """
+    Detect and clean Wikipedia-style parenthetical suffixes.
+    "Robert Smith (musician)" → ("Robert Smith", "(musician)")
+    "Elon Musk" → ("Elon Musk", None)
+    """
+    match = re.match(r'^(.+?)\s*\(([^)]+)\)\s*$', name)
+    if match:
+        return match.group(1).strip(), f"({match.group(2)})"
+    return name, None
+
+
+@api_router.post("/admin/audit-categories")
+@limiter.limit("3/15minutes")
+async def admin_audit_categories(request: Request):
+    """
+    Lot D: For each non-outsider personality, query Wikipedia short description
+    and compare with current DB category. Returns divergences for manual validation.
+    """
+    _require_admin_auth(request)
+    import asyncio as _asyncio
+
+    all_persons = await db.persons.find(
+        {"source": {"$ne": "self_boosted"}, "category": {"$ne": "outsider"}}
+    ).to_list(length=5000)
+
+    divergences = []
+    names_with_parentheses = []
+    not_found = []
+    unchanged = 0
+    unresolved = []
+
+    for idx, doc in enumerate(all_persons):
+        name = doc.get("name", "")
+        db_id = str(doc["_id"])
+        current_cat = doc.get("category", "other")
+
+        # Check for parenthetical suffix
+        clean_name, suffix = _clean_name_parentheses(name)
+        if suffix:
+            names_with_parentheses.append({
+                "name": name,
+                "db_id": db_id,
+                "clean_name": clean_name,
+                "suffix": suffix,
+            })
+
+        # Rate limiting
+        if idx > 0 and idx % 5 == 0:
+            await _asyncio.sleep(1.0)
+
+        # Query Wikipedia for short description
+        wiki_title = clean_name.replace(" ", "_")
+        wikipedia_description = ""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client_http:
+                resp = await client_http.get(
+                    f"{WIKIPEDIA_API}/page/summary/{wiki_title}",
+                    headers={"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"},
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    wikipedia_description = data.get("description", "")
+                elif resp.status_code == 404:
+                    not_found.append({"name": name, "db_id": db_id})
+                    continue
+                else:
+                    logger.warning(f"Wikipedia API {resp.status_code} for '{name}'")
+                    continue
+        except Exception as e:
+            logger.warning(f"Wikipedia API error for '{name}': {e}")
+            continue
+
+        # Infer category
+        suggested_cat, matched_keywords = _infer_category_from_description(wikipedia_description)
+
+        if suggested_cat is None:
+            # No keyword match → unresolved
+            unresolved.append({
+                "name": name,
+                "db_id": db_id,
+                "current_category": current_cat,
+                "wikipedia_description": wikipedia_description,
+                "reason": "no keyword match in description",
+            })
+            continue
+
+        if suggested_cat != current_cat:
+            divergences.append({
+                "name": name,
+                "db_id": db_id,
+                "current_category": current_cat,
+                "suggested_category": suggested_cat,
+                "wikipedia_description": wikipedia_description,
+                "matched_keywords": matched_keywords,
+                "reason": f"keyword match: {', '.join(matched_keywords)}",
+            })
+        else:
+            unchanged += 1
+
+    logger.info(f"🏷️ Lot D: Audited {len(all_persons)} — {len(divergences)} divergences, {unchanged} unchanged, {len(unresolved)} unresolved, {len(not_found)} not found")
+
+    return {
+        "total_audited": len(all_persons),
+        "divergences_count": len(divergences),
+        "unchanged_count": unchanged,
+        "unresolved_count": len(unresolved),
+        "not_found_count": len(not_found),
+        "names_with_parentheses_count": len(names_with_parentheses),
+        "divergences": divergences,
+        "unresolved": unresolved,
+        "not_found_on_wikipedia": not_found,
+        "names_with_parentheses": names_with_parentheses,
+    }
+
+
+# ==================== LOT D bis: Batch Rename Persons ====================
+
+@api_router.post("/admin/rename-persons-batch")
+@limiter.limit("5/15minutes")
+async def admin_rename_persons_batch(request: Request):
+    """
+    Lot D bonus: Rename persons (e.g. remove parenthetical suffixes).
+    Body: { "renames": [{"old_name": "Robert Smith (musician)", "new_name": "Robert Smith"}, ...] }
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    renames = body.get("renames", [])
+
+    results = {"success": True, "renamed": [], "not_found": [], "total_renamed": 0}
+
+    for item in renames:
+        old_name = item.get("old_name", "").strip()
+        new_name = item.get("new_name", "").strip()
+        if not old_name or not new_name:
+            continue
+
+        result = await db.persons.update_one(
+            {"name": {"$regex": f"^{re.escape(old_name)}$", "$options": "i"}},
+            {"$set": {"name": new_name, "updated_at": now_utc()}}
+        )
+
+        if result.matched_count == 0:
+            results["not_found"].append(old_name)
+        else:
+            results["renamed"].append({"old_name": old_name, "new_name": new_name})
+            results["total_renamed"] += 1
+
+    logger.info(f"✏️ Lot D rename: {results['total_renamed']} renamed, {len(results['not_found'])} not found")
+    return results
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
