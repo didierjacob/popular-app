@@ -335,12 +335,12 @@ export default function Person() {
   // BLOC 1.7: Track accumulated live feed votes for visual sync
   const liveLikesDelta = useRef(0);
   const liveDislikesDelta = useRef(0);
-  const isOutsider = person?.source === "self_boosted";
+  const isOutsider = person?.source === "self_boosted" || person?.category === "outsider";
 
   // Live feed: generate dummy votes
   // BLOC 2.2: Outsiders get slower refresh (60-120s) and only "liked" actions
   useEffect(() => {
-    const outsiderMode = person?.source === "self_boosted";
+    const outsiderMode = isOutsider;
     // Seed initial votes
     const initial: LiveVoteEntry[] = [];
     const seedCount = outsiderMode ? 3 : 8;
@@ -491,7 +491,8 @@ export default function Person() {
   // The 1-second setTick timer ensures periodic re-renders to pick up new values
   const displayLikes = (person?.likes || 0) + liveLikesDelta.current;
   const displayDislikes = (person?.dislikes || 0) + liveDislikesDelta.current;
-  const displayTotalVotes = (person?.total_votes || 0) + liveLikesDelta.current + liveDislikesDelta.current;
+  // Bug 5 fix: total ALWAYS = likes + dislikes for visual consistency
+  const displayTotalVotes = isOutsider ? displayLikes : displayLikes + displayDislikes;
 
   // Share
   const shareMessage = t("person.shareMessage", {
@@ -552,7 +553,7 @@ export default function Person() {
               </TouchableOpacity>
               <Text style={styles.title}>{name}</Text>
               <Text style={styles.meta}>
-                {person?.source === "self_boosted"
+                {isOutsider
                   ? `${formatNumber(displayLikes)} supporters`
                   : `${formatNumber(displayLikes)} likes \u2022 ${formatNumber(displayDislikes)} dislikes`}
               </Text>
@@ -583,11 +584,11 @@ export default function Person() {
                   count: formatNumber(displayTotalVotes),
                 })}
               </Text>
-              <TrendStatusBadge status={trendStatus} />
+              {!isOutsider && <TrendStatusBadge status={trendStatus} />}
             </View>
 
             {/* Vote Buttons - Outsiders: Like only / Celebrities: Like + Dislike */}
-            {(person?.source === "self_boosted" || person?.category === "outsider") ? (
+            {isOutsider ? (
               <View style={[styles.voteRow, { justifyContent: "center" }]}>
                 <Animated.View
                   style={{
@@ -649,7 +650,7 @@ export default function Person() {
             )}
 
             {/* Social Follow Buttons for Outsiders */}
-            {person?.source === "self_boosted" &&
+            {isOutsider &&
               person?.social_links &&
               (person.social_links.instagram ||
                 person.social_links.tiktok ||
@@ -752,7 +753,7 @@ export default function Person() {
             </View>
 
             {/* Outsider promotion banner */}
-            {person?.source === "self_boosted" ? (
+            {isOutsider ? (
               <View style={[styles.card, { marginBottom: 30 }]}>
                 <Text style={styles.sectionTitle}>
                   {t("person.outsiderPromo")}

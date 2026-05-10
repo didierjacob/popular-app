@@ -37,7 +37,9 @@
     "culture": "Culture",
     "business": "Business",
     "sport": "Sport",
-    "influencer": "Influencer"
+    "influencer": "Influencer",
+    "other": "Other",
+    "outsider": "Outsider"
   },
   "home": {
     "title": "Popularoo",
