@@ -5971,6 +5971,80 @@ async def admin_identify_deceased(request: Request):
 
 # ==================== LOT C bis: Batch Delete Persons ====================
 
+@api_router.post("/admin/identify-historical")
+@limiter.limit("3/15minutes")
+async def admin_identify_historical(request: Request):
+    """
+    Quick check: find persons born before 1900 via Wikidata P569 (date of birth).
+    These are historical figures that probably don't belong in a modern popularity app.
+    """
+    _require_admin_auth(request)
+    import asyncio as _asyncio
+
+    all_persons = await db.persons.find(
+        {"source": {"$ne": "self_boosted"}, "category": {"$ne": "outsider"}}
+    ).to_list(length=5000)
+
+    historical = []
+    modern = 0
+    errors_list = []
+
+    for idx, doc in enumerate(all_persons):
+        name = doc.get("name", "")
+        db_id = str(doc["_id"])
+
+        if idx > 0 and idx % 10 == 0:
+            await _asyncio.sleep(0.5)
+
+        # Search Wikidata for first match
+        candidates = await _wikidata_search(name, limit=1)
+        if not candidates:
+            continue
+
+        qid = candidates[0]["qid"]
+        desc = candidates[0].get("description", "")
+
+        # Check P569 (date of birth)
+        try:
+            headers = {"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"}
+            async with httpx.AsyncClient(timeout=15) as client_http:
+                resp = await client_http.get(WIKIDATA_API, params={
+                    "action": "wbgetentities", "ids": qid, "props": "claims", "format": "json"
+                }, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                entity = data.get("entities", {}).get(qid, {})
+                p569 = entity.get("claims", {}).get("P569")
+                if p569:
+                    time_value = p569[0]["mainsnak"]["datavalue"]["value"]["time"]
+                    birth_year = int(time_value.lstrip("+").split("-")[0])
+                    if birth_year < 1900:
+                        historical.append({
+                            "name": name,
+                            "db_id": db_id,
+                            "category": doc.get("category", "unknown"),
+                            "birth_year": birth_year,
+                            "wikidata_description": desc,
+                            "qid": qid,
+                        })
+                    else:
+                        modern += 1
+                else:
+                    modern += 1
+        except Exception as e:
+            errors_list.append({"name": name, "error": str(e)})
+            modern += 1
+
+    logger.info(f"📜 Historical check: {len(historical)} born before 1900, {modern} modern")
+    return {
+        "total_checked": len(all_persons),
+        "historical_count": len(historical),
+        "modern_count": modern,
+        "historical": historical,
+        "errors": errors_list[:10],
+    }
+
+
 @api_router.post("/admin/delete-persons-batch")
 @limiter.limit("3/15minutes")
 async def admin_delete_persons_batch(request: Request):
