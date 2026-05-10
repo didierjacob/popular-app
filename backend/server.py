@@ -5473,7 +5473,7 @@ async def admin_update_person_category(request: Request):
     name = body.get("name", "").strip()
     new_category = body.get("new_category", "").strip().lower()
     
-    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other"}
+    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other", "outsider"}
     if new_category not in valid_categories:
         raise HTTPException(status_code=400, detail=f"Invalid category '{new_category}'. Valid: {', '.join(valid_categories)}")
     
@@ -5487,6 +5487,94 @@ async def admin_update_person_category(request: Request):
     
     logger.info(f"🏷️ Admin: Updated category for '{name}' → {new_category}")
     return {"success": True, "name": name, "new_category": new_category, "modified": result.modified_count}
+
+
+@api_router.post("/admin/update-person-category-batch")
+@limiter.limit("5/15minutes")
+async def admin_update_person_category_batch(request: Request):
+    """
+    Admin: Update category for multiple persons at once.
+    Body: { "updates": [{"name": "Jean Louis", "new_category": "outsider"}, ...] }
+    Idempotent: safe to call multiple times.
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    updates = body.get("updates", [])
+    
+    valid_categories = {"politics", "culture", "business", "sport", "influencer", "other", "outsider"}
+    results = {"success": True, "processed": 0, "modified": 0, "not_found": [], "details": []}
+    
+    for item in updates:
+        name = item.get("name", "").strip()
+        new_category = item.get("new_category", "").strip().lower()
+        
+        if not name or new_category not in valid_categories:
+            results["details"].append({"name": name, "status": "skipped", "reason": f"invalid category '{new_category}'"})
+            continue
+        
+        result = await db.persons.update_one(
+            {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+            {"$set": {"category": new_category, "updated_at": now_utc()}}
+        )
+        
+        results["processed"] += 1
+        if result.matched_count == 0:
+            results["not_found"].append(name)
+            results["details"].append({"name": name, "status": "not_found"})
+        else:
+            results["modified"] += 1
+            results["details"].append({"name": name, "status": "updated", "new_category": new_category})
+    
+    logger.info(f"🏷️ Admin batch: {results['modified']}/{results['processed']} updated")
+    return results
+
+
+@api_router.post("/admin/recompute-total-votes")
+@limiter.limit("5/15minutes")
+async def admin_recompute_total_votes(request: Request):
+    """
+    Admin: Recalculate total_votes = likes + dislikes for ALL persons.
+    Fixes historical inconsistencies from migrations/calibrations.
+    Idempotent: safe to run multiple times (produces same result).
+    """
+    _require_admin_auth(request)
+    
+    all_persons = await db.persons.find({}).to_list(length=5000)
+    
+    fixed = 0
+    already_ok = 0
+    details = []
+    
+    for doc in all_persons:
+        likes = doc.get("likes", 0) or 0
+        dislikes = doc.get("dislikes", 0) or 0
+        expected_total = likes + dislikes
+        current_total = doc.get("total_votes", 0) or 0
+        
+        if current_total != expected_total:
+            await db.persons.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"total_votes": expected_total, "score": likes - dislikes}}
+            )
+            fixed += 1
+            details.append({
+                "name": doc.get("name", "?"),
+                "old_total": current_total,
+                "new_total": expected_total,
+                "likes": likes,
+                "dislikes": dislikes,
+            })
+        else:
+            already_ok += 1
+    
+    logger.info(f"🔢 Admin: Recomputed total_votes for {fixed} persons ({already_ok} already correct)")
+    return {
+        "success": True,
+        "fixed": fixed,
+        "already_ok": already_ok,
+        "total_audited": len(all_persons),
+        "details": details[:50],  # Limit response size
+    }
 
 
 @api_router.delete("/admin/delete-person-by-name")
