@@ -569,8 +569,9 @@ export default function Person() {
                   style={[
                     styles.indexValue,
                     {
-                      color:
-                        trendStatus === "falling" || trendStatus === "freefall"
+                      color: isOutsider
+                        ? PALETTE.gold
+                        : trendStatus === "falling" || trendStatus === "freefall"
                           ? "#E74C3C"
                           : "#2ECC71",
                     },

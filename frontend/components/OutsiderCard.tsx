@@ -173,8 +173,16 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
 
   const isGolden = outsider.tier === "golden_booster";
 
+  const navigateToProfile = () => {
+    router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } });
+  };
+
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={navigateToProfile}
+      activeOpacity={0.7}
+    >
       {/* Badge label (e.g. "Outsider of the Day") */}
       {badgeLabel && (
         <View style={styles.badgeRow}>
@@ -185,11 +193,7 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
       )}
 
       {/* Header: Avatar + Name + Tier */}
-      <TouchableOpacity
-        style={styles.header}
-        onPress={() => router.push({ pathname: "/person", params: { id: outsider.id, name: outsider.name } })}
-        activeOpacity={0.7}
-      >
+      <View style={styles.header}>
         <View
           style={[
             styles.avatar,
@@ -210,7 +214,7 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
             </View>
           </View>
         </View>
-      </TouchableOpacity>
+      </View>
 
       {/* Votes count */}
       <View style={styles.meta}>
@@ -231,7 +235,7 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
         </TouchableOpacity>
         <SocialBadges links={outsider.social_links} noSocialMessage={t("person.noSocialAccount")} />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
