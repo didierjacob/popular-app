@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -244,6 +245,85 @@ async def run_daily_candidate_detection_job(db):
         logger.error(f"❌ [Scheduler] Candidate detection failed: {e}")
 
 
+async def run_monthly_category_review_job(db):
+    """
+    Session 3 Lot 2: Monthly category re-inference for all personalities.
+    Compares current categories with Wikipedia-inferred categories.
+    Called by APScheduler on 1st of each month at 04:00 UTC.
+    """
+    try:
+        import httpx as _httpx
+        from candidate_detection import infer_category
+        from datetime import datetime, timezone
+
+        logger.info("📂 [Scheduler] Starting monthly category review...")
+        now = datetime.now(timezone.utc)
+        reviewed = 0
+        divergences = 0
+
+        persons = await db.persons.find({
+            "approved": True,
+            "source": {"$ne": "self_boosted"},
+            "category": {"$ne": "outsider"},
+        }).to_list(5000)
+
+        async with _httpx.AsyncClient(timeout=10) as client:
+            for person in persons:
+                name = person.get("name", "")
+                current_cat = person.get("category", "other")
+                title = name.replace(" ", "_")
+                description = ""
+                try:
+                    resp = await client.get(
+                        f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                        headers={"User-Agent": "Popularoo/1.0"},
+                        follow_redirects=True,
+                    )
+                    if resp.status_code == 200:
+                        description = resp.json().get("description", "")
+                    await asyncio.sleep(0.1)
+                except Exception:
+                    pass
+
+                if not description:
+                    reviewed += 1
+                    continue
+
+                suggested_cat, confidence = infer_category(description)
+                if suggested_cat != current_cat and suggested_cat != "other":
+                    existing = await db.category_reviews.find_one({
+                        "person_id": person["_id"],
+                        "status": "pending",
+                    })
+                    if not existing:
+                        await db.category_reviews.insert_one({
+                            "person_id": person["_id"],
+                            "name": name,
+                            "current_category": current_cat,
+                            "suggested_category": suggested_cat,
+                            "confidence": confidence,
+                            "wiki_description": description,
+                            "created_at": now,
+                            "status": "pending",
+                        })
+                        divergences += 1
+                reviewed += 1
+
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$set": {"last_category_review_run": {
+                "timestamp": now.isoformat(),
+                "reviewed": reviewed,
+                "divergences": divergences,
+            }}},
+            upsert=True,
+        )
+
+        logger.info(f"📂 [Scheduler] Category review complete: {reviewed} reviewed, {divergences} divergences")
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Category review failed: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -379,6 +459,18 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Daily Candidate Detection (Wikipedia)',
         replace_existing=True
     )
+
+    # ── Session 3 Lot 2: Monthly Category Review on 1st of month at 04:00 UTC ──
+    # Re-infers categories via Wikipedia for all personalities,
+    # writes divergences to category_reviews for admin review.
+    scheduler.add_job(
+        run_monthly_category_review_job,
+        CronTrigger(day=1, hour=4, minute=0),
+        args=[db],
+        id='monthly_category_review_job',
+        name='Monthly Category Review (Wikipedia)',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     # Note: Daily Google Trends auto-ingestion DISABLED (Session 2 audit)
@@ -392,6 +484,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Weekly tag evolution scheduled Sundays 4:00 AM UTC")
     logger.info("Daily external scores (Wikipedia) scheduled at 3:00 AM UTC")
     logger.info("Daily candidate detection (Wikipedia) scheduled at 5:00 AM UTC")
+    logger.info("Monthly category review (Wikipedia) scheduled on 1st of month at 4:00 AM UTC")
     
     return scheduler
 

@@ -6899,6 +6899,388 @@ async def admin_propose_celebrity(request: Request):
     }
 
 
+# ==================== SESSION 3 — LOT 2: Deceased Queue ====================
+
+@api_router.get("/admin/deceased-queue")
+async def admin_list_deceased_queue(request: Request, status: str = "pending"):
+    """List deceased detections from queue. ?status=pending|confirmed|false_positive|all"""
+    _require_admin_auth(request)
+
+    filt = {} if status == "all" else {"status": status}
+    items = await db.deceased_queue.find(filt).sort("detected_at", -1).to_list(500)
+
+    return [
+        {
+            "id": str(d["_id"]),
+            "person_id": str(d.get("person_id", "")),
+            "name": d.get("name", ""),
+            "category": d.get("category", "other"),
+            "death_date": d.get("death_date", ""),
+            "wikidata_id": d.get("wikidata_id"),
+            "detected_at": d.get("detected_at", "").isoformat() if d.get("detected_at") else None,
+            "status": d.get("status", "pending"),
+        }
+        for d in items
+    ]
+
+
+@api_router.post("/admin/deceased/{item_id}/confirm")
+async def admin_confirm_deceased(item_id: str, request: Request):
+    """
+    Confirm a deceased detection: deactivates the person, cancels Daily Runs,
+    marks queue item as confirmed.
+    """
+    _require_admin_auth(request)
+    from person_maintenance import _cancel_daily_runs_for_deceased
+
+    try:
+        oid = ObjectId(item_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid item ID")
+
+    item = await db.deceased_queue.find_one({"_id": oid, "status": "pending"})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found or not pending")
+
+    person_id = item.get("person_id")
+    name = item.get("name", "")
+    now = now_utc()
+
+    # Deactivate the person
+    await db.persons.update_one(
+        {"_id": person_id},
+        {"$set": {
+            "is_deceased": True,
+            "approved": False,
+            "deactivated_reason": "deceased",
+            "deactivated_at": now,
+            "death_date_wikidata": item.get("death_date"),
+        }}
+    )
+
+    # Cancel active Daily Runs
+    await _cancel_daily_runs_for_deceased(db, person_id, name, now)
+
+    # Mark queue item as confirmed
+    await db.deceased_queue.update_one(
+        {"_id": oid},
+        {"$set": {"status": "confirmed", "confirmed_at": now}}
+    )
+
+    logger.info(f"⚰️ Deceased confirmed by admin: {name}")
+    return {"success": True, "name": name, "action": "deactivated"}
+
+
+@api_router.post("/admin/deceased/{item_id}/reject")
+async def admin_reject_deceased(item_id: str, request: Request):
+    """Reject a deceased detection (false positive)."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(item_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid item ID")
+
+    result = await db.deceased_queue.update_one(
+        {"_id": oid, "status": "pending"},
+        {"$set": {"status": "false_positive", "rejected_at": now_utc()}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found or not pending")
+
+    return {"success": True, "item_id": item_id, "status": "false_positive"}
+
+
+@api_router.post("/admin/deceased/confirm-all")
+async def admin_confirm_all_deceased(request: Request):
+    """Batch confirm all pending deceased detections."""
+    _require_admin_auth(request)
+    from person_maintenance import _cancel_daily_runs_for_deceased
+
+    pending = await db.deceased_queue.find({"status": "pending"}).to_list(500)
+    now = now_utc()
+    confirmed = 0
+
+    for item in pending:
+        person_id = item.get("person_id")
+        name = item.get("name", "")
+
+        await db.persons.update_one(
+            {"_id": person_id},
+            {"$set": {
+                "is_deceased": True,
+                "approved": False,
+                "deactivated_reason": "deceased",
+                "deactivated_at": now,
+                "death_date_wikidata": item.get("death_date"),
+            }}
+        )
+        await _cancel_daily_runs_for_deceased(db, person_id, name, now)
+        await db.deceased_queue.update_one(
+            {"_id": item["_id"]},
+            {"$set": {"status": "confirmed", "confirmed_at": now}}
+        )
+        confirmed += 1
+
+    return {"success": True, "confirmed": confirmed}
+
+
+@api_router.post("/admin/run-deceased-check")
+@limiter.limit("2/60minutes")
+async def admin_run_deceased_check(request: Request):
+    """Manually trigger deceased check for all personalities."""
+    _require_admin_auth(request)
+    from person_maintenance import check_deceased_all
+    result = await check_deceased_all(db)
+    return {"success": True, **result}
+
+
+# ==================== SESSION 3 — LOT 2: Category Reviews ====================
+
+@api_router.post("/admin/run-category-review")
+@limiter.limit("2/60minutes")
+async def admin_run_category_review(request: Request):
+    """
+    Manually trigger category re-inference for all personalities.
+    Compares current category with Wikipedia-inferred category,
+    writes divergences to category_reviews collection.
+    """
+    _require_admin_auth(request)
+
+    import httpx as _httpx
+    from candidate_detection import infer_category
+
+    now = now_utc()
+    reviewed = 0
+    divergences = 0
+
+    persons = await db.persons.find({
+        "approved": True,
+        "source": {"$ne": "self_boosted"},
+        "category": {"$ne": "outsider"},
+    }).to_list(5000)
+
+    async with _httpx.AsyncClient(timeout=10) as client:
+        for person in persons:
+            name = person.get("name", "")
+            current_cat = person.get("category", "other")
+
+            # Get Wikipedia short description
+            title = name.replace(" ", "_")
+            description = ""
+            try:
+                resp = await client.get(
+                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                    headers={"User-Agent": "Popularoo/1.0"},
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    description = data.get("description", "")
+                await asyncio.sleep(0.1)
+            except Exception:
+                pass
+
+            if not description:
+                reviewed += 1
+                continue
+
+            suggested_cat, confidence = infer_category(description)
+
+            if suggested_cat != current_cat and suggested_cat != "other":
+                # Only flag if the suggestion is NOT "other" (we don't want to downgrade)
+                existing = await db.category_reviews.find_one({
+                    "person_id": person["_id"],
+                    "status": "pending",
+                })
+                if not existing:
+                    await db.category_reviews.insert_one({
+                        "person_id": person["_id"],
+                        "name": name,
+                        "current_category": current_cat,
+                        "suggested_category": suggested_cat,
+                        "confidence": confidence,
+                        "wiki_description": description,
+                        "created_at": now,
+                        "status": "pending",
+                    })
+                    divergences += 1
+
+            reviewed += 1
+
+    # Store last run summary
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$set": {"last_category_review_run": {
+            "timestamp": now.isoformat(),
+            "reviewed": reviewed,
+            "divergences": divergences,
+        }}},
+        upsert=True,
+    )
+
+    return {"success": True, "reviewed": reviewed, "divergences": divergences}
+
+
+@api_router.get("/admin/category-reviews")
+async def admin_list_category_reviews(request: Request, status: str = "pending"):
+    """List category review suggestions. ?status=pending|applied|rejected|all"""
+    _require_admin_auth(request)
+
+    filt = {} if status == "all" else {"status": status}
+    items = await db.category_reviews.find(filt).sort("created_at", -1).to_list(500)
+
+    return [
+        {
+            "id": str(r["_id"]),
+            "person_id": str(r.get("person_id", "")),
+            "name": r.get("name", ""),
+            "current_category": r.get("current_category", ""),
+            "suggested_category": r.get("suggested_category", ""),
+            "confidence": r.get("confidence", "low"),
+            "wiki_description": r.get("wiki_description", ""),
+            "created_at": r.get("created_at", "").isoformat() if r.get("created_at") else None,
+            "status": r.get("status", "pending"),
+        }
+        for r in items
+    ]
+
+
+@api_router.post("/admin/category-reviews/{review_id}/apply")
+async def admin_apply_category_review(review_id: str, request: Request):
+    """Apply a category suggestion: updates the person's category."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(review_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid review ID")
+
+    review = await db.category_reviews.find_one({"_id": oid, "status": "pending"})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found or not pending")
+
+    person_id = review.get("person_id")
+    new_cat = review.get("suggested_category")
+
+    await db.persons.update_one(
+        {"_id": person_id},
+        {"$set": {"category": new_cat, "category_updated_at": now_utc()}}
+    )
+
+    await db.category_reviews.update_one(
+        {"_id": oid},
+        {"$set": {"status": "applied", "applied_at": now_utc()}}
+    )
+
+    return {"success": True, "name": review.get("name"), "new_category": new_cat}
+
+
+@api_router.post("/admin/category-reviews/{review_id}/reject")
+async def admin_reject_category_review(review_id: str, request: Request):
+    """Reject a category suggestion: keep current category."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(review_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid review ID")
+
+    result = await db.category_reviews.update_one(
+        {"_id": oid, "status": "pending"},
+        {"$set": {"status": "rejected", "rejected_at": now_utc()}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Review not found or not pending")
+
+    return {"success": True, "review_id": review_id, "status": "rejected"}
+
+
+# ==================== SESSION 3 — LOT 2: Dashboard Stats ====================
+
+@api_router.get("/admin/dashboard-stats")
+async def admin_dashboard_stats(request: Request):
+    """
+    Enriched dashboard stats for the admin panel.
+    Returns: total celebrities, category breakdown, alpha, last job dates, top 5.
+    """
+    _require_admin_auth(request)
+    from popularoo_index import get_alpha
+
+    # Total celebrities (non-outsider, approved)
+    total = await db.persons.count_documents({
+        "approved": True,
+        "source": {"$ne": "self_boosted"},
+        "category": {"$ne": "outsider"},
+    })
+
+    # Category breakdown
+    pipeline = [
+        {"$match": {
+            "approved": True,
+            "source": {"$ne": "self_boosted"},
+            "category": {"$ne": "outsider"},
+        }},
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    cat_breakdown = {}
+    async for doc in db.persons.aggregate(pipeline):
+        cat_breakdown[doc["_id"] or "other"] = doc["count"]
+
+    # Alpha
+    alpha = await get_alpha(db)
+
+    # Last job dates from app_settings
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    last_ext_scores = settings.get("last_external_scores_run", {})
+    last_candidate = settings.get("last_candidate_detection_run", {})
+    last_deceased_top50 = settings.get("last_deceased_check_top50", {})
+    last_deceased_all = settings.get("last_deceased_check_all", {})
+    last_cat_review = settings.get("last_category_review_run", {})
+
+    # Top 5 by popularoo_index
+    top5_cursor = db.persons.find({
+        "approved": True,
+        "source": {"$ne": "self_boosted"},
+        "category": {"$ne": "outsider"},
+    }).sort("popularoo_index", -1).limit(5)
+
+    top5 = []
+    async for doc in top5_cursor:
+        top5.append({
+            "name": doc.get("name"),
+            "category": doc.get("category"),
+            "popularoo_index": round(doc.get("popularoo_index", 0), 1),
+        })
+
+    # Queue sizes
+    pending_candidates = await db.candidate_queue.count_documents({"status": "pending"})
+    pending_deceased = await db.deceased_queue.count_documents({"status": "pending"})
+    pending_cat_reviews = await db.category_reviews.count_documents({"status": "pending"})
+
+    return {
+        "total_celebrities": total,
+        "category_breakdown": cat_breakdown,
+        "alpha": alpha,
+        "queues": {
+            "pending_candidates": pending_candidates,
+            "pending_deceased": pending_deceased,
+            "pending_category_reviews": pending_cat_reviews,
+        },
+        "last_jobs": {
+            "external_scores": last_ext_scores.get("timestamp") if isinstance(last_ext_scores, dict) else None,
+            "candidate_detection": last_candidate.get("timestamp") if isinstance(last_candidate, dict) else None,
+            "deceased_check_top50": last_deceased_top50.get("timestamp") if isinstance(last_deceased_top50, dict) else None,
+            "deceased_check_all": last_deceased_all.get("timestamp") if isinstance(last_deceased_all, dict) else None,
+            "category_review": last_cat_review.get("timestamp") if isinstance(last_cat_review, dict) else None,
+        },
+        "top5": top5,
+    }
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 

@@ -134,15 +134,14 @@ async def _run_deceased_check(db, top_n: Optional[int], check_interval_days: int
     """
     Core deceased check logic using Wikidata P570.
     
-    On detection:
-    - Person marked is_deceased=True, approved=False
-    - Active Daily Runs against this person: cancelled, slot returned
-    - Admin notification logged
+    Session 3: Detected deceased are written to deceased_queue (status: "pending")
+    for admin confirmation. NO automatic deactivation.
+    Admin must confirm via /api/admin/deceased/{id}/confirm before removal.
     """
     now = datetime.utcnow()
     check_cutoff = now - timedelta(days=check_interval_days)
     checked = 0
-    deactivated = 0
+    detected = 0
 
     # Build query
     query_filter = {
@@ -156,10 +155,8 @@ async def _run_deceased_check(db, top_n: Optional[int], check_interval_days: int
     }
 
     if top_n:
-        # Top N by Popularoo Index
         cursor = db.persons.find(query_filter).sort("popularoo_index", -1).limit(top_n)
     else:
-        # All remaining (batch of 100 to respect rate limits)
         cursor = db.persons.find(query_filter).limit(100)
 
     async with httpx.AsyncClient() as client:
@@ -170,44 +167,55 @@ async def _run_deceased_check(db, top_n: Optional[int], check_interval_days: int
 
             death_date = await _check_wikidata_death(name, client)
 
-            update = {"$set": {"deceased_checked_at": now}}
+            # Always update the check timestamp
+            await db.persons.update_one(
+                {"_id": person["_id"]},
+                {"$set": {"deceased_checked_at": now}}
+            )
 
             if death_date is not None:
-                # Person is confirmed deceased via Wikidata P570
-                update["$set"]["is_deceased"] = True
-                update["$set"]["approved"] = False
-                update["$set"]["deactivated_reason"] = "deceased"
-                update["$set"]["deactivated_at"] = now
-                update["$set"]["death_date_wikidata"] = death_date
-                deactivated += 1
-
+                detected += 1
                 logger.warning(f"⚰️ DECEASED DETECTED: {name} (death_date={death_date})")
 
-                # Cancel active Daily Runs involving this person
-                await _cancel_daily_runs_for_deceased(db, person["_id"], name, now)
-
-                # Log admin notification
-                await db.admin_notifications.insert_one({
-                    "type": "deceased_detected",
+                # Check if already in deceased_queue (pending or rejected as false_positive)
+                existing = await db.deceased_queue.find_one({
                     "person_id": person["_id"],
-                    "person_name": name,
-                    "death_date": death_date,
-                    "detected_at": now,
-                    "action_taken": "deactivated",
-                    "read": False,
+                    "status": {"$in": ["pending", "false_positive"]},
                 })
+                if not existing:
+                    # Write to deceased_queue for admin confirmation
+                    await db.deceased_queue.insert_one({
+                        "person_id": person["_id"],
+                        "name": name,
+                        "category": person.get("category", "other"),
+                        "death_date": death_date,
+                        "wikidata_id": person.get("wikidata_id"),
+                        "detected_at": now,
+                        "status": "pending",
+                    })
+                    logger.info(f"📋 Added to deceased_queue: {name}")
 
-            await db.persons.update_one({"_id": person["_id"]}, update)
             checked += 1
-
-            # Rate limit: 300ms between Wikidata requests
             await asyncio.sleep(0.3)
 
-    if checked > 0 or deactivated > 0:
-        logger.info(f"🔍 Deceased check: {checked} checked, {deactivated} deactivated "
+    if checked > 0 or detected > 0:
+        logger.info(f"🔍 Deceased check: {checked} checked, {detected} detected → queue "
                     f"(top_n={'all' if not top_n else top_n})")
 
-    return {"checked": checked, "deactivated": deactivated}
+    # Store last run summary
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$set": {
+            f"last_deceased_check_{'top50' if top_n else 'all'}": {
+                "timestamp": now.isoformat(),
+                "checked": checked,
+                "detected": detected,
+            }
+        }},
+        upsert=True,
+    )
+
+    return {"checked": checked, "detected": detected}
 
 
 async def _cancel_daily_runs_for_deceased(db, person_id: ObjectId, person_name: str, now: datetime):
