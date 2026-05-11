@@ -28,6 +28,11 @@ _config_cache: Optional[Dict[str, Any]] = None
 _config_last_loaded: Optional[datetime] = None
 CONFIG_CACHE_TTL_SECONDS = 300  # 5 minutes
 
+# ---- Alpha cache (Session 2) ----
+_alpha_cache: Optional[float] = None
+_alpha_last_loaded: Optional[datetime] = None
+ALPHA_CACHE_TTL_SECONDS = 60  # 1 minute (changes rarely, fast refresh)
+
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
@@ -78,6 +83,74 @@ async def load_config(db) -> Dict[str, Any]:
 
     _config_last_loaded = now
     return _config_cache
+
+
+async def get_alpha(db) -> float:
+    """
+    Session 2: Get the alpha coefficient from app_settings.
+    α controls the blend: popularoo_index = α × external + (1-α) × votes.
+    α = 1.0 → 100% external (launch default).
+    Cached for 60 seconds.
+    """
+    global _alpha_cache, _alpha_last_loaded
+
+    now = _utcnow()
+    if _alpha_cache is not None and _alpha_last_loaded:
+        if (now - _alpha_last_loaded).total_seconds() < ALPHA_CACHE_TTL_SECONDS:
+            return _alpha_cache
+
+    try:
+        settings = await db.app_settings.find_one({"_id": "global"})
+        if settings and "alpha" in settings:
+            _alpha_cache = float(settings["alpha"])
+        else:
+            # First run: seed alpha = 1.0
+            await db.app_settings.update_one(
+                {"_id": "global"},
+                {"$set": {"alpha": 1.0}},
+                upsert=True
+            )
+            _alpha_cache = 1.0
+            logger.info("📊 Seeded default alpha = 1.0")
+    except Exception as e:
+        logger.warning(f"Failed to load alpha from DB: {e}, using default 1.0")
+        _alpha_cache = 1.0
+
+    _alpha_last_loaded = now
+    return _alpha_cache
+
+
+def compute_blended_index(
+    alpha: float,
+    external_score: Optional[float],
+    score_votes_users: float,
+) -> float:
+    """
+    Session 2: Compute the blended Popularoo Index.
+    popularoo_index = α × external + (1-α) × votes
+
+    Fallback (Préoccupation A): if external_score is None, use votes only.
+    """
+    if external_score is None:
+        # No external score yet — ignore alpha, use votes only
+        return round(max(0.0, min(100.0, score_votes_users)), 1)
+
+    blended = (alpha * external_score) + ((1.0 - alpha) * score_votes_users)
+    return round(max(0.0, min(100.0, blended)), 1)
+
+
+def compute_score_votes_users(person: Dict) -> float:
+    """
+    Session 2: Compute the user vote component.
+    score_votes_users = (likes - dislikes) / max(likes + dislikes, 1) × 100
+    Range: -100 to +100.
+    """
+    likes = int(person.get("likes", 0))
+    dislikes = int(person.get("dislikes", 0))
+    total = likes + dislikes
+    if total <= 0:
+        return 0.0
+    return ((likes - dislikes) / total) * 100
 
 
 def invalidate_config_cache():
@@ -335,40 +408,69 @@ async def get_base_index_24h_ago(db, person_id) -> Optional[float]:
     return None
 
 
-async def recalculate_index_for_person(db, person: Dict, config: Dict) -> float:
+async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Optional[float] = None) -> float:
     """
     Full recalculation of Popularoo Index for a single person.
-    Updates the person document and creates a snapshot.
-    Returns the new index.
+    Session 2: Uses α-blended formula for non-outsiders.
+    Outsiders keep legacy formula (strikes + likes).
+    Updates both 'score' and 'popularoo_index' with the same value.
     """
     from bson import ObjectId
 
     person_id = person["_id"]
-    daily_votes = await get_daily_vote_counts(db, person_id)
-    base_24h = await get_base_index_24h_ago(db, person_id)
-
-    index_val, components = compute_popularoo_index(
-        person, config, daily_votes, base_24h
+    is_outsider = (
+        person.get("category") == "outsider"
+        or person.get("source") == "self_boosted"
     )
 
-    base = components["base_index"]
+    if is_outsider:
+        # ── Outsider: legacy formula (unchanged) ──
+        daily_votes = await get_daily_vote_counts(db, person_id)
+        base_24h = await get_base_index_24h_ago(db, person_id)
+        index_val, components = compute_popularoo_index(person, config, daily_votes, base_24h)
+        base = components["base_index"]
+        now = _utcnow()
+
+        await db.persons.update_one(
+            {"_id": person_id},
+            {"$set": {
+                "popularoo_index": index_val,
+                "base_index": base,
+                "index_components": components,
+                "last_index_calc": now,
+            }}
+        )
+        await db.index_snapshots.insert_one({
+            "person_id": person_id,
+            "base_index": base,
+            "popularoo_index": index_val,
+            "timestamp": now,
+        })
+        return index_val
+
+    # ── Non-outsider: α-blended formula (Session 2) ──
+    if alpha is None:
+        alpha = await get_alpha(db)
+
+    external_score = person.get("popularity_external_score")
+    score_votes = compute_score_votes_users(person)
+    index_val = compute_blended_index(alpha, external_score, score_votes)
+
     now = _utcnow()
 
-    # Update person document
+    # Update BOTH score and popularoo_index with the same value (no round-to-25)
     await db.persons.update_one(
         {"_id": person_id},
         {"$set": {
             "popularoo_index": index_val,
-            "base_index": base,
-            "index_components": components,
+            "score": index_val,
             "last_index_calc": now,
         }}
     )
 
-    # Store snapshot
     await db.index_snapshots.insert_one({
         "person_id": person_id,
-        "base_index": base,
+        "base_index": index_val,
         "popularoo_index": index_val,
         "timestamp": now,
     })
@@ -378,71 +480,94 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict) -> float:
 
 async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     """
-    Quick recalculation after a vote — uses cached regularity & momentum.
-    Only recalculates volume and ratio (the instant components).
+    Quick recalculation after a vote.
+    Session 2: Uses α-blended formula for non-outsiders.
+    Outsiders keep legacy formula (strikes + likes).
     """
-    coeffs = config.get("coefficients", DEFAULT_CONFIG["coefficients"])
-    w_v = coeffs.get("volume", 0.20)
-    w_r = coeffs.get("ratio", 0.40)
-    w_m = coeffs.get("momentum", 0.25)
-    w_reg = coeffs.get("regularity", 0.15)
+    is_outsider = (
+        person.get("category") == "outsider"
+        or person.get("source") == "self_boosted"
+    )
 
-    volume = calc_score_volume(person, config)
-    ratio = calc_ratio_approbation(person, config)
-    strikes = calc_strikes_bonus(person, config)
+    if is_outsider:
+        # ── Outsider: legacy quick recalc (unchanged) ──
+        coeffs = config.get("coefficients", DEFAULT_CONFIG["coefficients"])
+        w_v = coeffs.get("volume", 0.20)
+        w_r = coeffs.get("ratio", 0.40)
+        w_m = coeffs.get("momentum", 0.25)
+        w_reg = coeffs.get("regularity", 0.15)
 
-    # Use cached regularity from last full recalc
-    cached_components = person.get("index_components", {})
-    regularity = cached_components.get("regularity", 0.0)
-    momentum_raw = cached_components.get("momentum_24h", 0.0)
+        volume = calc_score_volume(person, config)
+        ratio = calc_ratio_approbation(person, config)
+        strikes = calc_strikes_bonus(person, config)
 
-    base = (volume * w_v) + (ratio * w_r) + (regularity * w_reg) + strikes
-    final = base + (momentum_raw * w_m)
+        cached_components = person.get("index_components", {})
+        regularity = cached_components.get("regularity", 0.0)
+        momentum_raw = cached_components.get("momentum_24h", 0.0)
 
-    # Low-vote cap — use total engagement
-    likes = person.get("likes", 0)
-    superlikes = person.get("superlikes", 0)
-    dislikes = person.get("dislikes", 0)
-    total_engagement = likes + (5 * superlikes) + dislikes
-    low_cap = config.get("low_vote_cap", 30)
-    low_threshold = config.get("low_vote_threshold", 10)
+        base = (volume * w_v) + (ratio * w_r) + (regularity * w_reg) + strikes
+        final = base + (momentum_raw * w_m)
 
-    if total_engagement < low_threshold:
-        final = min(final, low_cap)
+        likes = person.get("likes", 0)
+        superlikes = person.get("superlikes", 0)
+        dislikes = person.get("dislikes", 0)
+        total_engagement = likes + (5 * superlikes) + dislikes
+        low_cap = config.get("low_vote_cap", 30)
+        low_threshold = config.get("low_vote_threshold", 10)
 
-    final = max(0.0, min(100.0, final))
-    final = round(final, 1)
+        if total_engagement < low_threshold:
+            final = min(final, low_cap)
 
-    # Update person document
-    components = {
-        "score_volume": round(volume, 2),
-        "ratio_approbation": round(ratio, 2),
-        "momentum_24h": round(momentum_raw, 2),
-        "regularity": round(regularity, 2),
-        "strikes_bonus": round(strikes, 2),
-        "base_index": round(base, 2),
-        "final_index": round(final, 2),
-        "total_engagement": total_engagement,
-    }
+        final = max(0.0, min(100.0, final))
+        final = round(final, 1)
 
+        components = {
+            "score_volume": round(volume, 2),
+            "ratio_approbation": round(ratio, 2),
+            "momentum_24h": round(momentum_raw, 2),
+            "regularity": round(regularity, 2),
+            "strikes_bonus": round(strikes, 2),
+            "base_index": round(base, 2),
+            "final_index": round(final, 2),
+            "total_engagement": total_engagement,
+        }
+
+        await db.persons.update_one(
+            {"_id": person["_id"]},
+            {"$set": {
+                "popularoo_index": final,
+                "base_index": round(base, 2),
+                "index_components": components,
+            }}
+        )
+        return final
+
+    # ── Non-outsider: α-blended formula (Session 2) ──
+    alpha = await get_alpha(db)
+    external_score = person.get("popularity_external_score")
+    score_votes = compute_score_votes_users(person)
+    index_val = compute_blended_index(alpha, external_score, score_votes)
+
+    # Update BOTH score and popularoo_index (no round-to-25)
     await db.persons.update_one(
         {"_id": person["_id"]},
         {"$set": {
-            "popularoo_index": final,
-            "base_index": round(base, 2),
-            "index_components": components,
+            "popularoo_index": index_val,
+            "score": index_val,
         }}
     )
 
-    return final
+    return index_val
 
 
 async def recalculate_all_indices(db):
     """
     Background job: recalculate Popularoo Index for all active persons.
     Run every 15 minutes.
+    Session 2: Loads alpha once, uses α-blended formula for non-outsiders.
     """
     config = await load_config(db)
+    alpha = await get_alpha(db)
     now = _utcnow()
 
     # Find all persons with votes or active boosts
@@ -451,13 +576,14 @@ async def recalculate_all_indices(db):
             {"total_votes": {"$gt": 0}},
             {"superlikes": {"$gt": 0}},
             {"source": "self_boosted"},
+            {"popularity_external_score": {"$exists": True}},
         ]
     })
 
     count = 0
     async for person in cursor:
         try:
-            await recalculate_index_for_person(db, person, config)
+            await recalculate_index_for_person(db, person, config, alpha)
             count += 1
         except Exception as e:
             logger.warning(f"Failed to recalculate index for {person.get('name')}: {e}")
@@ -468,7 +594,8 @@ async def recalculate_all_indices(db):
     if result.deleted_count > 0:
         logger.debug(f"🗑️ Cleaned {result.deleted_count} old index snapshots")
 
-    logger.info(f"📊 Recalculated Popularoo Index for {count} persons")
+    logger.info(f"📊 Recalculated Popularoo Index for {count} persons (α={alpha})")
+    return count
 
 
 async def ensure_indexes(db):

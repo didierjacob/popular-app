@@ -208,7 +208,7 @@ def compute_effective_score(person):
     else:
         raw_score = 0.0
 
-    score = round(raw_score / 25) * 25
+    score = round(raw_score, 1)  # Session 2: no more round-to-25
     score = max(0, min(100, score))
 
     return raw_score, score, effective_likes, effective_dislikes, effective_total
@@ -1249,7 +1249,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         raw_score = 0.0
     
     if new_total_votes > 0:
-        new_score = round(raw_score / 25) * 25
+        new_score = round(raw_score, 1)  # Session 2: no more round-to-25
         new_score = max(0, min(100, new_score))
     else:
         new_score = 0
@@ -3933,7 +3933,7 @@ async def admin_add_missing_seeds(request: Request):
                 initial_likes = int(initial_votes * like_ratio)
                 initial_dislikes = initial_votes - initial_likes
                 raw_score = like_ratio * 100
-                initial_score = round(raw_score / 25) * 25
+                initial_score = round(raw_score, 1)  # Session 2: no more round-to-25
                 initial_score = max(0, min(100, initial_score))
                 
                 doc = {
@@ -4025,7 +4025,7 @@ async def admin_initialize_votes(request: Request):
             initial_likes = int(initial_votes * like_ratio)
             initial_dislikes = initial_votes - initial_likes
             raw_score = like_ratio * 100
-            initial_score = round(raw_score / 25) * 25
+            initial_score = round(raw_score, 1)  # Session 2: no more round-to-25
             initial_score = max(0, min(100, initial_score))
             
             await db.persons.update_one(
@@ -6302,6 +6302,53 @@ async def admin_rename_persons_batch(request: Request):
 
     logger.info(f"✏️ Lot D rename: {results['total_renamed']} renamed, {len(results['not_found'])} not found")
     return results
+
+
+# ==================== LOT 3: Alpha Management Endpoints ====================
+
+@api_router.get("/admin/get-alpha")
+async def admin_get_alpha(request: Request):
+    """Get current alpha coefficient. α = blend weight: index = α×external + (1-α)×votes."""
+    _require_admin_auth(request)
+    settings = await db.app_settings.find_one({"_id": "global"})
+    alpha = settings.get("alpha", 1.0) if settings else 1.0
+    last_updated = settings.get("alpha_last_updated") if settings else None
+    return {"alpha": alpha, "last_updated": last_updated}
+
+
+@api_router.post("/admin/set-alpha")
+@limiter.limit("10/15minutes")
+async def admin_set_alpha(request: Request):
+    """Set alpha coefficient. Body: {"alpha": 0.7}. Must be 0 ≤ α ≤ 1."""
+    _require_admin_auth(request)
+    body = await request.json()
+    new_alpha = body.get("alpha")
+    if new_alpha is None or not isinstance(new_alpha, (int, float)):
+        return {"error": "alpha must be a number"}
+    new_alpha = float(new_alpha)
+    if new_alpha < 0 or new_alpha > 1:
+        return {"error": "alpha must be between 0 and 1"}
+
+    now = now_utc()
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$set": {"alpha": new_alpha, "alpha_last_updated": now}},
+        upsert=True
+    )
+
+    # Invalidate the alpha cache in popularoo_index
+    from popularoo_index import _alpha_cache, _alpha_last_loaded
+    import popularoo_index
+    popularoo_index._alpha_cache = None
+    popularoo_index._alpha_last_loaded = None
+
+    logger.info(f"⚖️ Alpha set to {new_alpha} by admin")
+    return {
+        "success": True,
+        "alpha": new_alpha,
+        "last_updated": now,
+        "note": "Scores will update within 15 minutes (next recalculation cycle)"
+    }
 
 
 # ==================== LOT 2: Manual External Scores Recalculation ====================
