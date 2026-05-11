@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import re
 import random
+from collections import Counter
 import asyncio
 from unidecode import unidecode
 from trends_service import trends_service
@@ -6965,12 +6966,13 @@ async def admin_approve_all_high(request: Request):
     return {"success": True, **results}
 
 
-@api_router.post("/admin/propose-celebrity")
-async def admin_propose_celebrity(request: Request):
+@api_router.post("/admin/propose-celebrity-to-queue")
+async def admin_propose_celebrity_to_queue(request: Request):
     """
-    Session 3 Lot 1: Manual celebrity proposal.
+    Session 3 Lot 1 (legacy): Manual celebrity proposal → candidate_queue.
+    Replaced by Lot 3 POST /admin/propose-celebrity which creates directly.
+    Kept for backward compatibility (queue-based flow).
     Body: { "name": "Full Name" }
-    Searches Wikipedia, checks eligibility, adds to candidate_queue (or directly to DB if admin confirms).
     """
     _require_admin_auth(request)
     body = await request.json()
@@ -6979,68 +6981,41 @@ async def admin_propose_celebrity(request: Request):
     if not name or len(name) < 2:
         raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
 
-    # Check if already in DB
     name_slug = slugify(name)
     existing = await db.persons.find_one({"slug": name_slug})
     if existing:
         return {"success": False, "error": "already_exists", "message": f"'{name}' already in database"}
 
-    # Check if already in queue
     from unidecode import unidecode as _unidecode
     name_norm = _unidecode(name).lower().strip()
     existing_q = await db.candidate_queue.find_one({"name_normalized": name_norm, "status": "pending"})
     if existing_q:
         return {"success": False, "error": "already_in_queue", "message": f"'{name}' already pending in queue"}
 
-    # Fetch Wikidata info
     import httpx
     async with httpx.AsyncClient(timeout=15) as client:
         from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
-
         is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
         if not is_human:
-            return {
-                "success": False,
-                "error": "not_human",
-                "message": f"'{name}' not identified as a human in Wikidata. Manual override possible via add-celebrities-batch.",
-            }
+            return {"success": False, "error": "not_human", "message": f"'{name}' not identified as a human in Wikidata."}
         if is_deceased:
-            return {
-                "success": False,
-                "error": "deceased",
-                "message": f"'{name}' is marked as deceased in Wikidata (P570). Cannot add to Popularoo.",
-            }
-
+            return {"success": False, "error": "deceased", "message": f"'{name}' is marked as deceased in Wikidata (P570)."}
         langs = await check_multi_lang_pages(name, client)
         category, confidence = infer_category(description or "")
 
     now = now_utc()
     candidate_doc = {
-        "name": name,
-        "name_normalized": name_norm,
-        "slug": name_slug,
-        "category_suggested": category,
-        "confidence": confidence,
-        "wiki_score": 0,  # Manual proposal, no pageview data
-        "wiki_langs": langs,
-        "wiki_lang_count": len(langs),
-        "wiki_description": description or "",
-        "wikidata_id": wikidata_id,
-        "detected_at": now,
-        "status": "pending",
-        "source": "manual_proposal",
+        "name": name, "name_normalized": name_norm, "slug": name_slug,
+        "category_suggested": category, "confidence": confidence,
+        "wiki_score": 0, "wiki_langs": langs, "wiki_lang_count": len(langs),
+        "wiki_description": description or "", "wikidata_id": wikidata_id,
+        "detected_at": now, "status": "pending", "source": "manual_proposal",
     }
-
     result = await db.candidate_queue.insert_one(candidate_doc)
-
     return {
-        "success": True,
-        "candidate_id": str(result.inserted_id),
-        "name": name,
-        "category_suggested": category,
-        "confidence": confidence,
-        "wiki_description": description or "",
-        "wiki_langs": langs,
+        "success": True, "candidate_id": str(result.inserted_id), "name": name,
+        "category_suggested": category, "confidence": confidence,
+        "wiki_description": description or "", "wiki_langs": langs,
         "message": f"'{name}' added to candidate queue for review",
     }
 
@@ -7553,6 +7528,711 @@ async def admin_delete_block_user_creation(person_id: str, request: Request):
 
     logger.info(f"🚫 [Admin] Deleted + blocked user-created profile: {name}")
     return {"success": True, "name": name, "blocked_slug": name_slug}
+
+
+# ==================== SESSION 3 — LOT 3: Outsider Moderation + Manual Proposal ====================
+
+# ── Family 1: POST /api/admin/propose-celebrity — Manual admin celebrity addition ──
+
+@api_router.post("/admin/propose-celebrity")
+async def admin_propose_celebrity(request: Request):
+    """
+    Session 3 Lot 3: Manual celebrity addition by admin.
+    Validates name (≥2 words, no digits), category, then runs full Wikipedia/Wikidata
+    guard-fous pipeline. Creates the person IMMEDIATELY with visibility=true.
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+
+    name = (body.get("name") or "").strip()
+    category = (body.get("category") or "").strip().lower()
+
+    # ── Validate name ──
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    words = name.split()
+    if len(words) < 2:
+        raise HTTPException(status_code=400, detail="Name must contain at least 2 words")
+    # No digits
+    import re as _re
+    if _re.search(r"\d", name):
+        raise HTTPException(status_code=400, detail="Name must not contain digits")
+    # No abusive acronyms (all-caps words longer than 1 char that aren't names)
+    for w in words:
+        if len(w) > 1 and w == w.upper() and not w.isalpha():
+            raise HTTPException(status_code=400, detail=f"Suspicious acronym in name: {w}")
+
+    # ── Validate category ──
+    valid_categories = {"politics", "culture", "sport", "business", "influencer", "other"}
+    if category not in valid_categories:
+        raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {sorted(valid_categories)}")
+
+    # ── Check if already in DB ──
+    name_slug = slugify(name)
+    existing = await db.persons.find_one({"slug": name_slug})
+    if existing:
+        return {"success": False, "error": "already_exists", "person_id": str(existing["_id"])}
+
+    # ── Check blocklist ──
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    blocked_slugs = set(settings.get("seed_blocklist", []))
+    if name_slug in blocked_slugs:
+        return {"success": False, "error": "blocked"}
+
+    # ── Wikipedia / Wikidata guard-fous ──
+    import httpx as _httpx
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages
+
+    try:
+        async with _httpx.AsyncClient(timeout=15) as client:
+            is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
+
+            if not is_human:
+                return {"success": False, "error": "wikipedia_not_found"}
+
+            if is_deceased:
+                return {"success": False, "error": "deceased"}
+
+            langs = await check_multi_lang_pages(name, client)
+            if len(langs) < 2:
+                return {"success": False, "error": "insufficient_languages", "found_langs": langs}
+
+    except Exception as e:
+        logger.error(f"[propose-celebrity] Wikipedia check failed for '{name}': {e}")
+        return {"success": False, "error": "wikipedia_check_failed", "detail": str(e)}
+
+    # ── Get canonical name from Wikipedia ──
+    canonical_name = name
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            title = name.replace(" ", "_")
+            resp = await client.get(
+                f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                headers={"User-Agent": "Popularoo/1.0"},
+                follow_redirects=True,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                canonical_name = data.get("title", name)
+    except Exception:
+        pass
+
+    final_slug = slugify(canonical_name)
+    # Double-check with canonical slug
+    existing = await db.persons.find_one({"slug": final_slug})
+    if existing:
+        return {"success": False, "error": "already_exists", "person_id": str(existing["_id"])}
+
+    # ── Compute Wikipedia external score ──
+    ext_score = 0.0
+    wiki_brut = 0
+    wiki_norm = 0.0
+    try:
+        from external_scores import compute_external_score_for_person as _compute_ext
+        max_doc = await db.persons.find_one(
+            {"wiki_score_brut": {"$exists": True}},
+            sort=[("wiki_score_brut", -1)]
+        )
+        max_wiki_in_db = max_doc.get("wiki_score_brut", 1.0) if max_doc else None
+        ext_result = await _compute_ext(canonical_name, max_wiki_in_db=max_wiki_in_db)
+        ext_score = ext_result.get("popularity_external_score", 0)
+        wiki_brut = ext_result.get("wiki_score_brut", 0)
+        wiki_norm = ext_result.get("wiki_score_norm", 0)
+    except Exception as e:
+        logger.warning(f"[propose-celebrity] External score failed for '{canonical_name}': {e}")
+
+    # ── Compute popularoo_index ──
+    from popularoo_index import get_alpha
+    alpha = await get_alpha(db)
+    pi = round(alpha * ext_score, 2)  # 0 votes → index = alpha * ext
+
+    now = now_utc()
+    person_doc = {
+        "name": canonical_name,
+        "slug": final_slug,
+        "category": category,  # Admin override
+        "approved": True,
+        "created_at": now,
+        "updated_at": now,
+        "score": pi,
+        "likes": 0,
+        "dislikes": 0,
+        "total_votes": 0,
+        "source": "admin_manual",
+        "visible_in_rankings": True,  # Immediate visibility
+        "wiki_description": description or "",
+        "wikidata_id": wikidata_id,
+        "wiki_langs": langs,
+        "popularity_external_score": ext_score,
+        "wiki_score_brut": wiki_brut,
+        "wiki_score_norm": wiki_norm,
+        "last_external_update": now,
+        "popularoo_index": pi,
+    }
+
+    result = await db.persons.insert_one(person_doc)
+    person_id = str(result.inserted_id)
+
+    # Initial tick
+    await db.person_ticks.insert_one({
+        "person_id": result.inserted_id,
+        "score": pi,
+        "total_votes": 0,
+        "created_at": now,
+    })
+
+    await _log_admin_action("propose_celebrity", canonical_name, {
+        "category": category,
+        "popularoo_index": pi,
+        "ext_score": ext_score,
+    })
+
+    logger.info(f"✅ [Admin] Proposed celebrity '{canonical_name}' cat={category} PI={pi}")
+
+    return {
+        "success": True,
+        "person_id": person_id,
+        "name": canonical_name,
+        "category": category,
+        "popularity_external_score": ext_score,
+        "popularoo_index": pi,
+        "wikipedia_langs": langs,
+    }
+
+
+# ── Family 2: User self-management of outsider profile ──
+
+@api_router.get("/me/my-outsider-profile")
+async def get_my_outsider_profile(device_id: str = Query(...)):
+    """
+    Returns the outsider profile owned by this device_id.
+    Looks up active_boosts by user_id == device_id, then fetches the person.
+    """
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="Invalid device_id")
+
+    # Find the most recent active boost for this device
+    now = now_utc()
+    boost = await db.active_boosts.find_one(
+        {"user_id": device_id, "end_time": {"$gt": now}},
+        sort=[("start_time", -1)]
+    )
+
+    if not boost:
+        # Maybe expired but still has a person
+        boost = await db.active_boosts.find_one(
+            {"user_id": device_id},
+            sort=[("start_time", -1)]
+        )
+
+    if not boost:
+        return {"found": False, "message": "No outsider profile found for this device"}
+
+    person = await db.persons.find_one({"_id": boost["person_id"]})
+    if not person:
+        return {"found": False, "message": "Outsider profile not found in database"}
+
+    is_active = boost.get("end_time", now) > now
+    hours_remaining = max(0, (boost["end_time"] - now).total_seconds() / 3600) if is_active else 0
+
+    return {
+        "found": True,
+        "person_id": str(person["_id"]),
+        "name": person.get("name", ""),
+        "slug": person.get("slug", ""),
+        "category": person.get("category", "other"),
+        "source": person.get("source", ""),
+        "score": person.get("score", 0),
+        "likes": person.get("likes", 0),
+        "dislikes": person.get("dislikes", 0),
+        "superlikes": person.get("superlikes", 0),
+        "total_votes": person.get("total_votes", 0),
+        "social_links": person.get("social_links", {}),
+        "email": person.get("email", ""),
+        "boost_active": is_active,
+        "boost_tier": boost.get("tier", ""),
+        "hours_remaining": round(hours_remaining, 1),
+        "boost_end_time": boost["end_time"].isoformat() if is_active else None,
+    }
+
+
+@api_router.delete("/me/my-outsider-profile")
+async def delete_my_outsider_profile(device_id: str = Query(...)):
+    """
+    User self-deletion of their outsider profile.
+    Deletes the person from DB, expires all active boosts, and adds slug to blocklist
+    to prevent re-creation via search.
+    """
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="Invalid device_id")
+
+    # Find any boost owned by this device
+    boost = await db.active_boosts.find_one(
+        {"user_id": device_id},
+        sort=[("start_time", -1)]
+    )
+    if not boost:
+        raise HTTPException(status_code=404, detail="No outsider profile found for this device")
+
+    person_id = boost["person_id"]
+    person = await db.persons.find_one({"_id": person_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Outsider profile not found")
+
+    # Only allow deletion of self_boosted profiles
+    if person.get("source") != "self_boosted":
+        raise HTTPException(status_code=403, detail="Can only delete outsider (self_boosted) profiles")
+
+    name = person.get("name", "")
+    name_slug = person.get("slug", slugify(name))
+    now = now_utc()
+
+    # 1. Delete the person document
+    await db.persons.delete_one({"_id": person_id})
+
+    # 2. Expire all active boosts for this person
+    await db.active_boosts.update_many(
+        {"person_id": person_id, "end_time": {"$gt": now}},
+        {"$set": {"end_time": now, "status": "user_deleted", "updated_at": now}}
+    )
+
+    # 3. Add slug to blocklist to prevent re-creation
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$addToSet": {"seed_blocklist": name_slug}},
+        upsert=True,
+    )
+
+    # 4. Clean up related data
+    await db.vote_events.delete_many({"person_id": person_id})
+    await db.person_ticks.delete_many({"person_id": person_id})
+
+    logger.info(f"🗑️ [User Self-Delete] Outsider '{name}' deleted by device {device_id[:8]}...")
+
+    return {
+        "success": True,
+        "deleted_name": name,
+        "deleted_slug": name_slug,
+        "message": f"Your outsider profile '{name}' has been permanently deleted."
+    }
+
+
+# ── Family 3: POST /api/report-outsider — User reporting with anti-spam ──
+
+class ReportOutsiderRequest(BaseModel):
+    outsider_person_id: str
+    reason: str  # e.g. "spam", "inappropriate", "fake", "other"
+    comment: str = ""  # Optional free-text
+
+@api_router.post("/report-outsider")
+async def report_outsider(request: Request, body: ReportOutsiderRequest):
+    """
+    Report an outsider profile. Anti-spam: 1 report per device per profile per 24h.
+    """
+    device_id = request.headers.get("X-Device-ID", "")
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="X-Device-ID header required")
+
+    # Validate reason
+    valid_reasons = {"spam", "inappropriate", "fake", "offensive", "other"}
+    if body.reason not in valid_reasons:
+        raise HTTPException(status_code=400, detail=f"Invalid reason. Must be one of: {sorted(valid_reasons)}")
+
+    # Validate person exists and is an outsider
+    try:
+        person_oid = ObjectId(body.outsider_person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid outsider_person_id")
+
+    person = await db.persons.find_one({"_id": person_oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Outsider profile not found")
+    if person.get("source") != "self_boosted":
+        raise HTTPException(status_code=400, detail="Can only report outsider (self_boosted) profiles")
+
+    # Anti-spam: 1 report per device per profile per 24h
+    now = now_utc()
+    cutoff_24h = now - timedelta(hours=24)
+    existing_report = await db.outsider_reports.find_one({
+        "outsider_person_id": body.outsider_person_id,
+        "device_id": device_id,
+        "created_at": {"$gte": cutoff_24h},
+    })
+    if existing_report:
+        raise HTTPException(
+            status_code=429,
+            detail="You have already reported this profile in the last 24 hours"
+        )
+
+    # Create report
+    report_doc = {
+        "outsider_person_id": body.outsider_person_id,
+        "outsider_name": person.get("name", ""),
+        "reason": body.reason,
+        "comment": body.comment[:500] if body.comment else "",  # Limit comment length
+        "device_id": device_id,
+        "status": "pending",  # pending, ignored, warned, deleted
+        "created_at": now,
+    }
+
+    result = await db.outsider_reports.insert_one(report_doc)
+
+    # Count total pending reports for this outsider
+    total_reports = await db.outsider_reports.count_documents({
+        "outsider_person_id": body.outsider_person_id,
+        "status": "pending",
+    })
+
+    logger.info(f"🚩 [Report] Outsider '{person.get('name')}' reported by {device_id[:8]}... reason={body.reason} (total pending: {total_reports})")
+
+    return {
+        "success": True,
+        "report_id": str(result.inserted_id),
+        "total_pending_reports": total_reports,
+        "message": "Report submitted. Our team will review it shortly."
+    }
+
+
+# ── Family 4: Admin Outsider Moderation ──
+
+@api_router.get("/admin/outsider-reports")
+async def admin_list_outsider_reports(request: Request, status: str = Query(default="pending")):
+    """
+    List outsider reports, grouped by outsider, with report count.
+    """
+    _require_admin_auth(request)
+
+    valid_statuses = {"pending", "ignored", "warned", "deleted", "all"}
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status filter. Use: {sorted(valid_statuses)}")
+
+    match_stage = {}
+    if status != "all":
+        match_stage["status"] = status
+
+    # Aggregate reports grouped by outsider
+    pipeline = [
+        {"$match": match_stage},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$outsider_person_id",
+            "outsider_name": {"$first": "$outsider_name"},
+            "report_count": {"$sum": 1},
+            "reasons": {"$push": "$reason"},
+            "latest_report": {"$first": "$$ROOT"},
+            "all_reports": {"$push": {
+                "report_id": {"$toString": "$_id"},
+                "reason": "$reason",
+                "comment": "$comment",
+                "device_id": "$device_id",
+                "status": "$status",
+                "created_at": {"$dateToString": {"format": "%Y-%m-%dT%H:%M:%SZ", "date": "$created_at"}},
+            }},
+        }},
+        {"$sort": {"report_count": -1}},
+    ]
+
+    results = await db.outsider_reports.aggregate(pipeline).to_list(200)
+
+    output = []
+    for r in results:
+        # Get person details
+        person = None
+        try:
+            person = await db.persons.find_one({"_id": ObjectId(r["_id"])})
+        except Exception:
+            pass
+
+        output.append({
+            "outsider_person_id": r["_id"],
+            "outsider_name": r.get("outsider_name", ""),
+            "report_count": r["report_count"],
+            "reasons_summary": dict(Counter(r["reasons"])),
+            "person_exists": person is not None,
+            "person_source": person.get("source", "") if person else None,
+            "person_email": person.get("email", "") if person else None,
+            "reports": r["all_reports"],
+        })
+
+    return {"total_outsiders_reported": len(output), "reports": output}
+
+
+@api_router.post("/admin/outsider-reports/{report_id}/ignore")
+async def admin_ignore_outsider_report(report_id: str, request: Request):
+    """Mark a report (or all pending reports for the outsider) as ignored."""
+    _require_admin_auth(request)
+
+    try:
+        report_oid = ObjectId(report_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid report_id")
+
+    report = await db.outsider_reports.find_one({"_id": report_oid})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    outsider_person_id = report["outsider_person_id"]
+
+    # Mark ALL pending reports for this outsider as ignored
+    result = await db.outsider_reports.update_many(
+        {"outsider_person_id": outsider_person_id, "status": "pending"},
+        {"$set": {"status": "ignored", "resolved_at": now_utc()}}
+    )
+
+    await _log_admin_action("ignore_outsider_report", report.get("outsider_name", ""), {
+        "report_id": report_id,
+        "reports_ignored": result.modified_count,
+    })
+
+    return {
+        "success": True,
+        "reports_ignored": result.modified_count,
+        "outsider_name": report.get("outsider_name", ""),
+    }
+
+
+@api_router.post("/admin/outsider-reports/{report_id}/warn")
+async def admin_warn_outsider(report_id: str, request: Request):
+    """
+    Send a warning email to the outsider owner. Marks reports as 'warned'.
+    The email is bilingual (FR + EN) as specified.
+    """
+    _require_admin_auth(request)
+
+    try:
+        report_oid = ObjectId(report_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid report_id")
+
+    report = await db.outsider_reports.find_one({"_id": report_oid})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    outsider_person_id = report["outsider_person_id"]
+
+    # Find the person
+    try:
+        person = await db.persons.find_one({"_id": ObjectId(outsider_person_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid outsider person ID in report")
+
+    if not person:
+        raise HTTPException(status_code=404, detail="Outsider profile no longer exists")
+
+    # Find the owner's email via the boost
+    boost = await db.active_boosts.find_one(
+        {"person_id": person["_id"]},
+        sort=[("start_time", -1)]
+    )
+
+    owner_email = person.get("email", "") or (boost.get("email", "") if boost else "")
+    if not owner_email:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No email found for outsider '{person.get('name', '')}'. Cannot send warning."
+        )
+
+    # ── Build warning email (bilingual FR + EN) ──
+    outsider_name = person.get("name", "")
+    subject = "Popularoo — Signalement de votre profil Outsider"
+
+    html_body = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                max-width: 560px; margin: 0 auto; padding: 32px 24px;
+                background: #0F2F22; color: #EAEAEA; border-radius: 12px;">
+        <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:28px;font-weight:800;color:#2ECC71;">Popularoo</span>
+        </div>
+        <div style="line-height:1.6;font-size:15px;">
+            <p>Bonjour,</p>
+            <p>Nous avons reçu plusieurs signalements concernant votre profil Outsider <b>{outsider_name}</b> sur Popularoo. Après examen, nous souhaitons attirer votre attention sur le fait que certains éléments de votre profil pourraient ne pas respecter pleinement nos conditions d'utilisation.</p>
+            <p>Nous vous invitons à vérifier votre profil et à le modifier si nécessaire. Si votre profil ne respecte pas nos règles communautaires, nous pourrons être amenés à le supprimer définitivement.</p>
+            <p>Vous pouvez consulter nos conditions d'utilisation sur <a href="https://popularoo.com/cgu" style="color:#2ECC71;">popularoo.com/cgu</a>.</p>
+            <p>Cordialement,<br>L'équipe Popularoo</p>
+
+            <hr style="border:none;border-top:1px solid #2E6148;margin:24px 0;">
+
+            <p>Hello,</p>
+            <p>We have received multiple reports regarding your Outsider profile <b>{outsider_name}</b> on Popularoo. After review, we want to draw your attention to the fact that some elements of your profile may not fully comply with our terms of use.</p>
+            <p>We invite you to verify your profile and modify it if necessary. If your profile does not respect our community guidelines, we may have to delete it permanently.</p>
+            <p>You can review our terms of use at <a href="https://popularoo.com/cgu" style="color:#2ECC71;">popularoo.com/cgu</a>.</p>
+            <p>Best regards,<br>The Popularoo Team</p>
+        </div>
+        <div style="margin-top:32px;padding-top:16px;border-top:1px solid #2E6148;
+                    text-align:center;font-size:12px;color:#C9D8D2;">
+            © {datetime.utcnow().year} Popularoo App
+        </div>
+    </div>
+    """
+
+    # Send email
+    try:
+        await email_service.send_email(owner_email, subject, html_body)
+    except Exception as e:
+        logger.error(f"[warn-outsider] Email send failed for {owner_email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send warning email: {str(e)}")
+
+    # Mark all pending reports for this outsider as 'warned'
+    result = await db.outsider_reports.update_many(
+        {"outsider_person_id": outsider_person_id, "status": "pending"},
+        {"$set": {"status": "warned", "resolved_at": now_utc(), "warned_email": owner_email}}
+    )
+
+    await _log_admin_action("warn_outsider", outsider_name, {
+        "report_id": report_id,
+        "email_sent_to": owner_email,
+        "reports_warned": result.modified_count,
+    })
+
+    logger.info(f"⚠️ [Admin] Warning sent to '{outsider_name}' at {owner_email}")
+
+    return {
+        "success": True,
+        "outsider_name": outsider_name,
+        "email_sent_to": owner_email,
+        "reports_warned": result.modified_count,
+    }
+
+
+@api_router.post("/admin/outsider-reports/{report_id}/delete")
+async def admin_delete_reported_outsider(report_id: str, request: Request):
+    """
+    Delete the reported outsider, send deletion email, add to blocklist.
+    """
+    _require_admin_auth(request)
+
+    try:
+        report_oid = ObjectId(report_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid report_id")
+
+    report = await db.outsider_reports.find_one({"_id": report_oid})
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    outsider_person_id = report["outsider_person_id"]
+
+    # Find the person
+    try:
+        person = await db.persons.find_one({"_id": ObjectId(outsider_person_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid outsider person ID in report")
+
+    if not person:
+        # Already deleted — just mark reports
+        await db.outsider_reports.update_many(
+            {"outsider_person_id": outsider_person_id, "status": {"$in": ["pending", "warned"]}},
+            {"$set": {"status": "deleted", "resolved_at": now_utc()}}
+        )
+        return {"success": True, "message": "Outsider already deleted. Reports marked as resolved."}
+
+    outsider_name = person.get("name", "")
+    name_slug = person.get("slug", slugify(outsider_name))
+    person_oid = person["_id"]
+    now = now_utc()
+
+    # Find the owner's email
+    boost = await db.active_boosts.find_one(
+        {"person_id": person_oid},
+        sort=[("start_time", -1)]
+    )
+    owner_email = person.get("email", "") or (boost.get("email", "") if boost else "")
+
+    # ── 1. Delete the person ──
+    await db.persons.delete_one({"_id": person_oid})
+
+    # ── 2. Expire all active boosts ──
+    await db.active_boosts.update_many(
+        {"person_id": person_oid, "end_time": {"$gt": now}},
+        {"$set": {"end_time": now, "status": "admin_deleted", "updated_at": now}}
+    )
+
+    # ── 3. Add slug to blocklist ──
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$addToSet": {"seed_blocklist": name_slug}},
+        upsert=True,
+    )
+
+    # ── 4. Clean up related data ──
+    await db.vote_events.delete_many({"person_id": person_oid})
+    await db.person_ticks.delete_many({"person_id": person_oid})
+
+    # ── 5. Add device to blocklist for outsider creation ──
+    if boost and boost.get("user_id"):
+        await db.outsider_blocklist.update_one(
+            {"device_id": boost["user_id"]},
+            {"$set": {
+                "device_id": boost["user_id"],
+                "reason": f"Outsider '{outsider_name}' deleted after reports",
+                "blocked_at": now,
+                "outsider_name": outsider_name,
+            }},
+            upsert=True,
+        )
+
+    # ── 6. Send deletion email ──
+    email_sent = False
+    if owner_email:
+        subject = "Popularoo — Suppression de votre profil Outsider"
+        html_body = f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    max-width: 560px; margin: 0 auto; padding: 32px 24px;
+                    background: #0F2F22; color: #EAEAEA; border-radius: 12px;">
+            <div style="text-align:center;margin-bottom:24px;">
+                <span style="font-size:28px;font-weight:800;color:#2ECC71;">Popularoo</span>
+            </div>
+            <div style="line-height:1.6;font-size:15px;">
+                <p>Bonjour,</p>
+                <p>Suite à plusieurs signalements et à l'examen de votre profil Outsider <b>{outsider_name}</b>, nous avons procédé à sa suppression définitive de Popularoo. Cette décision a été prise au regard de nos conditions d'utilisation et règles communautaires.</p>
+                <p>Aucun remboursement de votre Booster n'est possible, conformément aux conditions générales que vous avez acceptées lors de l'achat.</p>
+                <p>Si vous estimez que cette décision est injustifiée, vous pouvez nous contacter à <a href="mailto:popularoo@popularoo.com" style="color:#2ECC71;">popularoo@popularoo.com</a> en précisant le nom du profil concerné. Nous étudierons votre demande.</p>
+                <p>Cordialement,<br>L'équipe Popularoo</p>
+
+                <hr style="border:none;border-top:1px solid #2E6148;margin:24px 0;">
+
+                <p>Hello,</p>
+                <p>Following multiple reports and a review of your Outsider profile <b>{outsider_name}</b>, we have permanently deleted it from Popularoo. This decision was made in accordance with our terms of use and community guidelines.</p>
+                <p>No refund of your Booster is possible, in accordance with the general terms you accepted at the time of purchase.</p>
+                <p>If you believe this decision is unjustified, you can contact us at <a href="mailto:popularoo@popularoo.com" style="color:#2ECC71;">popularoo@popularoo.com</a> and provide the name of the affected profile. We will review your request.</p>
+                <p>Best regards,<br>The Popularoo Team</p>
+            </div>
+            <div style="margin-top:32px;padding-top:16px;border-top:1px solid #2E6148;
+                        text-align:center;font-size:12px;color:#C9D8D2;">
+                © {datetime.utcnow().year} Popularoo App
+            </div>
+        </div>
+        """
+        try:
+            await email_service.send_email(owner_email, subject, html_body)
+            email_sent = True
+        except Exception as e:
+            logger.error(f"[delete-outsider] Email send failed for {owner_email}: {e}")
+
+    # ── 7. Mark ALL reports for this outsider as 'deleted' ──
+    reports_result = await db.outsider_reports.update_many(
+        {"outsider_person_id": outsider_person_id, "status": {"$in": ["pending", "warned"]}},
+        {"$set": {"status": "deleted", "resolved_at": now}}
+    )
+
+    await _log_admin_action("delete_reported_outsider", outsider_name, {
+        "report_id": report_id,
+        "email_sent": email_sent,
+        "email_to": owner_email or "N/A",
+        "blocked_slug": name_slug,
+        "reports_resolved": reports_result.modified_count,
+    })
+
+    logger.info(f"🚫 [Admin] Deleted reported outsider '{outsider_name}', blocked slug='{name_slug}', email_sent={email_sent}")
+
+    return {
+        "success": True,
+        "deleted_name": outsider_name,
+        "blocked_slug": name_slug,
+        "email_sent": email_sent,
+        "email_to": owner_email or None,
+        "reports_resolved": reports_result.modified_count,
+    }
 
 
 # Include API router AFTER all endpoints are defined on it
