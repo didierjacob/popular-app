@@ -215,13 +215,27 @@ def _fetch_trends_sync(name: str, days: int = 7) -> float:
 
 def normalize_wiki_score(wiki_brut: float, max_wiki_in_db: float) -> float:
     """
-    Normalize Wikipedia score to 0-100 scale.
-    wiki_score_norm = (wiki_brut / max_wiki_in_db) × 100
-    If max_wiki is 0 or None, returns 0.
+    Normalize Wikipedia score to 0-100 scale using LOGARITHMIC normalization.
+    Spreads scores across a wider visual range (30-100 instead of 1-100).
+
+    Formula:
+        wiki_score_log = log10(wiki_brut + 1)
+        max_wiki_log   = log10(max_wiki + 1)
+        wiki_score_norm = (wiki_score_log / max_wiki_log) × 100
+
+    Example with Trump=62201, Brad Pitt=15836, Squeezie=826:
+        Trump:     log10(62202) / log10(62202) × 100 = 100.0
+        Brad Pitt: log10(15837) / log10(62202) × 100 ≈ 87.7
+        Squeezie:  log10(827)   / log10(62202) × 100 ≈ 60.9
     """
-    if not max_wiki_in_db or max_wiki_in_db <= 0:
+    import math
+    if not max_wiki_in_db or max_wiki_in_db <= 0 or wiki_brut <= 0:
         return 0.0
-    normalized = (wiki_brut / max_wiki_in_db) * 100
+    wiki_log = math.log10(wiki_brut + 1)
+    max_log = math.log10(max_wiki_in_db + 1)
+    if max_log <= 0:
+        return 0.0
+    normalized = (wiki_log / max_log) * 100
     return round(min(100.0, max(0.0, normalized)), 1)
 
 
