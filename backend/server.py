@@ -6410,6 +6410,88 @@ async def admin_recalculate_external_scores(request: Request):
     return summary
 
 
+# ==================== LOT 4: Diagnose External Scores ====================
+
+@api_router.post("/admin/diagnose-external-scores")
+async def admin_diagnose_external_scores(request: Request):
+    """
+    Lot 4: Read-only diagnostic of external scores health.
+    Returns stats, top/bottom 10, and high-divergence anomalies.
+    """
+    _require_admin_auth(request)
+    from popularoo_index import compute_score_votes_users
+
+    now = now_utc()
+    cutoff_48h = now - timedelta(hours=48)
+
+    # Fetch all non-outsider persons
+    all_persons = await db.persons.find(
+        {"source": {"$ne": "self_boosted"}, "category": {"$ne": "outsider"}}
+    ).to_list(length=5000)
+
+    total_persons = len(all_persons)
+    with_ext = 0
+    without_ext = 0
+    updated_within_48h = 0
+    updated_older = 0
+    ext_scores = []
+    high_divergence = []
+
+    for doc in all_persons:
+        ext = doc.get("popularity_external_score")
+        last_update = doc.get("last_external_update")
+
+        if ext is not None:
+            with_ext += 1
+            ext_scores.append({"name": doc.get("name", "?"), "ext": ext, "doc": doc})
+
+            if last_update and last_update >= cutoff_48h:
+                updated_within_48h += 1
+            else:
+                updated_older += 1
+        else:
+            without_ext += 1
+
+    # Compute average, min, max
+    ext_values = [e["ext"] for e in ext_scores]
+    avg_ext = round(sum(ext_values) / len(ext_values), 1) if ext_values else 0.0
+    max_ext = round(max(ext_values), 1) if ext_values else 0.0
+    min_ext = round(min(ext_values), 1) if ext_values else 0.0
+
+    # Top 10 and Bottom 10 by external score
+    sorted_by_ext = sorted(ext_scores, key=lambda x: x["ext"], reverse=True)
+    top_10 = [{"name": e["name"], "external_score": round(e["ext"], 1)} for e in sorted_by_ext[:10]]
+    bottom_10 = [{"name": e["name"], "external_score": round(e["ext"], 1)} for e in sorted_by_ext[-10:]]
+
+    # High divergence: |external - votes_score| > 50
+    for e in ext_scores:
+        votes_score = compute_score_votes_users(e["doc"])
+        diff = abs(e["ext"] - votes_score)
+        if diff > 50:
+            high_divergence.append({
+                "name": e["name"],
+                "external_score": round(e["ext"], 1),
+                "votes_score": round(votes_score, 1),
+                "diff": round(diff, 1),
+            })
+
+    high_divergence.sort(key=lambda x: x["diff"], reverse=True)
+
+    return {
+        "total_persons": total_persons,
+        "with_external_score": with_ext,
+        "without_external_score": without_ext,
+        "updated_within_48h": updated_within_48h,
+        "updated_older_than_48h": updated_older,
+        "average_external_score": avg_ext,
+        "max_external_score": max_ext,
+        "min_external_score": min_ext,
+        "top_10_external": top_10,
+        "bottom_10_external": bottom_10,
+        "high_divergence": high_divergence,
+    }
+
+
 # ==================== LOT 1: Test External Score (Temporary) ====================
 
 @api_router.post("/admin/test-external-score")
