@@ -1691,48 +1691,15 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
         cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
         
-        # If no local results found, search Wikipedia
-        if not results and len(search_term) >= 3:
-            wiki_person = await search_wikipedia_person(search_term)
-            
-            if wiki_person:
-                # Check if this person already exists (exact name match)
-                existing = await db.persons.find_one({
-                    "name": {"$regex": f"^{re.escape(wiki_person['name'])}$", "$options": "i"}
-                })
-                
-                if existing:
-                    results = [existing]
-                else:
-                    # Create the person in the database
-                    initial_votes = random.randint(100, 500)
-                    like_ratio = random.uniform(0.45, 0.70)
-                    initial_likes = int(initial_votes * like_ratio)
-                    initial_dislikes = initial_votes - initial_likes
-                    score = like_ratio * 100
-                    
-                    new_person = {
-                        "name": wiki_person["name"],
-                        "slug": slugify(wiki_person["name"]),
-                        "category": wiki_person["category"],
-                        "approved": True,
-                        "created_at": now_utc(),
-                        "updated_at": now_utc(),
-                        "score": round(score, 2),
-                        "likes": initial_likes,
-                        "dislikes": initial_dislikes,
-                        "total_votes": initial_votes,
-                        "source": "wikipedia",
-                    }
-                    
-                    result = await db.persons.insert_one(new_person)
-                    new_person["_id"] = result.inserted_id
-                    results = [new_person]
-                    
-                    logger.info(f"Added new personality from Wikipedia: {wiki_person['name']}")
+        # Session 3: Auto-ingestion via search DISABLED.
+        # All new personalities must go through candidate_queue (daily detection or admin manual).
+        # /api/search is now read-only: returns only existing, approved, non-deceased persons.
         
         out = []
         for doc in results:
+            # Filter out deceased and blocked persons from search results
+            if doc.get("is_deceased"):
+                continue
             _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
             out.append({
                 "id": str(doc["_id"]),
