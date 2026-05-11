@@ -32,7 +32,7 @@ WIKI_LANGUAGES = ["en", "fr", "de", "es", "it", "pt"]
 
 # ── Eligibility thresholds ──
 MIN_LANGUAGES = 2         # Must have Wikipedia pages in at least 2 languages
-MIN_DAILY_VIEWS_7D = 1000 # Sum of 7-day avg daily views across 6 langs must be > 1000
+MIN_DAILY_VIEWS_7D = 10000 # Sum of 7-day avg daily views across 6 langs must be > 10000
 TOP_N_PER_LANG = 100      # Look at top 100 per language per day
 
 # ── Anti-faits-divers blacklist (English descriptions) ──
@@ -161,10 +161,12 @@ async def fetch_most_viewed_7days(
 
 # ==================== WIKIDATA CHECKS ====================
 
-async def check_is_human(name: str, client: httpx.AsyncClient) -> Tuple[bool, Optional[str], Optional[str]]:
+async def check_is_human_alive(name: str, client: httpx.AsyncClient) -> Tuple[bool, bool, Optional[str], Optional[str]]:
     """
-    Check if a name corresponds to a human via Wikidata P31.
-    Returns (is_human, wikidata_id, description).
+    Check if a name corresponds to a living human via Wikidata P31 + P570.
+    Returns (is_human, is_deceased, wikidata_id, description).
+    - is_human: True if P31 = Q5
+    - is_deceased: True if P570 (date of death) exists
     """
     try:
         # Search Wikidata
@@ -183,7 +185,7 @@ async def check_is_human(name: str, client: httpx.AsyncClient) -> Tuple[bool, Op
             timeout=10,
         )
         if resp.status_code != 200:
-            return False, None, None
+            return False, False, None, None
 
         data = resp.json()
         results = data.get("search", [])
@@ -192,7 +194,7 @@ async def check_is_human(name: str, client: httpx.AsyncClient) -> Tuple[bool, Op
             entity_id = result.get("id")
             description = result.get("description", "")
 
-            # Check P31 (instance of)
+            # Check P31 (instance of: human)
             claims_params = {
                 "action": "wbgetclaims",
                 "entity": entity_id,
@@ -211,15 +213,42 @@ async def check_is_human(name: str, client: httpx.AsyncClient) -> Tuple[bool, Op
             claims_data = claims_resp.json()
             p31_claims = claims_data.get("claims", {}).get("P31", [])
 
+            is_human = False
             for claim in p31_claims:
                 val = claim.get("mainsnak", {}).get("datavalue", {}).get("value", {})
                 if val.get("id") == "Q5":  # Q5 = human
-                    return True, entity_id, description
+                    is_human = True
+                    break
 
-        return False, None, None
+            if not is_human:
+                continue
+
+            # Check P570 (date of death) — same entity, one extra API call
+            p570_params = {
+                "action": "wbgetclaims",
+                "entity": entity_id,
+                "property": "P570",
+                "format": "json",
+            }
+            p570_resp = await client.get(
+                "https://www.wikidata.org/w/api.php",
+                params=p570_params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=10,
+            )
+            is_deceased = False
+            if p570_resp.status_code == 200:
+                p570_data = p570_resp.json()
+                p570_claims = p570_data.get("claims", {}).get("P570", [])
+                if p570_claims:
+                    is_deceased = True
+
+            return True, is_deceased, entity_id, description
+
+        return False, False, None, None
     except Exception as e:
         logger.debug(f"Wikidata check failed for '{name}': {e}")
-        return False, None, None
+        return False, False, None, None
 
 
 async def check_multi_lang_pages(name: str, client: httpx.AsyncClient) -> List[str]:
@@ -390,6 +419,7 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
             "too_few_views": 0,
             "too_few_langs": 0,
             "not_human": 0,
+            "deceased": 0,
             "description_filter": 0,
         }
 
@@ -422,14 +452,19 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
 
             # Expensive API checks (rate limited)
             checked_count += 1
-            if checked_count > 50:  # Cap at 50 API checks per run
+            if checked_count > 80:  # Cap at 80 API checks per run
                 break
 
-            is_human, wikidata_id, description = await check_is_human(name, client)
+            is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
             await asyncio.sleep(0.3)
 
             if not is_human:
                 filtered_reasons["not_human"] += 1
+                continue
+
+            if is_deceased:
+                filtered_reasons["deceased"] += 1
+                logger.info(f"🔍 [Candidates] Filtered deceased: {name}")
                 continue
 
             if not passes_description_filter(description or ""):

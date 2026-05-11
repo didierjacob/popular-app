@@ -6849,14 +6849,20 @@ async def admin_propose_celebrity(request: Request):
     # Fetch Wikidata info
     import httpx
     async with httpx.AsyncClient(timeout=15) as client:
-        from candidate_detection import check_is_human, check_multi_lang_pages, infer_category
+        from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
 
-        is_human, wikidata_id, description = await check_is_human(name, client)
+        is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
         if not is_human:
             return {
                 "success": False,
                 "error": "not_human",
                 "message": f"'{name}' not identified as a human in Wikidata. Manual override possible via add-celebrities-batch.",
+            }
+        if is_deceased:
+            return {
+                "success": False,
+                "error": "deceased",
+                "message": f"'{name}' is marked as deceased in Wikidata (P570). Cannot add to Popularoo.",
             }
 
         langs = await check_multi_lang_pages(name, client)
