@@ -79,6 +79,153 @@ async def run_tag_evolution_job(db):
         logger.error(f"❌ Tag evolution job error: {e}")
 
 
+# ── Session 2: Daily External Scores Job ───────────────────────────────────
+
+async def run_daily_external_scores_job(db):
+    """
+    Daily job (03:00 UTC): Fetch Wikipedia pageviews for all non-outsider celebrities
+    and compute normalized external scores. Saves to each person document.
+
+    Two-pass approach:
+      Pass 1: Fetch wiki_score_brut for all persons → find global max
+      Pass 2: Normalize and save popularity_external_score
+    """
+    import asyncio
+    import time as _time
+    from datetime import datetime, timezone
+    from external_scores import fetch_wikipedia_pageviews, normalize_wiki_score, compute_external_score
+
+    start_time = _time.time()
+    now = datetime.now(timezone.utc)
+    logger.info(f"🌐 [External Scores] Job started at {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
+    # Fetch all non-outsider persons
+    all_persons = await db.persons.find(
+        {"source": {"$ne": "self_boosted"}, "category": {"$ne": "outsider"}}
+    ).to_list(length=5000)
+
+    total = len(all_persons)
+    logger.info(f"🌐 [External Scores] Processing {total} celebrities")
+
+    # ── Pass 1: Collect wiki_score_brut for all ──
+    wiki_brut_map = {}  # person_id -> {name, wiki_brut, wiki_result}
+    errors = []
+    success_count = 0
+
+    for idx, doc in enumerate(all_persons):
+        name = doc.get("name", "")
+        person_id = doc["_id"]
+
+        try:
+            wiki_result = await fetch_wikipedia_pageviews(name)
+            wiki_brut = wiki_result["wiki_score_brut"]
+            wiki_brut_map[person_id] = {
+                "name": name,
+                "wiki_brut": wiki_brut,
+                "wiki_errors": wiki_result.get("errors", []),
+            }
+            success_count += 1
+        except Exception as e:
+            errors.append({"name": name, "error": str(e)})
+            logger.warning(f"🌐 [External Scores] FAIL: {name} — {e}")
+
+        # Rate limiting: 200ms between persons (each person = 6 lang requests with internal delays)
+        if idx < total - 1:
+            await asyncio.sleep(0.2)
+
+        # Progress log every 50 persons
+        if (idx + 1) % 50 == 0:
+            elapsed = round(_time.time() - start_time, 1)
+            logger.info(f"🌐 [External Scores] Progress: {idx + 1}/{total} ({elapsed}s elapsed)")
+
+    # ── Find global max ──
+    all_bruts = [v["wiki_brut"] for v in wiki_brut_map.values() if v["wiki_brut"] > 0]
+    max_wiki = max(all_bruts) if all_bruts else 1.0
+    logger.info(f"🌐 [External Scores] Max wiki_brut = {max_wiki:,.1f}")
+
+    # ── Compute category medians for fallback (Decision 5) ──
+    category_scores = {}
+    for person_id, data in wiki_brut_map.items():
+        doc = next((d for d in all_persons if d["_id"] == person_id), None)
+        if doc and data["wiki_brut"] > 0:
+            cat = doc.get("category", "other")
+            if cat not in category_scores:
+                category_scores[cat] = []
+            norm = normalize_wiki_score(data["wiki_brut"], max_wiki)
+            category_scores[cat].append(norm)
+
+    category_medians = {}
+    for cat, scores in category_scores.items():
+        sorted_scores = sorted(scores)
+        mid = len(sorted_scores) // 2
+        if len(sorted_scores) % 2 == 0 and len(sorted_scores) > 1:
+            category_medians[cat] = round((sorted_scores[mid - 1] + sorted_scores[mid]) / 2, 1)
+        elif sorted_scores:
+            category_medians[cat] = sorted_scores[mid]
+        else:
+            category_medians[cat] = 50.0
+
+    # ── Pass 2: Normalize and save ──
+    update_count = 0
+    for person_id, data in wiki_brut_map.items():
+        doc = next((d for d in all_persons if d["_id"] == person_id), None)
+        if not doc:
+            continue
+
+        wiki_brut = data["wiki_brut"]
+        cat = doc.get("category", "other")
+
+        if wiki_brut > 0:
+            wiki_norm = normalize_wiki_score(wiki_brut, max_wiki)
+            external_score = compute_external_score(wiki_norm, 0.0)
+        else:
+            # Fallback: use category median (Decision 5)
+            external_score = category_medians.get(cat, 50.0)
+            wiki_norm = external_score
+
+        await db.persons.update_one(
+            {"_id": person_id},
+            {"$set": {
+                "popularity_external_score": external_score,
+                "wiki_score_norm": wiki_norm,
+                "wiki_score_brut": wiki_brut,
+                "last_external_update": now,
+            }}
+        )
+        update_count += 1
+
+    # ── Summary ──
+    elapsed_total = round(_time.time() - start_time, 1)
+    end_time = datetime.now(timezone.utc)
+
+    summary = {
+        "job": "daily_external_scores",
+        "start_time": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "duration_seconds": elapsed_total,
+        "total_persons": total,
+        "success_count": success_count,
+        "error_count": len(errors),
+        "updated_count": update_count,
+        "max_wiki_brut": max_wiki,
+        "errors": errors[:20],  # First 20 errors max
+        "category_medians": category_medians,
+    }
+
+    logger.info(f"🌐 [External Scores] Job completed in {elapsed_total}s — "
+                f"{success_count}/{total} success, {len(errors)} errors, "
+                f"{update_count} updated")
+
+    # Store last run summary in app_settings
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$set": {"last_external_scores_run": summary}},
+        upsert=True
+    )
+
+    return summary
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -189,6 +336,19 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Weekly Tag Evolution',
         replace_existing=True
     )
+
+    # ── Session 2: Daily External Scores at 03:00 UTC ──
+    # Fetches Wikipedia pageviews for all non-outsider celebrities,
+    # normalizes scores (log scale), and saves popularity_external_score.
+    # Replaces the disabled Google Trends auto-ingestion job on the 03:00 slot.
+    scheduler.add_job(
+        run_daily_external_scores_job,
+        CronTrigger(hour=3, minute=0),
+        args=[db],
+        id='daily_external_scores_job',
+        name='Daily External Scores (Wikipedia)',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     # Note: Daily Google Trends auto-ingestion DISABLED (Session 2 audit)
@@ -200,6 +360,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Daily deceased check (top 50) scheduled at 6:00 AM UTC")
     logger.info("Weekly deceased check (all) scheduled Sundays 2:00 AM UTC")
     logger.info("Weekly tag evolution scheduled Sundays 4:00 AM UTC")
+    logger.info("Daily external scores (Wikipedia) scheduled at 3:00 AM UTC")
     
     return scheduler
 

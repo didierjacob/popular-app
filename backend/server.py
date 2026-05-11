@@ -6295,6 +6295,23 @@ async def admin_rename_persons_batch(request: Request):
     return results
 
 
+# ==================== LOT 2: Manual External Scores Recalculation ====================
+
+@api_router.post("/admin/recalculate-external-scores")
+@limiter.limit("2/15minutes")
+async def admin_recalculate_external_scores(request: Request):
+    """
+    Lot 2: Manually trigger the daily external scores job.
+    Fetches Wikipedia pageviews for ALL non-outsider celebrities,
+    normalizes (log scale), and saves popularity_external_score to each person.
+    Returns execution summary.
+    """
+    _require_admin_auth(request)
+    from scheduler import run_daily_external_scores_job
+    summary = await run_daily_external_scores_job(db)
+    return summary
+
+
 # ==================== LOT 1: Test External Score (Temporary) ====================
 
 @api_router.post("/admin/test-external-score")
