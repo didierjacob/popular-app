@@ -258,6 +258,11 @@ class PersonOut(BaseModel):
     social_links: Optional[Dict[str, str]] = None   # {"instagram": "user", "tiktok": "user", "x": "user"}
     avatar_initials: Optional[str] = None
     avatar_color: Optional[str] = None
+    # External scores (Session 2)
+    popularity_external_score: Optional[float] = None
+    wiki_score_norm: Optional[float] = None
+    wiki_score_brut: Optional[float] = None
+    last_external_update: Optional[datetime] = None
 
 
 class VoteIn(BaseModel):
@@ -889,6 +894,10 @@ def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
             social_links=doc.get("social_links") or None,
             avatar_initials=doc.get("avatar_initials"),
             avatar_color=doc.get("avatar_color"),
+            popularity_external_score=_safe_float(doc.get("popularity_external_score")) if doc.get("popularity_external_score") is not None else None,
+            wiki_score_norm=_safe_float(doc.get("wiki_score_norm")) if doc.get("wiki_score_norm") is not None else None,
+            wiki_score_brut=_safe_float(doc.get("wiki_score_brut")) if doc.get("wiki_score_brut") is not None else None,
+            last_external_update=doc.get("last_external_update"),
         )
     except Exception as e:
         logger.error(f"❌ person_to_out CRASH for id={doc.get('_id')}, name={doc.get('name')!r}: {e}")
