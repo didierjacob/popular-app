@@ -6301,19 +6301,29 @@ async def admin_rename_persons_batch(request: Request):
 @limiter.limit("10/15minutes")
 async def admin_test_external_score(request: Request):
     """
-    Lot 1 test endpoint: compute external score for a single celebrity.
-    Body: { "name": "Donald Trump" }
-    Returns full breakdown (wiki per lang, trends, normalized, combined).
+    Lot 1 test endpoint: compute external score for one or multiple celebrities.
+    Single: { "name": "Donald Trump" }
+    Batch:  { "names": ["Donald Trump", "Squeezie", "Brad Pitt"] }
+    Batch mode normalizes across the group (simulates full DB batch).
     """
     _require_admin_auth(request)
     body = await request.json()
-    name = body.get("name", "").strip()
-    if not name:
-        return {"error": "name is required"}
 
-    from external_scores import compute_external_score_for_person
-    result = await compute_external_score_for_person(name)
-    return result
+    single_name = body.get("name", "").strip()
+    names = body.get("names", [])
+
+    if single_name and not names:
+        # Single mode
+        from external_scores import compute_external_score_for_person
+        result = await compute_external_score_for_person(single_name)
+        return result
+    elif names:
+        # Batch mode with cross-normalization
+        from external_scores import compute_external_scores_batch
+        result = await compute_external_scores_batch(names)
+        return result
+    else:
+        return {"error": "Provide 'name' (single) or 'names' (batch list)"}
 
 
 # ==================== LOT D ter: Add Celebrities Batch ====================

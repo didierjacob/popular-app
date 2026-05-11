@@ -26,11 +26,14 @@ USER_AGENT = "Popularoo/1.0 (contact@popularoo.com)"
 
 # Rate limiting (seconds between requests)
 WIKI_REQUEST_DELAY = 0.2   # 200ms between Wikipedia requests
-TRENDS_REQUEST_DELAY = 0.5  # 500ms between Trends requests
 
-# Weighting
-WIKI_WEIGHT = 0.7
-TRENDS_WEIGHT = 0.3
+# ── V1.0 Weighting ────────────────────────────────────────────────────────
+# 100% Wikipedia for V1.0. Google Trends disabled (see fetch_google_trends).
+# These defaults are overridden at runtime by app_settings flags:
+#   external_score_use_trends, external_score_wiki_weight, external_score_trends_weight
+DEFAULT_WIKI_WEIGHT = 1.0
+DEFAULT_TRENDS_WEIGHT = 0.0
+DEFAULT_USE_TRENDS = False
 
 
 # ── Wikipedia Pageviews ────────────────────────────────────────────────────
@@ -143,6 +146,16 @@ async def fetch_wikipedia_pageviews(
 
 
 # ── Google Trends ──────────────────────────────────────────────────────────
+# DISABLED in V1.0: pytrends blocked by Google from cloud IPs (Render, AWS, etc.).
+# Google returns HTTP 429 (Too Many Requests) silently.
+# Reactivable via app_settings flag: external_score_use_trends = true
+#
+# Reactivation plan for V2:
+#   Option 1: Residential proxy (e.g. ScraperAPI, Bright Data)
+#   Option 2: Alternative API (SerpAPI Google Trends endpoint, ~$50/month)
+#   Option 3: Non-cloud hosting for the trends fetch job
+#
+# The code below is kept intact and functional for when Trends is re-enabled.
 
 async def fetch_google_trends(name: str, days: int = 7) -> Dict:
     """
@@ -212,12 +225,22 @@ def normalize_wiki_score(wiki_brut: float, max_wiki_in_db: float) -> float:
     return round(min(100.0, max(0.0, normalized)), 1)
 
 
-def compute_external_score(wiki_norm: float, trends_norm: float) -> float:
+def compute_external_score(
+    wiki_norm: float,
+    trends_norm: float,
+    use_trends: bool = DEFAULT_USE_TRENDS,
+    wiki_weight: float = DEFAULT_WIKI_WEIGHT,
+    trends_weight: float = DEFAULT_TRENDS_WEIGHT,
+) -> float:
     """
-    Combined external score:
-    popularity_external_score = 0.7 × wiki_norm + 0.3 × trends_norm
+    Combined external score. Weights are configurable via app_settings.
+    V1.0 default: 100% Wikipedia, 0% Trends.
     """
-    score = (WIKI_WEIGHT * wiki_norm) + (TRENDS_WEIGHT * trends_norm)
+    if use_trends and trends_weight > 0:
+        score = (wiki_weight * wiki_norm) + (trends_weight * trends_norm)
+    else:
+        # V1.0: pure Wikipedia
+        score = wiki_norm
     return round(min(100.0, max(0.0, score)), 1)
 
 
@@ -226,9 +249,12 @@ def compute_external_score(wiki_norm: float, trends_norm: float) -> float:
 async def compute_external_score_for_person(
     name: str,
     max_wiki_in_db: Optional[float] = None,
+    use_trends: bool = DEFAULT_USE_TRENDS,
+    wiki_weight: float = DEFAULT_WIKI_WEIGHT,
+    trends_weight: float = DEFAULT_TRENDS_WEIGHT,
 ) -> Dict:
     """
-    Full pipeline: Wikipedia + Trends → normalized → combined score.
+    Full pipeline: Wikipedia (+ optionally Trends) → normalized → combined score.
     Used for testing individual persons.
 
     Returns complete breakdown for debugging/validation.
@@ -239,20 +265,24 @@ async def compute_external_score_for_person(
     # Step 1: Wikipedia pageviews
     wiki_result = await fetch_wikipedia_pageviews(name)
 
-    # Step 2: Google Trends
-    trends_result = await fetch_google_trends(name)
+    # Step 2: Google Trends (only if enabled)
+    trends_brut = 0.0
+    trends_error = "disabled_v1"
+    if use_trends:
+        trends_result = await fetch_google_trends(name)
+        trends_brut = trends_result["trends_score_brut"]
+        trends_error = trends_result["error"]
 
     # Step 3: Normalize
     wiki_brut = wiki_result["wiki_score_brut"]
-    trends_brut = trends_result["trends_score_brut"]
 
     # If max_wiki not provided, use wiki_brut as its own max (score = 100)
     effective_max = max_wiki_in_db if max_wiki_in_db and max_wiki_in_db > 0 else wiki_brut
     wiki_norm = normalize_wiki_score(wiki_brut, effective_max)
     trends_norm = trends_brut  # Already 0-100
 
-    # Step 4: Combined
-    external_score = compute_external_score(wiki_norm, trends_norm)
+    # Step 4: Combined (respects use_trends flag)
+    external_score = compute_external_score(wiki_norm, trends_norm, use_trends, wiki_weight, trends_weight)
 
     elapsed = round(_time.time() - start, 2)
 
@@ -264,7 +294,76 @@ async def compute_external_score_for_person(
         "wiki_max_used_for_norm": effective_max,
         "wiki_errors": wiki_result["errors"],
         "trends_score_brut": trends_brut,
-        "trends_error": trends_result["error"],
+        "trends_error": trends_error,
+        "trends_enabled": use_trends,
         "popularity_external_score": external_score,
+        "elapsed_seconds": elapsed,
+    }
+
+
+async def compute_external_scores_batch(
+    names: List[str],
+    use_trends: bool = DEFAULT_USE_TRENDS,
+    wiki_weight: float = DEFAULT_WIKI_WEIGHT,
+    trends_weight: float = DEFAULT_TRENDS_WEIGHT,
+) -> Dict:
+    """
+    Batch pipeline: fetch wiki scores for multiple persons, normalize against
+    the group's max, then compute final external score.
+
+    Returns all results plus the global max_wiki used for normalization.
+    """
+    import time as _time
+    import asyncio
+    start = _time.time()
+
+    # Pass 1: Collect all wiki_score_brut
+    raw_results = []
+    for i, name in enumerate(names):
+        if i > 0:
+            await asyncio.sleep(WIKI_REQUEST_DELAY)
+        wiki_result = await fetch_wikipedia_pageviews(name)
+        trends_brut = 0.0
+        trends_error = "disabled_v1"
+        if use_trends:
+            trends_result = await fetch_google_trends(name)
+            trends_brut = trends_result["trends_score_brut"]
+            trends_error = trends_result["error"]
+        raw_results.append({
+            "name": name,
+            "wiki_result": wiki_result,
+            "wiki_brut": wiki_result["wiki_score_brut"],
+            "trends_brut": trends_brut,
+            "trends_error": trends_error,
+        })
+
+    # Pass 2: Find global max_wiki
+    max_wiki = max((r["wiki_brut"] for r in raw_results), default=1.0)
+    if max_wiki <= 0:
+        max_wiki = 1.0
+
+    # Pass 3: Normalize and compute final scores
+    results = []
+    for r in raw_results:
+        wiki_norm = normalize_wiki_score(r["wiki_brut"], max_wiki)
+        trends_norm = r["trends_brut"]
+        external_score = compute_external_score(wiki_norm, trends_norm, use_trends, wiki_weight, trends_weight)
+        results.append({
+            "name": r["name"],
+            "wiki_score_brut": r["wiki_brut"],
+            "wiki_score_norm": wiki_norm,
+            "trends_score_brut": r["trends_brut"],
+            "popularity_external_score": external_score,
+            "wiki_per_lang": r["wiki_result"]["per_lang"],
+            "wiki_errors": r["wiki_result"]["errors"],
+        })
+
+    elapsed = round(_time.time() - start, 2)
+
+    return {
+        "max_wiki_in_batch": max_wiki,
+        "total_processed": len(results),
+        "trends_enabled": use_trends,
+        "results": sorted(results, key=lambda x: -x["popularity_external_score"]),
         "elapsed_seconds": elapsed,
     }
