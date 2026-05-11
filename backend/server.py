@@ -398,7 +398,7 @@ SEED_PEOPLE = [
     {"name": "José Mourinho", "category": "sport", "primary_country": "PT"},
     {"name": "Bernardo Silva", "category": "sport", "primary_country": "PT"},
     {"name": "Bruno Fernandes", "category": "sport", "primary_country": "PT"},
-    {"name": "Diogo Jota", "category": "sport", "primary_country": "PT"},
+    # Diogo Jota removed — deceased (Session 3 cleanup)
     {"name": "Marcelo Rebelo de Sousa", "category": "politics", "primary_country": "PT"},
     {"name": "Sara Sampaio", "category": "culture", "primary_country": "PT"},
     {"name": "Daniela Ruah", "category": "culture", "primary_country": "PT"},
@@ -429,7 +429,7 @@ SEED_PEOPLE = [
     {"name": "Adele", "category": "culture", "primary_country": "GB"},
     {"name": "Dua Lipa", "category": "culture", "primary_country": "GB"},
     {"name": "Harry Styles", "category": "culture", "primary_country": "GB"},
-    {"name": "Queen Elizabeth II", "category": "politics", "primary_country": "GB"},
+    # Queen Elizabeth II removed — deceased (Session 3 cleanup)
 
     # ══════════════════════════════════════════════════════
     # 🌍 Other countries (20)
@@ -441,7 +441,7 @@ SEED_PEOPLE = [
     {"name": "Justin Trudeau", "category": "politics", "primary_country": "CA"},
     # 🇦🇷 Argentina
     {"name": "Lionel Messi", "category": "sport", "primary_country": "AR"},
-    {"name": "Pope Francis", "category": "politics", "primary_country": "AR"},
+    # Pope Francis removed — deceased (Session 3 cleanup)
     {"name": "Javier Milei", "category": "politics", "primary_country": "AR"},
     # 🇮🇳 India
     {"name": "Narendra Modi", "category": "politics", "primary_country": "IN"},
