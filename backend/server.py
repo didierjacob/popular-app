@@ -855,8 +855,17 @@ def _safe_float(val, default=0.0) -> float:
 def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
     """Convert a DB document to PersonOut. Returns None if data is fatally corrupt."""
     try:
-        # Apply seed decay for displayed score
+        # Apply seed decay for displayed score (fallback for outsiders / legacy)
         _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
+
+        # Session 2: For non-outsiders, the displayed score IS the popularoo_index (blended).
+        # For outsiders (no external Wikipedia score), keep eff_score (vote ratio).
+        is_outsider = doc.get("source") == "self_boosted" or doc.get("category") == "outsider"
+        pi = doc.get("popularoo_index")
+        if not is_outsider and pi is not None and pi > 0:
+            displayed_score = pi
+        else:
+            displayed_score = eff_score
 
         # Strike level
         active_strikes = _safe_int(doc.get("active_strikes", 0))
@@ -877,7 +886,7 @@ def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
             name=name,
             category=category,
             approved=bool(doc.get("approved", True)),
-            score=_safe_float(eff_score),
+            score=_safe_float(displayed_score),
             likes=_safe_int(eff_likes),
             dislikes=_safe_int(eff_dislikes),
             superlikes=_safe_int(doc.get("superlikes", 0)),
@@ -6380,42 +6389,8 @@ async def admin_set_alpha(request: Request):
     }
 
 
-@api_router.post("/admin/recalculate-all-indices")
-@limiter.limit("3/15minutes")
-async def admin_recalculate_all_indices(request: Request):
-    """
-    Force immediate recalculation of Popularoo Index for ALL persons.
-    Uses current α and existing popularity_external_score (no Wikipedia re-fetch).
-    Fast: ~2-5 seconds for 200 persons.
-    """
-    _require_admin_auth(request)
-    import time as _time
-    start = _time.time()
-
-    from popularoo_index import recalculate_all_indices, get_alpha
-    alpha = await get_alpha(db)
-    count = await recalculate_all_indices(db)
-    elapsed = round(_time.time() - start, 2)
-
-    # Spot check 5 persons
-    spot_check = []
-    for name in ["Donald Trump", "Cristiano Ronaldo", "Squeezie", "Brad Pitt", "Emmanuel Macron"]:
-        doc = await db.persons.find_one({"name": name})
-        if doc:
-            spot_check.append({
-                "name": name,
-                "score": doc.get("score"),
-                "popularoo_index": doc.get("popularoo_index"),
-                "ext": doc.get("popularity_external_score"),
-            })
-
-    return {
-        "success": True,
-        "alpha": alpha,
-        "persons_recalculated": count,
-        "elapsed_seconds": elapsed,
-        "spot_check": spot_check,
-    }
+# NOTE: Route /admin/recalculate-all-indices is defined earlier (line ~4338).
+# Duplicate removed during Session 2 cleanup.
 
 
 # ==================== LOT 2: Manual External Scores Recalculation ====================
