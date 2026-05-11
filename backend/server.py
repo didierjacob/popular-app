@@ -565,12 +565,28 @@ async def seed_people():
 
 
 async def seed_missing_people():
-    """Insert any SEED_PEOPLE entries not yet in the database (e.g., new influencers)."""
+    """Insert any SEED_PEOPLE entries not yet in the database (e.g., new influencers).
+    
+    Session 3: Checks seed_blocklist before inserting. Names confirmed as deceased
+    or manually blocked are never reinserted, even if present in SEED_PEOPLE.
+    """
     import random
     now = now_utc()
     added = 0
+    blocked = 0
+
+    # Load blocklist from app_settings (structural anti-reinsertion mechanism)
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    blocked_slugs = set(settings.get("seed_blocklist", []))
+
     for p in SEED_PEOPLE:
         slug = slugify(p["name"])
+
+        # Check blocklist FIRST (covers deceased, manually removed, etc.)
+        if slug in blocked_slugs:
+            blocked += 1
+            continue
+
         existing = await db.persons.find_one({"slug": slug})
         if existing:
             continue
@@ -609,6 +625,8 @@ async def seed_missing_people():
         added += 1
     if added > 0:
         logger.info(f"🌱 seed_missing_people: Added {added} new personalities")
+    if blocked > 0:
+        logger.info(f"🚫 seed_missing_people: Skipped {blocked} blocked names")
 
 
 @app.on_event("startup")
@@ -6967,8 +6985,17 @@ async def admin_confirm_deceased(item_id: str, request: Request):
         {"$set": {"status": "confirmed", "confirmed_at": now}}
     )
 
+    # Session 3: Add slug to seed_blocklist (structural anti-reinsertion)
+    name_slug = slugify(name)
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$addToSet": {"seed_blocklist": name_slug}},
+        upsert=True,
+    )
+    logger.info(f"🚫 Added '{name_slug}' to seed_blocklist")
+
     logger.info(f"⚰️ Deceased confirmed by admin: {name}")
-    return {"success": True, "name": name, "action": "deactivated"}
+    return {"success": True, "name": name, "action": "deactivated", "blocked_from_seed": name_slug}
 
 
 @api_router.post("/admin/deceased/{item_id}/reject")
@@ -7021,6 +7048,15 @@ async def admin_confirm_all_deceased(request: Request):
             {"_id": item["_id"]},
             {"$set": {"status": "confirmed", "confirmed_at": now}}
         )
+
+        # Session 3: Add slug to seed_blocklist (structural anti-reinsertion)
+        name_slug = slugify(name)
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$addToSet": {"seed_blocklist": name_slug}},
+            upsert=True,
+        )
+
         confirmed += 1
 
     return {"success": True, "confirmed": confirmed}
