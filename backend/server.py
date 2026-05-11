@@ -6596,6 +6596,303 @@ async def admin_add_celebrities_batch(request: Request):
     return results
 
 
+# ==================== SESSION 3 — LOT 1: Candidate Detection ====================
+
+@api_router.post("/admin/run-candidate-detection")
+@limiter.limit("2/60minutes")
+async def admin_run_candidate_detection(request: Request):
+    """
+    Session 3 Lot 1: Manually trigger candidate detection.
+    Scans WikiMedia Most Viewed across 6 languages, filters eligible humans,
+    writes to candidate_queue for admin review.
+    """
+    _require_admin_auth(request)
+    from candidate_detection import detect_candidates
+    summary = await detect_candidates(db)
+    return summary
+
+
+@api_router.get("/admin/candidates")
+async def admin_list_candidates(request: Request, status: str = "pending"):
+    """
+    List candidates from the queue.
+    ?status=pending (default) | approved | rejected | all
+    """
+    _require_admin_auth(request)
+
+    filt = {} if status == "all" else {"status": status}
+    candidates = await db.candidate_queue.find(filt).sort("wiki_score", -1).to_list(500)
+
+    return [
+        {
+            "id": str(c["_id"]),
+            "name": c.get("name"),
+            "category_suggested": c.get("category_suggested", "other"),
+            "confidence": c.get("confidence", "low"),
+            "wiki_score": c.get("wiki_score", 0),
+            "wiki_langs": c.get("wiki_langs", []),
+            "wiki_lang_count": c.get("wiki_lang_count", 0),
+            "wiki_description": c.get("wiki_description", ""),
+            "wikidata_id": c.get("wikidata_id"),
+            "detected_at": c.get("detected_at", "").isoformat() if c.get("detected_at") else None,
+            "status": c.get("status", "pending"),
+        }
+        for c in candidates
+    ]
+
+
+@api_router.post("/admin/candidates/{candidate_id}/approve")
+async def admin_approve_candidate(candidate_id: str, request: Request):
+    """
+    Approve a candidate: creates person in DB with realistic initial votes,
+    marks candidate as approved.
+    Optional body: { "category": "sport" } to override suggested category.
+    """
+    _require_admin_auth(request)
+    import random
+
+    try:
+        oid = ObjectId(candidate_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid candidate ID")
+
+    candidate = await db.candidate_queue.find_one({"_id": oid, "status": "pending"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found or not pending")
+
+    # Allow category override from body
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    category = body.get("category", candidate.get("category_suggested", "other"))
+
+    name = candidate["name"]
+    name_slug = candidate.get("slug") or slugify(name)
+    now = now_utc()
+
+    # Check duplicate in persons
+    existing = await db.persons.find_one({"slug": name_slug})
+    if existing:
+        await db.candidate_queue.update_one({"_id": oid}, {"$set": {"status": "duplicate", "updated_at": now}})
+        return {"success": False, "error": "duplicate", "message": f"'{name}' already exists in DB"}
+
+    # Create person with realistic initial votes
+    init_likes = random.randint(6000, 12000)
+    init_dislikes = random.randint(1500, 4000)
+    total = init_likes + init_dislikes
+
+    person_doc = {
+        "name": name,
+        "slug": name_slug,
+        "category": category,
+        "approved": True,
+        "created_at": now,
+        "updated_at": now,
+        "score": 50.0,
+        "likes": init_likes,
+        "dislikes": init_dislikes,
+        "total_votes": total,
+        "seed_votes_likes": init_likes,
+        "seed_votes_dislikes": init_dislikes,
+        "source": "auto_detected",
+        "wiki_description": candidate.get("wiki_description", ""),
+        "wikidata_id": candidate.get("wikidata_id"),
+        "wiki_langs": candidate.get("wiki_langs", []),
+    }
+
+    result = await db.persons.insert_one(person_doc)
+    person_id = result.inserted_id
+
+    # Initial tick
+    await db.person_ticks.insert_one({
+        "person_id": person_id,
+        "score": person_doc["score"],
+        "total_votes": total,
+        "created_at": now,
+    })
+
+    # Mark candidate as approved
+    await db.candidate_queue.update_one(
+        {"_id": oid},
+        {"$set": {"status": "approved", "approved_at": now, "person_id": str(person_id)}}
+    )
+
+    logger.info(f"✅ Candidate approved: {name} ({category})")
+    return {
+        "success": True,
+        "name": name,
+        "category": category,
+        "person_id": str(person_id),
+    }
+
+
+@api_router.post("/admin/candidates/{candidate_id}/reject")
+async def admin_reject_candidate(candidate_id: str, request: Request):
+    """Reject a candidate. Marks as rejected in queue."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(candidate_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid candidate ID")
+
+    result = await db.candidate_queue.update_one(
+        {"_id": oid, "status": "pending"},
+        {"$set": {"status": "rejected", "rejected_at": now_utc()}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Candidate not found or not pending")
+
+    return {"success": True, "candidate_id": candidate_id, "status": "rejected"}
+
+
+@api_router.post("/admin/candidates/approve-all-high")
+async def admin_approve_all_high(request: Request):
+    """Batch approve all pending candidates with confidence='high'."""
+    _require_admin_auth(request)
+    import random
+
+    high_candidates = await db.candidate_queue.find(
+        {"status": "pending", "confidence": "high"}
+    ).to_list(500)
+
+    results = {"approved": 0, "duplicates": 0, "errors": 0}
+    now = now_utc()
+
+    for candidate in high_candidates:
+        name = candidate["name"]
+        name_slug = candidate.get("slug") or slugify(name)
+
+        existing = await db.persons.find_one({"slug": name_slug})
+        if existing:
+            await db.candidate_queue.update_one(
+                {"_id": candidate["_id"]},
+                {"$set": {"status": "duplicate", "updated_at": now}}
+            )
+            results["duplicates"] += 1
+            continue
+
+        category = candidate.get("category_suggested", "other")
+        init_likes = random.randint(6000, 12000)
+        init_dislikes = random.randint(1500, 4000)
+        total = init_likes + init_dislikes
+
+        person_doc = {
+            "name": name,
+            "slug": name_slug,
+            "category": category,
+            "approved": True,
+            "created_at": now,
+            "updated_at": now,
+            "score": 50.0,
+            "likes": init_likes,
+            "dislikes": init_dislikes,
+            "total_votes": total,
+            "seed_votes_likes": init_likes,
+            "seed_votes_dislikes": init_dislikes,
+            "source": "auto_detected",
+            "wiki_description": candidate.get("wiki_description", ""),
+            "wikidata_id": candidate.get("wikidata_id"),
+            "wiki_langs": candidate.get("wiki_langs", []),
+        }
+
+        try:
+            result = await db.persons.insert_one(person_doc)
+            await db.person_ticks.insert_one({
+                "person_id": result.inserted_id,
+                "score": person_doc["score"],
+                "total_votes": total,
+                "created_at": now,
+            })
+            await db.candidate_queue.update_one(
+                {"_id": candidate["_id"]},
+                {"$set": {"status": "approved", "approved_at": now, "person_id": str(result.inserted_id)}}
+            )
+            results["approved"] += 1
+        except Exception as e:
+            logger.error(f"Error approving {name}: {e}")
+            results["errors"] += 1
+
+    return {"success": True, **results}
+
+
+@api_router.post("/admin/propose-celebrity")
+async def admin_propose_celebrity(request: Request):
+    """
+    Session 3 Lot 1: Manual celebrity proposal.
+    Body: { "name": "Full Name" }
+    Searches Wikipedia, checks eligibility, adds to candidate_queue (or directly to DB if admin confirms).
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+
+    if not name or len(name) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+
+    # Check if already in DB
+    name_slug = slugify(name)
+    existing = await db.persons.find_one({"slug": name_slug})
+    if existing:
+        return {"success": False, "error": "already_exists", "message": f"'{name}' already in database"}
+
+    # Check if already in queue
+    from unidecode import unidecode as _unidecode
+    name_norm = _unidecode(name).lower().strip()
+    existing_q = await db.candidate_queue.find_one({"name_normalized": name_norm, "status": "pending"})
+    if existing_q:
+        return {"success": False, "error": "already_in_queue", "message": f"'{name}' already pending in queue"}
+
+    # Fetch Wikidata info
+    import httpx
+    async with httpx.AsyncClient(timeout=15) as client:
+        from candidate_detection import check_is_human, check_multi_lang_pages, infer_category
+
+        is_human, wikidata_id, description = await check_is_human(name, client)
+        if not is_human:
+            return {
+                "success": False,
+                "error": "not_human",
+                "message": f"'{name}' not identified as a human in Wikidata. Manual override possible via add-celebrities-batch.",
+            }
+
+        langs = await check_multi_lang_pages(name, client)
+        category, confidence = infer_category(description or "")
+
+    now = now_utc()
+    candidate_doc = {
+        "name": name,
+        "name_normalized": name_norm,
+        "slug": name_slug,
+        "category_suggested": category,
+        "confidence": confidence,
+        "wiki_score": 0,  # Manual proposal, no pageview data
+        "wiki_langs": langs,
+        "wiki_lang_count": len(langs),
+        "wiki_description": description or "",
+        "wikidata_id": wikidata_id,
+        "detected_at": now,
+        "status": "pending",
+        "source": "manual_proposal",
+    }
+
+    result = await db.candidate_queue.insert_one(candidate_doc)
+
+    return {
+        "success": True,
+        "candidate_id": str(result.inserted_id),
+        "name": name,
+        "category_suggested": category,
+        "confidence": confidence,
+        "wiki_description": description or "",
+        "wiki_langs": langs,
+        "message": f"'{name}' added to candidate queue for review",
+    }
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 

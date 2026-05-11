@@ -226,6 +226,24 @@ async def run_daily_external_scores_job(db):
     return summary
 
 
+async def run_daily_candidate_detection_job(db):
+    """
+    Session 3: Wrapper for the daily candidate detection job.
+    Called by APScheduler at 05:00 UTC daily.
+    """
+    try:
+        from candidate_detection import detect_candidates
+        logger.info("🔍 [Scheduler] Starting daily candidate detection...")
+        summary = await detect_candidates(db)
+        logger.info(
+            f"🔍 [Scheduler] Candidate detection complete: "
+            f"{summary.get('eligible_candidates', 0)} eligible, "
+            f"{summary.get('inserted_to_queue', 0)} inserted"
+        )
+    except Exception as e:
+        logger.error(f"❌ [Scheduler] Candidate detection failed: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -349,6 +367,18 @@ def init_scheduler(db, trends_service, email_svc=None):
         name='Daily External Scores (Wikipedia)',
         replace_existing=True
     )
+
+    # ── Session 3: Daily Candidate Detection at 05:00 UTC ──
+    # Scans WikiMedia Most Viewed across 6 languages, filters eligible humans,
+    # writes to candidate_queue for admin review.
+    scheduler.add_job(
+        run_daily_candidate_detection_job,
+        CronTrigger(hour=5, minute=0),
+        args=[db],
+        id='daily_candidate_detection_job',
+        name='Daily Candidate Detection (Wikipedia)',
+        replace_existing=True
+    )
     
     logger.info("Scheduler initialized with daily tasks")
     # Note: Daily Google Trends auto-ingestion DISABLED (Session 2 audit)
@@ -361,6 +391,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Weekly deceased check (all) scheduled Sundays 2:00 AM UTC")
     logger.info("Weekly tag evolution scheduled Sundays 4:00 AM UTC")
     logger.info("Daily external scores (Wikipedia) scheduled at 3:00 AM UTC")
+    logger.info("Daily candidate detection (Wikipedia) scheduled at 5:00 AM UTC")
     
     return scheduler
 
