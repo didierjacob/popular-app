@@ -93,15 +93,20 @@ def init_scheduler(db, trends_service, email_svc=None):
     
     scheduler = AsyncIOScheduler()
     
-    # Daily Google Trends refresh at 3:00 AM UTC
-    scheduler.add_job(
-        refresh_google_trends,
-        CronTrigger(hour=3, minute=0),  # 3:00 AM UTC every day
-        args=[db, trends_service],
-        id='daily_trends_refresh',
-        name='Daily Google Trends Refresh',
-        replace_existing=True
-    )
+    # ⚠️ DISABLED Session 2 — Audit revealed this job never worked on Render
+    # (pytrends blocked by Google on cloud IPs) and has no admin validation,
+    # no category inference, no anti-junk filters from Session 1.
+    # Will be rewritten properly in Session 3 with admin approval workflow.
+    # See: Session 2 Phase 1 audit — "Désactivation immédiate du job Trends existant"
+    #
+    # scheduler.add_job(
+    #     refresh_google_trends,
+    #     CronTrigger(hour=3, minute=0),
+    #     args=[db, trends_service],
+    #     id='daily_trends_refresh',
+    #     name='Daily Google Trends Refresh',
+    #     replace_existing=True
+    # )
 
     # Check for expiring boosts every 15 minutes
     scheduler.add_job(
@@ -186,7 +191,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     )
     
     logger.info("Scheduler initialized with daily tasks")
-    logger.info("Next Google Trends refresh scheduled at 3:00 AM UTC")
+    # Note: Daily Google Trends auto-ingestion DISABLED (Session 2 audit)
     logger.info("Boost expiration checker runs every 15 minutes")
     logger.info("Bull Run job runs every 5 minutes")
     logger.info("Popularoo Index recalculation runs every 15 minutes")

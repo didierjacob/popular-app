@@ -104,7 +104,7 @@ async def startup_event():
     start_scheduler()
     
     logger.info("✅ Scheduler initialized and started")
-    logger.info("📅 Daily Google Trends refresh scheduled at 3:00 AM UTC")
+    logger.info("📅 Daily Google Trends auto-ingestion DISABLED (Session 2 audit)")
     logger.info("📊 Popularoo Index recalculation scheduled every 15 minutes")
 
 
@@ -6293,6 +6293,27 @@ async def admin_rename_persons_batch(request: Request):
 
     logger.info(f"✏️ Lot D rename: {results['total_renamed']} renamed, {len(results['not_found'])} not found")
     return results
+
+
+# ==================== LOT 1: Test External Score (Temporary) ====================
+
+@api_router.post("/admin/test-external-score")
+@limiter.limit("10/15minutes")
+async def admin_test_external_score(request: Request):
+    """
+    Lot 1 test endpoint: compute external score for a single celebrity.
+    Body: { "name": "Donald Trump" }
+    Returns full breakdown (wiki per lang, trends, normalized, combined).
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        return {"error": "name is required"}
+
+    from external_scores import compute_external_score_for_person
+    result = await compute_external_score_for_person(name)
+    return result
 
 
 # ==================== LOT D ter: Add Celebrities Batch ====================
