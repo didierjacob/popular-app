@@ -1254,10 +1254,10 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     else:
         new_score = 0
     
-    # Update person aggregates
+    # Update person aggregates (do NOT overwrite score here — quick_recalc_index handles it)
     await db.persons.update_one(
         {"_id": oid},
-        {"$inc": inc_doc, "$set": {"score": new_score, "raw_score": raw_score, "updated_at": now_utc()}}
+        {"$inc": inc_doc, "$set": {"raw_score": raw_score, "updated_at": now_utc()}}
     )
     
     # Write vote event
@@ -4337,11 +4337,40 @@ async def admin_migrate_index(request: Request):
 
 @api_router.post("/admin/recalculate-all-indices")
 async def admin_recalculate_indices(request: Request):
-    """Force a full recalculation of Popularoo Index for all persons."""
+    """
+    Force immediate recalculation of Popularoo Index for ALL persons.
+    Session 2: Uses current α and existing popularity_external_score.
+    Updates BOTH score and popularoo_index fields.
+    """
     _require_admin_auth(request)
+    import time as _time
+    start = _time.time()
+
     try:
-        await recalculate_all_indices(db)
-        return {"success": True, "message": "All indices recalculated"}
+        from popularoo_index import get_alpha
+        alpha = await get_alpha(db)
+        count = await recalculate_all_indices(db)
+        elapsed = round(_time.time() - start, 2)
+
+        # Spot check 5 persons
+        spot_check = []
+        for name in ["Donald Trump", "Cristiano Ronaldo", "Squeezie", "Brad Pitt", "Emmanuel Macron"]:
+            doc = await db.persons.find_one({"name": name})
+            if doc:
+                spot_check.append({
+                    "name": name,
+                    "score": doc.get("score"),
+                    "popularoo_index": doc.get("popularoo_index"),
+                    "ext": doc.get("popularity_external_score"),
+                })
+
+        return {
+            "success": True,
+            "alpha": alpha,
+            "persons_recalculated": count,
+            "elapsed_seconds": elapsed,
+            "spot_check": spot_check,
+        }
     except Exception as e:
         logger.error(f"Recalculation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -6347,7 +6376,45 @@ async def admin_set_alpha(request: Request):
         "success": True,
         "alpha": new_alpha,
         "last_updated": now,
-        "note": "Scores will update within 15 minutes (next recalculation cycle)"
+        "note": "Scores will update within 15 minutes (next recalculation cycle). Use /admin/recalculate-all-indices for immediate effect."
+    }
+
+
+@api_router.post("/admin/recalculate-all-indices")
+@limiter.limit("3/15minutes")
+async def admin_recalculate_all_indices(request: Request):
+    """
+    Force immediate recalculation of Popularoo Index for ALL persons.
+    Uses current α and existing popularity_external_score (no Wikipedia re-fetch).
+    Fast: ~2-5 seconds for 200 persons.
+    """
+    _require_admin_auth(request)
+    import time as _time
+    start = _time.time()
+
+    from popularoo_index import recalculate_all_indices, get_alpha
+    alpha = await get_alpha(db)
+    count = await recalculate_all_indices(db)
+    elapsed = round(_time.time() - start, 2)
+
+    # Spot check 5 persons
+    spot_check = []
+    for name in ["Donald Trump", "Cristiano Ronaldo", "Squeezie", "Brad Pitt", "Emmanuel Macron"]:
+        doc = await db.persons.find_one({"name": name})
+        if doc:
+            spot_check.append({
+                "name": name,
+                "score": doc.get("score"),
+                "popularoo_index": doc.get("popularoo_index"),
+                "ext": doc.get("popularity_external_score"),
+            })
+
+    return {
+        "success": True,
+        "alpha": alpha,
+        "persons_recalculated": count,
+        "elapsed_seconds": elapsed,
+        "spot_check": spot_check,
     }
 
 
