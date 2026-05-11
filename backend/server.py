@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import re
 import random
+import asyncio
 from unidecode import unidecode
 from trends_service import trends_service
 from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
@@ -944,7 +945,7 @@ async def list_people(
     If country is provided, returns ~60% local + ~40% international.
     Among local: prioritizes culture, sport, and influencer categories.
     """
-    filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}}
+    filter_q: Dict[str, Any] = {"approved": True, "suspended": {"$ne": True}, "visible_in_rankings": {"$ne": False}}
     
     # Exclude ALL outsiders (self_boosted + seeds) from main lists unless explicitly requested
     # Triple protection: category + is_outsider + source
@@ -1496,13 +1497,15 @@ async def get_trending_now(limit: int = Query(default=5, le=10)):
     # Sort by delta and get top
     sorted_ids = sorted(person_deltas.keys(), key=lambda x: person_deltas[x], reverse=True)[:limit]
     
-    # Fetch person details
+    # Fetch person details — filter out invisible rankings
     result = []
     for pid in sorted_ids:
         try:
             p = await db.persons.find_one({"_id": ObjectId(pid)})
-            if p:
-                result.append(person_to_out(p))
+            if p and p.get("visible_in_rankings") is not False:
+                po = person_to_out(p)
+                if po:
+                    result.append(po)
         except Exception:
             continue
     
@@ -1515,7 +1518,8 @@ async def get_controversial(limit: int = Query(default=5, le=20)):
     # Find persons with both high likes AND high dislikes
     cursor = db.persons.find({
         "approved": True,
-        "total_votes": {"$gte": 10}  # Minimum 10 votes
+        "total_votes": {"$gte": 10},  # Minimum 10 votes
+        "visible_in_rankings": {"$ne": False},
     })
     persons = await cursor.to_list(length=1000)
     
@@ -1657,20 +1661,27 @@ async def search_wikipedia_person(query: str) -> Optional[Dict[str, Any]]:
 
 @api_router.get("/search")
 async def search_people(query: str = Query(..., min_length=1), limit: int = Query(default=10, le=50)):
-    """Search for people by name (case-insensitive, accent-insensitive, partial match)
-    If not found locally, searches Wikipedia and adds the person to the database."""
+    """Search for people by name (case-insensitive, accent-insensitive, partial match).
+    
+    Session 3 Option 4: If not found locally, triggers async background creation
+    with full guard-fous (P31, P570, blocklist, 2+ langs, Wikipedia score).
+    Returns [] immediately — profile appears on next search ~10s later.
+    """
     try:
         search_term = query.strip()
         search_term_normalized = remove_accents(search_term)
         
-        # Build filter for approved personalities only
-        filter_q: Dict[str, Any] = {"approved": True}
+        # Build filter: approved, not deceased
+        filter_q: Dict[str, Any] = {"approved": True, "is_deceased": {"$ne": True}}
+        
+        # Check blocklist to filter results
+        settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        blocked_slugs = set(settings.get("seed_blocklist", []))
         
         # Split into words for multi-word search
         words = search_term_normalized.split()
         
         if len(words) == 1:
-            # Single word: match anywhere in name (with or without accents)
             word = words[0]
             flexible_regex = ''.join([
                 f"[{c}{get_accent_variants(c)}]" if c.isalpha() else re.escape(c)
@@ -1678,7 +1689,6 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
             ])
             filter_q["name"] = {"$regex": flexible_regex, "$options": "i"}
         else:
-            # Multiple words: match all words in any order
             regex_list = []
             for word in words:
                 flexible_regex = ''.join([
@@ -1691,30 +1701,181 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
         cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
         
-        # Session 3: Auto-ingestion via search DISABLED.
-        # All new personalities must go through candidate_queue (daily detection or admin manual).
-        # /api/search is now read-only: returns only existing, approved, non-deceased persons.
-        
         out = []
         for doc in results:
-            # Filter out deceased and blocked persons from search results
-            if doc.get("is_deceased"):
+            # Filter out blocked persons from search results
+            doc_slug = doc.get("slug", slugify(doc.get("name", "")))
+            if doc_slug in blocked_slugs:
                 continue
-            _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
-            out.append({
-                "id": str(doc["_id"]),
-                "name": doc.get("name"),
-                "category": doc.get("category", "other"),
-                "score": eff_score,
-                "total_votes": eff_total,
-                "likes": eff_likes,
-                "dislikes": eff_dislikes,
-                "source": doc.get("source", "unknown"),
-            })
+            po = person_to_out(doc)
+            if po:
+                out.append({
+                    "id": po.id,
+                    "name": po.name,
+                    "category": po.category,
+                    "score": po.score,
+                    "total_votes": po.total_votes,
+                    "likes": po.likes,
+                    "dislikes": po.dislikes,
+                    "source": doc.get("source", "unknown"),
+                })
+        
+        # Session 3 Option 4: If no local results, trigger async background creation
+        if not out and len(search_term) >= 3:
+            asyncio.create_task(_background_create_from_search(search_term))
+        
         return out
     except Exception as e:
         logger.error(f"Search error: {e}")
         return []
+
+
+async def _background_create_from_search(search_term: str):
+    """
+    Session 3: Background task triggered by /api/search when no local results.
+    Full guard-fous pipeline before creating a profile.
+    Profile created with real Wikipedia score, visible_in_rankings=false.
+    """
+    import httpx as _httpx
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
+    from external_scores import compute_external_score_for_person
+    from popularoo_index import get_alpha
+
+    try:
+        name_slug = slugify(search_term)
+
+        # Guard 1: Check blocklist
+        settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        blocked_slugs = set(settings.get("seed_blocklist", []))
+        if name_slug in blocked_slugs:
+            logger.info(f"🔍 [BG Search] '{search_term}' blocked by seed_blocklist")
+            return
+
+        # Guard 2: Check if already exists (race condition)
+        existing = await db.persons.find_one({"slug": name_slug})
+        if existing:
+            logger.info(f"🔍 [BG Search] '{search_term}' already exists (slug={name_slug})")
+            return
+
+        async with _httpx.AsyncClient(timeout=15) as client:
+            # Guard 3: Wikidata P31 = human + P570 = alive
+            is_human, is_deceased, wikidata_id, description = await check_is_human_alive(search_term, client)
+
+            if not is_human:
+                logger.info(f"🔍 [BG Search] '{search_term}' not human in Wikidata")
+                return
+
+            if is_deceased:
+                logger.info(f"🔍 [BG Search] '{search_term}' is deceased (P570)")
+                return
+
+            # Guard 4: Wikipedia pages in >= 2 languages
+            langs = await check_multi_lang_pages(search_term, client)
+            if len(langs) < 2:
+                logger.info(f"🔍 [BG Search] '{search_term}' only {len(langs)} Wiki languages (<2)")
+                return
+
+        # All guards passed — infer category
+        category, confidence = infer_category(description or "")
+
+        # Get canonical name from Wikipedia (proper capitalization)
+        canonical_name = search_term
+        try:
+            async with _httpx.AsyncClient(timeout=10) as client:
+                title = search_term.replace(" ", "_")
+                resp = await client.get(
+                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                    headers={"User-Agent": "Popularoo/1.0"},
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    canonical_name = data.get("title", search_term)
+        except Exception:
+            pass
+
+        # Final slug from canonical name
+        final_slug = slugify(canonical_name)
+
+        # Double-check existence with canonical name
+        existing = await db.persons.find_one({"slug": final_slug})
+        if existing:
+            logger.info(f"🔍 [BG Search] '{canonical_name}' already exists (canonical slug)")
+            return
+
+        now = now_utc()
+
+        # Create profile with 0 votes, visible_in_rankings=false
+        person_doc = {
+            "name": canonical_name,
+            "slug": final_slug,
+            "category": category,
+            "approved": True,
+            "created_at": now,
+            "updated_at": now,
+            "score": 0,
+            "likes": 0,
+            "dislikes": 0,
+            "total_votes": 0,
+            "source": "user_search",
+            "created_via": "auto",
+            "visible_in_rankings": False,
+            "wiki_description": description or "",
+            "wikidata_id": wikidata_id,
+            "wiki_langs": langs,
+            "category_confidence": confidence,
+        }
+
+        result = await db.persons.insert_one(person_doc)
+        person_id = result.inserted_id
+
+        # Initial tick
+        await db.person_ticks.insert_one({
+            "person_id": person_id,
+            "score": 0,
+            "total_votes": 0,
+            "created_at": now,
+        })
+
+        # Compute real Wikipedia score immediately
+        try:
+            from external_scores import compute_external_score_for_person as _compute_ext
+            from external_scores import normalize_wiki_score
+
+            # Get the max wiki score in DB for proper normalization
+            max_doc = await db.persons.find_one(
+                {"wiki_score_brut": {"$exists": True}},
+                sort=[("wiki_score_brut", -1)]
+            )
+            max_wiki_in_db = max_doc.get("wiki_score_brut", 1.0) if max_doc else None
+
+            ext_result = await _compute_ext(canonical_name, max_wiki_in_db=max_wiki_in_db)
+            ext_score = ext_result.get("popularity_external_score", 0)
+            wiki_brut = ext_result.get("wiki_score_brut", 0)
+            wiki_norm = ext_result.get("wiki_score_norm", 0)
+
+            # Compute popularoo_index = alpha * ext + (1-alpha) * votes (votes=0)
+            alpha = await get_alpha(db)
+            pi = round(alpha * ext_score, 2)
+
+            await db.persons.update_one(
+                {"_id": person_id},
+                {"$set": {
+                    "popularity_external_score": ext_score,
+                    "wiki_score_brut": wiki_brut,
+                    "wiki_score_norm": wiki_norm,
+                    "last_external_update": now,
+                    "score": pi,
+                    "popularoo_index": pi,
+                }}
+            )
+            logger.info(f"✅ [BG Search] Created '{canonical_name}' ({category}/{confidence}) "
+                        f"ext={ext_score:.1f} pi={pi:.1f} visible_in_rankings=false")
+        except Exception as e:
+            logger.warning(f"⚠️ [BG Search] Created '{canonical_name}' but ext score failed: {e}")
+
+    except Exception as e:
+        logger.error(f"❌ [BG Search] Failed for '{search_term}': {e}")
 
 def get_accent_variants(char: str) -> str:
     """Get common accent variants for a character"""
@@ -7282,6 +7443,116 @@ async def admin_dashboard_stats(request: Request):
         },
         "top5": top5,
     }
+
+
+# ==================== SESSION 3 — LOT 2: Admin User Creations ====================
+
+@api_router.get("/admin/user-creations")
+async def admin_list_user_creations(request: Request):
+    """List profiles created via user search in the last 72h."""
+    _require_admin_auth(request)
+
+    cutoff_72h = now_utc() - timedelta(hours=72)
+    items = await db.persons.find({
+        "source": "user_search",
+        "created_at": {"$gte": cutoff_72h},
+    }).sort("created_at", -1).to_list(500)
+
+    return [
+        {
+            "id": str(p["_id"]),
+            "name": p.get("name"),
+            "category": p.get("category", "other"),
+            "category_confidence": p.get("category_confidence", "low"),
+            "score": round(p.get("score", 0), 1),
+            "popularoo_index": round(p.get("popularoo_index", 0), 1),
+            "popularity_external_score": round(p.get("popularity_external_score", 0), 1),
+            "total_votes": p.get("total_votes", 0),
+            "visible_in_rankings": p.get("visible_in_rankings", True),
+            "wiki_description": p.get("wiki_description", ""),
+            "created_at": p.get("created_at", "").isoformat() if p.get("created_at") else None,
+        }
+        for p in items
+    ]
+
+
+@api_router.post("/admin/user-creations/{person_id}/validate")
+async def admin_validate_user_creation(person_id: str, request: Request):
+    """Immediately promote a user-created profile to visible in rankings."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+
+    result = await db.persons.update_one(
+        {"_id": oid, "source": "user_search"},
+        {"$set": {"visible_in_rankings": True, "promoted_at": now_utc()}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Profile not found or not a user_search profile")
+
+    return {"success": True, "person_id": person_id, "visible_in_rankings": True}
+
+
+@api_router.post("/admin/user-creations/{person_id}/update-category")
+async def admin_update_user_creation_category(person_id: str, request: Request):
+    """Update the category of a user-created profile. Body: {"category": "sport"}"""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+
+    body = await request.json()
+    new_cat = body.get("category", "").lower()
+    valid_cats = {"politics", "culture", "business", "sport", "influencer", "other"}
+    if new_cat not in valid_cats:
+        raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {valid_cats}")
+
+    result = await db.persons.update_one(
+        {"_id": oid},
+        {"$set": {"category": new_cat, "category_updated_at": now_utc()}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    return {"success": True, "person_id": person_id, "new_category": new_cat}
+
+
+@api_router.post("/admin/user-creations/{person_id}/delete-block")
+async def admin_delete_block_user_creation(person_id: str, request: Request):
+    """Delete a user-created profile and add to blocklist."""
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person ID")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    name = person.get("name", "")
+    name_slug = person.get("slug", slugify(name))
+
+    # Delete the person
+    await db.persons.delete_one({"_id": oid})
+
+    # Add to blocklist
+    await db.app_settings.update_one(
+        {"_id": "global"},
+        {"$addToSet": {"seed_blocklist": name_slug}},
+        upsert=True,
+    )
+
+    logger.info(f"🚫 [Admin] Deleted + blocked user-created profile: {name}")
+    return {"success": True, "name": name, "blocked_slug": name_slug}
 
 
 # Include API router AFTER all endpoints are defined on it

@@ -324,6 +324,57 @@ async def run_monthly_category_review_job(db):
         logger.error(f"❌ [Scheduler] Category review failed: {e}")
 
 
+async def run_auto_promote_user_created(db):
+    """
+    Session 3: Auto-promote user-created profiles after 48h.
+    Runs every 6 hours. Only promotes if not in blocklist and not deleted.
+    """
+    try:
+        from datetime import datetime, timezone, timedelta
+
+        now = datetime.now(timezone.utc)
+        cutoff_48h = now - timedelta(hours=48)
+
+        # Find all user_search profiles older than 48h still invisible
+        candidates = await db.persons.find({
+            "source": "user_search",
+            "visible_in_rankings": False,
+            "created_at": {"$lt": cutoff_48h},
+            "approved": True,
+        }).to_list(500)
+
+        if not candidates:
+            return
+
+        # Load blocklist
+        settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        blocked_slugs = set(settings.get("seed_blocklist", []))
+
+        promoted = 0
+        blocked = 0
+
+        for person in candidates:
+            slug = person.get("slug", "")
+            if slug in blocked_slugs:
+                # Blocked — silently delete the profile
+                await db.persons.delete_one({"_id": person["_id"]})
+                blocked += 1
+                logger.info(f"🚫 [AutoPromote] Deleted blocked profile: {person.get('name')}")
+                continue
+
+            # Promote
+            await db.persons.update_one(
+                {"_id": person["_id"]},
+                {"$set": {"visible_in_rankings": True, "promoted_at": now}}
+            )
+            promoted += 1
+
+        if promoted > 0 or blocked > 0:
+            logger.info(f"🔄 [AutoPromote] {promoted} promoted, {blocked} blocked/deleted")
+    except Exception as e:
+        logger.error(f"❌ [AutoPromote] Failed: {e}")
+
+
 def init_scheduler(db, trends_service, email_svc=None):
     """
     Initialize the APScheduler with daily tasks
@@ -469,6 +520,18 @@ def init_scheduler(db, trends_service, email_svc=None):
         args=[db],
         id='monthly_category_review_job',
         name='Monthly Category Review (Wikipedia)',
+        replace_existing=True
+    )
+
+    # ── Session 3: Auto-promote user-created profiles every 6 hours ──
+    # Profiles created via /api/search with visible_in_rankings=false
+    # are promoted to visible after 48h, unless blocked.
+    scheduler.add_job(
+        run_auto_promote_user_created,
+        IntervalTrigger(hours=6),
+        args=[db],
+        id='auto_promote_user_created_job',
+        name='Auto-Promote User Search Profiles (6h)',
         replace_existing=True
     )
     
