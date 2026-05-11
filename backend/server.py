@@ -6295,6 +6295,79 @@ async def admin_rename_persons_batch(request: Request):
     return results
 
 
+# ==================== LOT D ter: Add Celebrities Batch ====================
+
+@api_router.post("/admin/add-celebrities-batch")
+@limiter.limit("5/15minutes")
+async def admin_add_celebrities_batch(request: Request):
+    """
+    Add multiple celebrities to the database in one batch.
+    Skips duplicates (by slug). Initializes with realistic vote counts.
+    Body: { "celebrities": [{"name": "Brad Pitt", "category": "culture"}, ...] }
+    """
+    _require_admin_auth(request)
+    import random
+    body = await request.json()
+    celebrities = body.get("celebrities", [])
+
+    now = now_utc()
+    results = {"added": [], "skipped_duplicates": [], "errors": [], "total_added": 0}
+
+    for celeb in celebrities:
+        name = celeb.get("name", "").strip()
+        category = celeb.get("category", "culture").strip().lower()
+        if not name:
+            results["errors"].append({"name": name, "error": "empty name"})
+            continue
+
+        slug = slugify(name)
+        existing = await db.persons.find_one({"slug": slug})
+        if existing:
+            results["skipped_duplicates"].append(name)
+            continue
+
+        # Realistic initial votes (similar to existing seeds)
+        init_likes = random.randint(6000, 12000)
+        init_dislikes = random.randint(1500, 4000)
+        total = init_likes + init_dislikes
+        score = round((init_likes / max(1, total)) * 200 - 100, 1)
+
+        doc = {
+            "name": name,
+            "slug": slug,
+            "category": category,
+            "approved": True,
+            "created_at": now,
+            "updated_at": now,
+            "score": score,
+            "likes": init_likes,
+            "dislikes": init_dislikes,
+            "total_votes": total,
+            "seed_votes_likes": init_likes,
+            "seed_votes_dislikes": init_dislikes,
+            "source": "seed",
+            "is_international": True,
+            "country_tags": ["international"],
+        }
+
+        try:
+            result = await db.persons.insert_one(doc)
+            # Insert initial tick
+            await db.person_ticks.insert_one({
+                "person_id": result.inserted_id,
+                "score": score,
+                "total_votes": total,
+                "created_at": now,
+            })
+            results["added"].append({"name": name, "category": category, "votes": total})
+            results["total_added"] += 1
+        except Exception as e:
+            results["errors"].append({"name": name, "error": str(e)})
+
+    logger.info(f"🌟 Batch add: {results['total_added']} added, {len(results['skipped_duplicates'])} duplicates skipped")
+    return results
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
