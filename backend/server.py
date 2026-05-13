@@ -8501,21 +8501,24 @@ async def get_virtual_vote_config(person_id: str):
 
 class CreateFromSearchRequest(BaseModel):
     name: str
-    device_id: str
 
 
 @api_router.post("/create-from-search")
-async def create_from_search(body: CreateFromSearchRequest):
+async def create_from_search(
+    body: CreateFromSearchRequest,
+    x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
+):
     """
     Vague 2 Sujet A: Synchronous celebrity creation from user search.
     Full guard-fous pipeline. Returns immediately with result.
     Creates with 0 votes, visible_in_rankings=true, source=user_search_confirmed.
+    device_id is read from X-Device-ID header (convention app).
     """
     name = body.name.strip()
-    device_id = body.device_id.strip()
+    device_id = (x_device_id or "").strip()
 
     if not device_id or len(device_id) < 5:
-        raise HTTPException(status_code=400, detail="Valid device_id required")
+        raise HTTPException(status_code=400, detail="X-Device-ID header required")
 
     # ── Validate name ──
     if not name or len(name) < 2:
@@ -8681,12 +8684,16 @@ async def create_from_search(body: CreateFromSearchRequest):
 
 
 @api_router.get("/me/is-contributor")
-async def is_contributor(device_id: str = Query(...)):
+async def is_contributor(
+    x_device_id: Optional[str] = Header(default=None, alias="X-Device-ID"),
+):
     """
     Check if a device_id has contributed (created) at least one celebrity profile.
+    device_id is read from X-Device-ID header (convention app).
     """
+    device_id = (x_device_id or "").strip()
     if not device_id or len(device_id) < 5:
-        raise HTTPException(status_code=400, detail="Valid device_id required")
+        raise HTTPException(status_code=400, detail="X-Device-ID header required")
 
     doc = await db.user_settings.find_one({"device_id": device_id})
     contributed = doc.get("contributed_person_ids", []) if doc else []

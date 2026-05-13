@@ -287,6 +287,9 @@ export default function HomeScreen() {
   const [createModalName, setCreateModalName] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // Vague 2: Contributor macaron state
+  const [myOutsiderProfileId, setMyOutsiderProfileId] = useState<string | null>(null);
+  const [myContributorCount, setMyContributorCount] = useState(0);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -335,6 +338,40 @@ export default function HomeScreen() {
     loadData();
     const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Vague 2: Fetch contributor status + my outsider profile ID (once on mount)
+  useEffect(() => {
+    (async () => {
+      try {
+        const did = await AsyncStorage.getItem("popularity_device_id");
+        if (!did) return;
+
+        // Parallel fetch: my-outsider-profile + is-contributor
+        const [outsiderRes, contribRes] = await Promise.all([
+          fetch(API("/me/my-outsider-profile"), {
+            headers: { "X-Device-ID": did },
+          }).catch(() => null),
+          fetch(API("/me/is-contributor"), {
+            headers: { "X-Device-ID": did },
+          }).catch(() => null),
+        ]);
+
+        if (outsiderRes?.ok) {
+          const outsiderData = await outsiderRes.json();
+          if (outsiderData?.id || outsiderData?._id) {
+            setMyOutsiderProfileId(outsiderData.id || outsiderData._id);
+          }
+        }
+
+        if (contribRes?.ok) {
+          const contribData = await contribRes.json();
+          if (contribData?.is_contributor) {
+            setMyContributorCount(contribData.contributed_count || 0);
+          }
+        }
+      } catch {}
+    })();
   }, []);
 
   // BLOC 2.4: Like an outsider directly from the Home card
@@ -566,12 +603,26 @@ export default function HomeScreen() {
     setCreateLoading(true);
     setCreateError(null);
     try {
-      const did = await AsyncStorage.getItem("popularity_device_id");
+      let did = await AsyncStorage.getItem("popularity_device_id");
+      if (!did) {
+        did = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        await AsyncStorage.setItem("popularity_device_id", did);
+      }
       const response = await fetch(API("/create-from-search"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: createModalName, device_id: did || "unknown" }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Device-ID": did,
+        },
+        body: JSON.stringify({ name: createModalName }),
       });
+
+      if (!response.ok) {
+        // HTTP error (400, 500, etc.)
+        setCreateError("Erreur de connexion au serveur. Réessayez dans quelques instants.");
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -584,12 +635,13 @@ export default function HomeScreen() {
           params: { id: data.person_id, name: data.name, justCreated: "true" },
         });
       } else if (data.error === "already_exists") {
-        // Profile was created by background task in the meantime
+        // Profile was created by background task in the meantime — still treat as success for UX
         setCreateModalVisible(false);
         setSearchName("");
+        setSearchSuggestions([]);
         router.push({
           pathname: "/person",
-          params: { id: data.person_id, name: data.name },
+          params: { id: data.person_id, name: data.name, justCreated: "true" },
         });
       } else {
         // Map error codes to user-friendly messages
@@ -714,6 +766,13 @@ export default function HomeScreen() {
                 pulsingHeart={true}
                 badgeLabel={t("home.outsiderOfTheDay")}
                 badgeCounter={goldenOutsiders.length > 1 ? `${currentOutsiderIndex + 1}/${goldenOutsiders.length}` : undefined}
+                contributorCount={
+                  myOutsiderProfileId &&
+                  goldenOutsiders[currentOutsiderIndex]?.id === myOutsiderProfileId &&
+                  myContributorCount > 0
+                    ? myContributorCount
+                    : undefined
+                }
               />
             </View>
           </Animated.View>
@@ -1115,5 +1174,99 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+  },
+});
+
+// ── Vague 2: Create-from-search Modal styles ──
+const cfsStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  card: {
+    backgroundColor: "#1C3A2C",
+    borderRadius: 20,
+    padding: 28,
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2E6148",
+  },
+  emoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  title: {
+    color: "#EAEAEA",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  name: {
+    color: "#E04F5F",
+    fontWeight: "700",
+  },
+  subtitle: {
+    color: "#C9D8D2",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  loaderBox: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  loaderText: {
+    color: "#EAEAEA",
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 12,
+  },
+  loaderSubtext: {
+    color: "#8FA89B",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  buttons: {
+    width: "100%",
+    gap: 10,
+  },
+  primaryBtn: {
+    backgroundColor: "#E04F5F",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  secondaryBtn: {
+    backgroundColor: "transparent",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2E6148",
+  },
+  secondaryBtnText: {
+    color: "#C9D8D2",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  errorTitle: {
+    color: "#EAEAEA",
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
   },
 });

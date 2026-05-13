@@ -69,6 +69,9 @@ export default function OutsidersPage() {
   const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Vague 2: Contributor macaron
+  const [myOutsiderProfileId, setMyOutsiderProfileId] = useState<string | null>(null);
+  const [myContributorCount, setMyContributorCount] = useState(0);
 
   const getDeviceId = useCallback(async () => {
     let did = await AsyncStorage.getItem(DEVICE_KEY);
@@ -98,6 +101,27 @@ export default function OutsidersPage() {
 
   useEffect(() => {
     loadOutsiders();
+  }, []);
+
+  // Vague 2: Fetch contributor status + my outsider profile ID (once on mount)
+  useEffect(() => {
+    (async () => {
+      try {
+        const did = await getDeviceId();
+        const [outsiderRes, contribRes] = await Promise.all([
+          fetch(API("/me/my-outsider-profile"), { headers: { "X-Device-ID": did } }).catch(() => null),
+          fetch(API("/me/is-contributor"), { headers: { "X-Device-ID": did } }).catch(() => null),
+        ]);
+        if (outsiderRes?.ok) {
+          const data = await outsiderRes.json();
+          if (data?.id || data?._id) setMyOutsiderProfileId(data.id || data._id);
+        }
+        if (contribRes?.ok) {
+          const data = await contribRes.json();
+          if (data?.is_contributor) setMyContributorCount(data.contributed_count || 0);
+        }
+      } catch {}
+    })();
   }, []);
 
   const handleLikeOutsider = useCallback(async (personId: string) => {
@@ -166,6 +190,11 @@ export default function OutsidersPage() {
                   outsider={outsider}
                   onLike={handleLikeOutsider}
                   pulsingHeart={false}
+                  contributorCount={
+                    myOutsiderProfileId && outsider.id === myOutsiderProfileId && myContributorCount > 0
+                      ? myContributorCount
+                      : undefined
+                  }
                 />
               </View>
               {/* Inject promo card every 10 items */}

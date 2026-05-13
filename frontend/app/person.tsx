@@ -275,8 +275,9 @@ function LiveVoteItem({
 export default function Person() {
   const router = useRouter();
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ id: string; name?: string }>();
+  const params = useLocalSearchParams<{ id: string; name?: string; justCreated?: string }>();
   const id = params.id as string;
+  const justCreated = params.justCreated === "true";
   const [name, setName] = useState(params.name || "");
   const [initialLoading, setInitialLoading] = useState(true);
   const [person, setPerson] = useState<any>(null);
@@ -297,6 +298,53 @@ export default function Person() {
 
   // Index pulsing animation
   const indexPulse = useRef(new Animated.Value(1)).current;
+
+  // ── Vague 2: Toast "Merci Contributeur" ──
+  const [toastQueue, setToastQueue] = useState<string[]>([]);
+  const [currentToast, setCurrentToast] = useState<string | null>(null);
+  const toastHandled = useRef(false);
+
+  // Process toast queue
+  useEffect(() => {
+    if (currentToast || toastQueue.length === 0) return;
+    const next = toastQueue[0];
+    setCurrentToast(next);
+    setToastQueue((prev) => prev.slice(1));
+    const timer = setTimeout(() => setCurrentToast(null), 4500);
+    return () => clearTimeout(timer);
+  }, [toastQueue, currentToast]);
+
+  // Show contributor toast when arriving with justCreated=true
+  useEffect(() => {
+    if (!justCreated || toastHandled.current) return;
+    toastHandled.current = true;
+
+    // Toast 1: Merci contributeur (immediate)
+    setToastQueue(["🏆 Merci ! Tu es le premier contributeur de cette fiche."]);
+
+    // Toast 2 (delayed): If user has an Outsider profile, notify about macaron
+    const checkOutsider = async () => {
+      try {
+        const did = await getDeviceId();
+        if (!did) return;
+        const res = await fetch(API("/me/my-outsider-profile"), {
+          headers: { "X-Device-ID": did },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.name) {
+            setTimeout(() => {
+              setToastQueue((prev) => [
+                ...prev,
+                '✨ Le macaron "Contributeur" apparaît désormais sur ta fiche Outsider !',
+              ]);
+            }, 5000);
+          }
+        }
+      } catch {}
+    };
+    checkOutsider();
+  }, [justCreated]);
 
   useEffect(() => {
     Animated.loop(
@@ -618,6 +666,13 @@ export default function Person() {
                   : `${formatNumber(displayLikes)} likes \u2022 ${formatNumber(displayDislikes)} dislikes`}
               </Text>
             </View>
+
+            {/* Vague 2: Toast Contributeur */}
+            {currentToast && (
+              <View style={toastStyles.container}>
+                <Text style={toastStyles.text}>{currentToast}</Text>
+              </View>
+            )}
 
             {/* Large Popularoo Index */}
             <View style={styles.indexSection}>
@@ -1157,5 +1212,28 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+});
+
+// ── Vague 2: Toast styles ──
+const toastStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#1B5E20",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2E7D32",
+    alignItems: "center",
+  },
+  text: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
