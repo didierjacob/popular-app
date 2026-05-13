@@ -16,6 +16,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -281,6 +282,11 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [searchName, setSearchName] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
+  // Vague 2: Create-from-search modal
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createModalName, setCreateModalName] = useState("");
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -547,7 +553,62 @@ export default function HomeScreen() {
         }
       }
     } catch {}
-    alert(`"${searchName}" not found. Try another name.`);
+
+    // Vague 2: Instead of alert(), show the create-from-search modal
+    setCreateModalName(searchName.trim());
+    setCreateError(null);
+    setCreateLoading(false);
+    setCreateModalVisible(true);
+  };
+
+  // Vague 2: Handle "Create profile" from modal
+  const handleCreateFromSearch = async () => {
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      const did = await AsyncStorage.getItem("popularity_device_id");
+      const response = await fetch(API("/create-from-search"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: createModalName, device_id: did || "unknown" }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setCreateModalVisible(false);
+        setSearchName("");
+        setSearchSuggestions([]);
+        // Navigate to the newly created person page with contributor flag
+        router.push({
+          pathname: "/person",
+          params: { id: data.person_id, name: data.name, justCreated: "true" },
+        });
+      } else if (data.error === "already_exists") {
+        // Profile was created by background task in the meantime
+        setCreateModalVisible(false);
+        setSearchName("");
+        router.push({
+          pathname: "/person",
+          params: { id: data.person_id, name: data.name },
+        });
+      } else {
+        // Map error codes to user-friendly messages
+        const errorMessages: Record<string, string> = {
+          wikipedia_not_found: "Désolé, cette personnalité n'a pas été trouvée sur Wikipedia. Vérifiez l'orthographe ou essayez un autre nom.",
+          not_human: "Cette recherche ne correspond pas à une personnalité reconnue.",
+          deceased: "Cette personnalité ne peut pas être ajoutée.",
+          blocked: "Cette personnalité ne peut pas être ajoutée.",
+          insufficient_languages: "Cette personnalité n'a pas assez de visibilité internationale pour être ajoutée pour le moment.",
+          invalid_name: data.message || "Nom invalide. Vérifiez l'orthographe.",
+          wikipedia_check_failed: "Erreur de connexion à Wikipedia. Réessayez dans quelques instants.",
+        };
+        setCreateError(errorMessages[data.error] || `Erreur : ${data.error}`);
+      }
+    } catch (e: any) {
+      setCreateError("Erreur de connexion. Vérifiez votre connexion internet et réessayez.");
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const { width: screenWidth } = useWindowDimensions();
@@ -735,6 +796,65 @@ export default function HomeScreen() {
         <View style={{ height: 80 }} />
         </View>
       </ScrollView>
+
+      {/* Vague 2: Create-from-search Modal */}
+      <Modal
+        visible={createModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!createLoading) setCreateModalVisible(false); }}
+      >
+        <View style={cfsStyles.overlay}>
+          <View style={cfsStyles.card}>
+            {!createError ? (
+              <>
+                <Text style={cfsStyles.emoji}>🌟</Text>
+                <Text style={cfsStyles.title}>
+                  Personne n'a encore voté pour{"\n"}
+                  <Text style={cfsStyles.name}>{createModalName}</Text>
+                </Text>
+                <Text style={cfsStyles.subtitle}>
+                  Sois la première à le faire et crée sa fiche dans Popularoo !
+                </Text>
+
+                {createLoading ? (
+                  <View style={cfsStyles.loaderBox}>
+                    <ActivityIndicator size="large" color={PALETTE.accent2} />
+                    <Text style={cfsStyles.loaderText}>Création en cours...</Text>
+                    <Text style={cfsStyles.loaderSubtext}>Vérification Wikipedia & Wikidata</Text>
+                  </View>
+                ) : (
+                  <View style={cfsStyles.buttons}>
+                    <TouchableOpacity style={cfsStyles.primaryBtn} onPress={handleCreateFromSearch}>
+                      <Text style={cfsStyles.primaryBtnText}>✨ Créer sa fiche</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={cfsStyles.secondaryBtn}
+                      onPress={() => setCreateModalVisible(false)}
+                    >
+                      <Text style={cfsStyles.secondaryBtnText}>Annuler</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={cfsStyles.emoji}>😔</Text>
+                <Text style={cfsStyles.errorTitle}>{createError}</Text>
+                <View style={cfsStyles.buttons}>
+                  <TouchableOpacity
+                    style={cfsStyles.secondaryBtn}
+                    onPress={() => { setCreateError(null); setCreateModalVisible(false); }}
+                  >
+                    <Text style={cfsStyles.secondaryBtnText}>Fermer</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

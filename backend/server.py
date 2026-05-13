@@ -8497,6 +8497,207 @@ async def get_virtual_vote_config(person_id: str):
     }
 
 
+# ==================== VAGUE 2 — Sujet A: Create from Search + Contributor ====================
+
+class CreateFromSearchRequest(BaseModel):
+    name: str
+    device_id: str
+
+
+@api_router.post("/create-from-search")
+async def create_from_search(body: CreateFromSearchRequest):
+    """
+    Vague 2 Sujet A: Synchronous celebrity creation from user search.
+    Full guard-fous pipeline. Returns immediately with result.
+    Creates with 0 votes, visible_in_rankings=true, source=user_search_confirmed.
+    """
+    name = body.name.strip()
+    device_id = body.device_id.strip()
+
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="Valid device_id required")
+
+    # ── Validate name ──
+    if not name or len(name) < 2:
+        return {"success": False, "error": "invalid_name", "message": "Name too short"}
+    words = name.split()
+    if len(words) < 2:
+        return {"success": False, "error": "invalid_name", "message": "Name must contain at least 2 words"}
+    import re as _re
+    if _re.search(r"\d", name):
+        return {"success": False, "error": "invalid_name", "message": "Name must not contain digits"}
+
+    # ── Check if already exists ──
+    name_slug = slugify(name)
+    existing = await db.persons.find_one({"slug": name_slug})
+    if existing:
+        return {"success": False, "error": "already_exists", "person_id": str(existing["_id"]),
+                "name": existing.get("name", name)}
+
+    # ── Check blocklist ──
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    blocked_slugs = set(settings.get("seed_blocklist", []))
+    if name_slug in blocked_slugs:
+        return {"success": False, "error": "blocked"}
+
+    # ── Wikipedia / Wikidata guard-fous ──
+    import httpx as _httpx
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
+
+    try:
+        async with _httpx.AsyncClient(timeout=15) as client:
+            is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
+
+            if not is_human:
+                return {"success": False, "error": "wikipedia_not_found"}
+
+            if is_deceased:
+                return {"success": False, "error": "deceased"}
+
+            langs = await check_multi_lang_pages(name, client)
+            if len(langs) < 2:
+                return {"success": False, "error": "insufficient_languages", "found_langs": langs}
+
+    except Exception as e:
+        logger.error(f"[create-from-search] Wikipedia check failed for '{name}': {e}")
+        return {"success": False, "error": "wikipedia_check_failed", "message": str(e)}
+
+    # ── Infer category ──
+    category, confidence = infer_category(description or "")
+
+    # ── Get canonical name from Wikipedia ──
+    canonical_name = name
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            title = name.replace(" ", "_")
+            resp = await client.get(
+                f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+                headers={"User-Agent": "Popularoo/1.0"},
+                follow_redirects=True,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                canonical_name = data.get("title", name)
+    except Exception:
+        pass
+
+    final_slug = slugify(canonical_name)
+    # Double-check canonical slug
+    existing = await db.persons.find_one({"slug": final_slug})
+    if existing:
+        return {"success": False, "error": "already_exists", "person_id": str(existing["_id"]),
+                "name": existing.get("name", canonical_name)}
+
+    # ── Compute external score ──
+    ext_score = 0.0
+    wiki_brut = 0
+    wiki_norm = 0.0
+    dominant_lang = "en"
+    try:
+        from external_scores import compute_external_score_for_person as _compute_ext
+        max_doc = await db.persons.find_one(
+            {"wiki_score_brut": {"$exists": True}},
+            sort=[("wiki_score_brut", -1)]
+        )
+        max_wiki_in_db = max_doc.get("wiki_score_brut", 1.0) if max_doc else None
+        ext_result = await _compute_ext(canonical_name, max_wiki_in_db=max_wiki_in_db)
+        ext_score = ext_result.get("popularity_external_score", 0)
+        wiki_brut = ext_result.get("wiki_score_brut", 0)
+        wiki_norm = ext_result.get("wiki_score_norm", 0)
+        # Compute dominant_language from pageviews
+        per_lang = ext_result.get("wiki_pageviews", {}).get("per_lang", [])
+        if per_lang:
+            dominant_lang = compute_dominant_language_from_pageviews(per_lang)
+    except Exception as e:
+        logger.warning(f"[create-from-search] External score failed for '{canonical_name}': {e}")
+
+    # ── Compute popularoo_index ──
+    from popularoo_index import get_alpha
+    alpha = await get_alpha(db)
+    pi = round(alpha * ext_score, 2)
+
+    now = now_utc()
+    person_doc = {
+        "name": canonical_name,
+        "slug": final_slug,
+        "category": category,
+        "category_confidence": confidence,
+        "approved": True,
+        "created_at": now,
+        "updated_at": now,
+        "score": pi,
+        "likes": 0,
+        "dislikes": 0,
+        "total_votes": 0,
+        "source": "user_search_confirmed",
+        "created_by_device_id": device_id,
+        "visible_in_rankings": True,
+        "wiki_description": description or "",
+        "wikidata_id": wikidata_id,
+        "wiki_langs": langs,
+        "popularity_external_score": ext_score,
+        "wiki_score_brut": wiki_brut,
+        "wiki_score_norm": wiki_norm,
+        "last_external_update": now,
+        "popularoo_index": pi,
+        "dominant_language": dominant_lang,
+    }
+
+    result = await db.persons.insert_one(person_doc)
+    person_id = str(result.inserted_id)
+
+    # Initial tick
+    await db.person_ticks.insert_one({
+        "person_id": result.inserted_id,
+        "score": pi,
+        "total_votes": 0,
+        "created_at": now,
+    })
+
+    # ── Track contributor status ──
+    await db.user_settings.update_one(
+        {"device_id": device_id},
+        {
+            "$addToSet": {"contributed_person_ids": person_id},
+            "$setOnInsert": {"device_id": device_id, "created_at": now},
+            "$set": {"updated_at": now},
+        },
+        upsert=True,
+    )
+
+    logger.info(f"✅ [Create from Search] '{canonical_name}' cat={category} PI={pi:.1f} "
+                f"by device={device_id[:8]}...")
+
+    return {
+        "success": True,
+        "person_id": person_id,
+        "name": canonical_name,
+        "category": category,
+        "score": pi,
+        "popularity_external_score": ext_score,
+        "dominant_language": dominant_lang,
+        "is_contributor": True,
+    }
+
+
+@api_router.get("/me/is-contributor")
+async def is_contributor(device_id: str = Query(...)):
+    """
+    Check if a device_id has contributed (created) at least one celebrity profile.
+    """
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="Valid device_id required")
+
+    doc = await db.user_settings.find_one({"device_id": device_id})
+    contributed = doc.get("contributed_person_ids", []) if doc else []
+
+    return {
+        "is_contributor": len(contributed) > 0,
+        "contributed_count": len(contributed),
+        "contributed_person_ids": contributed,
+    }
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 
