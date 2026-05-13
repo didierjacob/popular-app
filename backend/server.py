@@ -8235,6 +8235,268 @@ async def admin_delete_reported_outsider(report_id: str, request: Request):
     }
 
 
+# ==================== VAGUE 1 — Sujets B+C+D: Virtual Vote Config ====================
+
+# ── Cas 1 celebrities admin CRUD ──
+
+@api_router.get("/admin/cas1-celebrities")
+async def admin_get_cas1(request: Request):
+    """Get the Cas 1 mega-star celebrity slug list from app_settings."""
+    _require_admin_auth(request)
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    return {"cas1_celebrities": settings.get("cas1_celebrities", [])}
+
+
+@api_router.post("/admin/cas1-celebrities")
+async def admin_update_cas1(request: Request):
+    """
+    Add/remove slugs from the Cas 1 mega-star list.
+    Body: { "add": ["slug1", ...], "remove": ["slug2", ...] }
+    """
+    _require_admin_auth(request)
+    body = await request.json()
+    add_slugs = body.get("add", [])
+    remove_slugs = body.get("remove", [])
+
+    if not add_slugs and not remove_slugs:
+        raise HTTPException(status_code=400, detail="Provide 'add' and/or 'remove' arrays")
+
+    ops = {}
+    if add_slugs:
+        ops["$addToSet"] = {"cas1_celebrities": {"$each": [s.strip().lower() for s in add_slugs if s.strip()]}}
+    if remove_slugs:
+        ops["$pull"] = {"cas1_celebrities": {"$in": [s.strip().lower() for s in remove_slugs if s.strip()]}}
+
+    # MongoDB doesn't allow $addToSet and $pull in same update, so split
+    if add_slugs:
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$addToSet": {"cas1_celebrities": {"$each": [s.strip().lower() for s in add_slugs if s.strip()]}}},
+            upsert=True,
+        )
+    if remove_slugs:
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$pull": {"cas1_celebrities": {"$in": [s.strip().lower() for s in remove_slugs if s.strip()]}}},
+        )
+
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    final_list = settings.get("cas1_celebrities", [])
+
+    await _log_admin_action("update_cas1_celebrities", "cas1_list", {
+        "added": add_slugs, "removed": remove_slugs, "final_count": len(final_list),
+    })
+
+    return {"success": True, "cas1_celebrities": final_list, "count": len(final_list)}
+
+
+# ── Admin: Recalculate dominant_language for all persons ──
+
+COUNTRY_TO_LANG = {
+    "FR": "fr", "BE": "fr", "CH": "fr", "CA": "fr", "MA": "fr", "SN": "fr",
+    "TN": "fr", "DZ": "fr", "CI": "fr", "CM": "fr", "CD": "fr", "MG": "fr",
+    "US": "en", "GB": "en", "UK": "en", "AU": "en", "NZ": "en", "IE": "en",
+    "ZA": "en", "NG": "en", "KE": "en", "GH": "en", "IN": "en", "PH": "en",
+    "ES": "es", "MX": "es", "AR": "es", "CO": "es", "CL": "es", "PE": "es",
+    "VE": "es", "EC": "es", "CU": "es", "BO": "es", "GT": "es", "HN": "es",
+    "DE": "de", "AT": "de", "LI": "de",
+    "IT": "it", "SM": "it",
+    "PT": "pt", "BR": "pt", "AO": "pt", "MZ": "pt",
+}
+
+
+def compute_dominant_language_from_pageviews(per_lang_data: list, primary_country: str = "") -> str:
+    """
+    Given per_lang data from Wikipedia pageviews, return the dominant language.
+    Priority: primary_country mapping > highest non-English pageviews (if >15% of total) > English.
+    This ensures Cristiano Ronaldo → "pt" (not "en") and Emmanuel Macron → "fr".
+    """
+    # 1. If we have primary_country, use that as the strong signal
+    if primary_country:
+        country_lang = COUNTRY_TO_LANG.get(primary_country.upper().strip(), "")
+        if country_lang:
+            return country_lang
+
+    if not per_lang_data:
+        return "en"
+
+    # 2. Calculate total views excluding English
+    total_views = sum(r.get("avg_daily_views", 0) for r in per_lang_data)
+    if total_views <= 0:
+        return "en"
+
+    # Sort by views descending
+    sorted_langs = sorted(per_lang_data, key=lambda x: x.get("avg_daily_views", 0), reverse=True)
+
+    # 3. If the top language is not English, use it
+    top = sorted_langs[0]
+    top_lang = top.get("lang", "en")
+    if top_lang != "en" and top_lang in {"fr", "de", "es", "it", "pt"}:
+        return top_lang
+
+    # 4. If top is English, check if any non-English lang has >15% share
+    # This catches cases like Macron where French is significant but smaller than English
+    for item in sorted_langs:
+        lang = item.get("lang", "")
+        if lang == "en" or lang not in {"fr", "de", "es", "it", "pt"}:
+            continue
+        share = item.get("avg_daily_views", 0) / total_views
+        if share >= 0.15:
+            return lang
+
+    return "en"
+
+
+def compute_dominant_language_from_country(primary_country: str) -> str:
+    """Fallback: derive dominant language from primary_country code."""
+    if not primary_country:
+        return "en"
+    return COUNTRY_TO_LANG.get(primary_country.upper().strip(), "en")
+
+
+@api_router.post("/admin/recalculate-dominant-languages")
+async def admin_recalculate_dominant_languages(request: Request):
+    """
+    Batch recalculate dominant_language for all persons.
+    Strategy (optimized):
+    1. Use primary_country mapping first (instant, no API call)
+    2. Only fetch Wikipedia pageviews for profiles WITHOUT primary_country
+    """
+    _require_admin_auth(request)
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    force_wiki = body.get("force_wikipedia", False)  # If true, fetch Wikipedia for ALL
+
+    cursor = db.persons.find({}, {"name": 1, "slug": 1, "source": 1, "primary_country": 1,
+                                   "dominant_language": 1})
+    persons = await cursor.to_list(length=1000)
+
+    updated = 0
+    results = []
+    wiki_needed = []
+
+    # Pass 1: Set dominant_language from primary_country (instant)
+    for p in persons:
+        name = p.get("name", "")
+        source = p.get("source", "")
+        pid = p["_id"]
+        country = p.get("primary_country", "")
+
+        if country and not force_wiki:
+            lang = compute_dominant_language_from_country(country)
+            await db.persons.update_one({"_id": pid}, {"$set": {"dominant_language": lang}})
+            results.append({"name": name, "dominant_language": lang, "method": "primary_country"})
+            updated += 1
+        elif source == "self_boosted":
+            # Outsiders: use country if available, else "en"
+            lang = compute_dominant_language_from_country(country) if country else "en"
+            await db.persons.update_one({"_id": pid}, {"$set": {"dominant_language": lang}})
+            results.append({"name": name, "dominant_language": lang, "method": "outsider_fallback"})
+            updated += 1
+        else:
+            wiki_needed.append(p)
+
+    # Pass 2: For profiles without primary_country, fetch Wikipedia (slower)
+    from external_scores import fetch_wikipedia_pageviews
+    import asyncio as _asyncio
+    errors = []
+
+    for p in wiki_needed:
+        name = p.get("name", "")
+        pid = p["_id"]
+        try:
+            wiki_data = await fetch_wikipedia_pageviews(name)
+            per_lang = wiki_data.get("per_lang", [])
+            lang = compute_dominant_language_from_pageviews(per_lang, p.get("primary_country", ""))
+            active_langs = [r["lang"] for r in per_lang if r.get("avg_daily_views", 0) > 0]
+            await db.persons.update_one({"_id": pid}, {"$set": {"dominant_language": lang, "wiki_langs": active_langs}})
+            results.append({"name": name, "dominant_language": lang, "method": "wikipedia_pageviews"})
+            updated += 1
+            await _asyncio.sleep(0.3)
+        except Exception as e:
+            await db.persons.update_one({"_id": pid}, {"$set": {"dominant_language": "en"}})
+            errors.append(f"{name}: {e}")
+            updated += 1
+
+    await _log_admin_action("recalculate_dominant_languages", "batch", {
+        "total": len(persons), "updated": updated, "errors": len(errors),
+        "wiki_fetched": len(wiki_needed),
+    })
+
+    return {
+        "success": True,
+        "total_persons": len(persons),
+        "updated": updated,
+        "via_country": len(persons) - len(wiki_needed),
+        "via_wikipedia": len(wiki_needed),
+        "errors_count": len(errors),
+        "errors": errors[:10],
+        "sample_results": results[:20],
+    }
+
+
+# ── Virtual vote config endpoint ──
+
+@api_router.get("/virtual-vote-config/{person_id}")
+async def get_virtual_vote_config(person_id: str):
+    """
+    Returns the virtual vote display configuration for a personality.
+    Determines tier (cas1/cas2/cas3) and returns interval + geo coefficient.
+    """
+    try:
+        person_oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": person_oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    slug = person.get("slug", "")
+    ext_score = person.get("popularity_external_score", 0) or 0
+    source = person.get("source", "")
+    dominant_lang = person.get("dominant_language", "en")
+
+    # Load cas1 list
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    cas1_slugs = set(settings.get("cas1_celebrities", []))
+
+    # Determine tier
+    if slug in cas1_slugs:
+        tier = "cas1"
+        interval_min = 2500
+        interval_max = 4500
+        geo = {"local": 0.0, "international": 1.0}
+        initial_feed = 8
+    elif ext_score >= 50 and source != "self_boosted":
+        tier = "cas2"
+        interval_min = 300000    # 5 minutes
+        interval_max = 900000    # 15 minutes
+        geo = {"local": 0.8, "international": 0.2}
+        initial_feed = 5
+    else:
+        # Cas 3: newcomers, low score, outsiders
+        tier = "cas3"
+        interval_min = 7200000   # 2 hours
+        interval_max = 43200000  # 12 hours
+        geo = {"local": 1.0, "international": 0.0}
+        initial_feed = 3
+
+    return {
+        "person_id": person_id,
+        "tier": tier,
+        "interval_min_ms": interval_min,
+        "interval_max_ms": interval_max,
+        "dominant_language": dominant_lang,
+        "geo_coefficient": geo,
+        "initial_feed_count": initial_feed,
+    }
+
+
 # Include API router AFTER all endpoints are defined on it
 app.include_router(api_router)
 

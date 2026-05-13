@@ -24,6 +24,8 @@ import { fetchWithCache } from "../services/cacheService";
 import { useTranslation } from "react-i18next";
 import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
 
+import { pickVoterName, pickVoterCountry, type SupportedLang } from "../data/voterNames";
+
 const PALETTE = {
   bg: "#0F2F22",
   card: "#1C3A2C",
@@ -55,23 +57,7 @@ async function getDeviceId() {
 }
 
 // --- Dummy Live Feed Data ---
-
-const FIRST_NAMES = [
-  "Emma", "Liam", "Sofia", "Lucas", "Mia", "Noah", "Olivia", "Hugo",
-  "Amelia", "Arthur", "Lea", "Louis", "Chloe", "Gabriel", "Valentina",
-  "Matteo", "Yuki", "Hiroshi", "Fatima", "Ahmed", "Priya", "Raj",
-  "Chen", "Mei", "Carlos", "Isabella", "Mohamed", "Aisha", "James",
-  "Charlotte", "William", "Hannah", "Luca", "Giulia", "Felix", "Zara",
-  "Oscar", "Ella", "Leo", "Nora", "Ethan", "Ava", "Theo", "Luna",
-  "Maxime", "Camille", "Antoine", "Jade", "Raphael", "Manon",
-];
-
-const COUNTRIES = [
-  "France", "USA", "UK", "Brazil", "Japan", "Germany", "Spain",
-  "Italy", "Canada", "Australia", "Mexico", "India", "South Korea",
-  "Netherlands", "Sweden", "Portugal", "Argentina", "Colombia",
-  "Belgium", "Switzerland",
-];
+// Vague 1: Pools moved to data/voterNames.ts with language-based differentiation
 
 interface LiveVoteEntry {
   id: number;
@@ -81,11 +67,36 @@ interface LiveVoteEntry {
   timestamp: number;
 }
 
-function generateDummyVote(idCounter: number, isOutsider: boolean = false): LiveVoteEntry {
-  const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
+// Virtual vote configuration from backend
+interface VirtualVoteConfig {
+  tier: "cas1" | "cas2" | "cas3";
+  interval_min_ms: number;
+  interval_max_ms: number;
+  dominant_language: SupportedLang;
+  geo_coefficient: { local: number; international: number };
+  initial_feed_count: number;
+}
+
+const DEFAULT_VOTE_CONFIG: VirtualVoteConfig = {
+  tier: "cas2",
+  interval_min_ms: 300000,
+  interval_max_ms: 900000,
+  dominant_language: "en",
+  geo_coefficient: { local: 0.8, international: 0.2 },
+  initial_feed_count: 5,
+};
+
+function generateDummyVote(
+  idCounter: number,
+  isOutsider: boolean = false,
+  config: VirtualVoteConfig = DEFAULT_VOTE_CONFIG,
+  recentNames: string[] = [],
+): LiveVoteEntry {
+  const geoLocal = config.geo_coefficient.local;
+  const firstName = pickVoterName(config.dominant_language, geoLocal, recentNames);
   // BLOC 2.1: Outsiders only receive likes, no dislikes
   const action = isOutsider ? "liked" : (Math.random() > 0.3 ? "liked" : "disliked");
-  const country = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
+  const country = pickVoterCountry(config.dominant_language, geoLocal);
   return {
     id: idCounter,
     firstName,
@@ -280,7 +291,9 @@ export default function Person() {
   // Live feed state
   const [liveVotes, setLiveVotes] = useState<LiveVoteEntry[]>([]);
   const voteIdCounter = useRef(0);
-  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [voteConfig, setVoteConfig] = useState<VirtualVoteConfig | null>(null);
+  const recentNamesRef = useRef<string[]>([]);
 
   // Index pulsing animation
   const indexPulse = useRef(new Animated.Value(1)).current;
@@ -337,45 +350,80 @@ export default function Person() {
   const liveDislikesDelta = useRef(0);
   const isOutsider = person?.source === "self_boosted" || person?.category === "outsider";
 
-  // Live feed: generate dummy votes
-  // BLOC 2.2: Outsiders get slower refresh (60-120s) and only "liked" actions
+  // Vague 1: Fetch virtual vote config from backend (once per page load)
   useEffect(() => {
+    if (!id) return;
+    (async () => {
+      try {
+        const cfg = await apiGet<VirtualVoteConfig>(`/virtual-vote-config/${id}`);
+        setVoteConfig(cfg);
+      } catch (e) {
+        console.warn("[VoteConfig] Failed to load, using defaults:", e);
+        // Fallback: if outsider → cas3, else cas2
+        setVoteConfig(isOutsider ? {
+          ...DEFAULT_VOTE_CONFIG,
+          tier: "cas3",
+          interval_min_ms: 7200000,
+          interval_max_ms: 43200000,
+          initial_feed_count: 3,
+          geo_coefficient: { local: 1.0, international: 0.0 },
+        } : DEFAULT_VOTE_CONFIG);
+      }
+    })();
+  }, [id]);
+
+  // Live feed: generate dummy votes with dynamic config (Vague 1: Sujet B+C)
+  useEffect(() => {
+    if (!voteConfig) return; // Wait for config to load
+
+    const cfg = voteConfig;
     const outsiderMode = isOutsider;
-    // Seed initial votes
+
+    // Seed initial votes based on tier
     const initial: LiveVoteEntry[] = [];
-    const seedCount = outsiderMode ? 3 : 8;
+    const seedCount = cfg.initial_feed_count;
     for (let i = 0; i < seedCount; i++) {
       voteIdCounter.current++;
-      const entry = generateDummyVote(voteIdCounter.current, outsiderMode);
-      entry.timestamp = Date.now() - (seedCount - i) * (outsiderMode ? 30000 : 3000);
+      const entry = generateDummyVote(voteIdCounter.current, outsiderMode, cfg, recentNamesRef.current);
+      // Stagger timestamps: Cas1 = 3s apart, Cas2 = 5min apart, Cas3 = 2h apart
+      const stagger = cfg.tier === "cas1" ? 3000 : cfg.tier === "cas2" ? 300000 : 7200000;
+      entry.timestamp = Date.now() - (seedCount - i) * stagger;
       initial.push(entry);
+      // Track recent names (keep last 5)
+      recentNamesRef.current = [...recentNamesRef.current, entry.firstName].slice(-5);
     }
     setLiveVotes(initial);
 
-    const addVote = () => {
-      voteIdCounter.current++;
-      const newEntry = generateDummyVote(voteIdCounter.current, outsiderMode);
-      newEntry.timestamp = Date.now();
-      setLiveVotes((prev) => [newEntry, ...prev].slice(0, 30));
+    // Schedule next vote with randomized interval from config
+    const scheduleNextVote = () => {
+      const delay = cfg.interval_min_ms + Math.random() * (cfg.interval_max_ms - cfg.interval_min_ms);
+      liveTimeoutRef.current = setTimeout(() => {
+        voteIdCounter.current++;
+        const newEntry = generateDummyVote(voteIdCounter.current, outsiderMode, cfg, recentNamesRef.current);
+        newEntry.timestamp = Date.now();
+        setLiveVotes((prev) => [newEntry, ...prev].slice(0, 30));
 
-      // BLOC 1.7: Accumulate deltas for visual sync
-      if (newEntry.action === "liked") {
-        liveLikesDelta.current += 1;
-      } else {
-        liveDislikesDelta.current += 1;
-      }
+        // Track recent names
+        recentNamesRef.current = [...recentNamesRef.current, newEntry.firstName].slice(-5);
+
+        // BLOC 1.7: Accumulate deltas for visual sync
+        if (newEntry.action === "liked") {
+          liveLikesDelta.current += 1;
+        } else {
+          liveDislikesDelta.current += 1;
+        }
+
+        // Schedule the NEXT vote (each interval is independently randomized)
+        scheduleNextVote();
+      }, delay);
     };
 
-    // BLOC 2.2: Outsiders = 60-120s interval, regular = 2.5-4.5s
-    const interval = outsiderMode
-      ? 60000 + Math.random() * 60000
-      : 2500 + Math.random() * 2000;
+    scheduleNextVote();
 
-    liveIntervalRef.current = setInterval(addVote, interval);
     return () => {
-      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
     };
-  }, [person?.source]);
+  }, [voteConfig, isOutsider]);
 
   // Force re-render every second to update relative times
   const [, setTick] = useState(0);
