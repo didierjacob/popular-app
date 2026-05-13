@@ -353,13 +353,17 @@ export default function Person() {
   // Vague 1: Fetch virtual vote config from backend (once per page load)
   useEffect(() => {
     if (!id) return;
+    console.log(`[VoteConfig] Fetching config for person_id=${id}`);
+    let cancelled = false;
     (async () => {
       try {
         const cfg = await apiGet<VirtualVoteConfig>(`/virtual-vote-config/${id}`);
+        if (cancelled) return;
+        console.log(`[VoteConfig] OK tier=${cfg.tier} interval=${cfg.interval_min_ms}-${cfg.interval_max_ms} lang=${cfg.dominant_language} geo=${cfg.geo_coefficient?.local}`);
         setVoteConfig(cfg);
-      } catch (e) {
-        console.warn("[VoteConfig] Failed to load, using defaults:", e);
-        // Fallback: if outsider → cas3, else cas2
+      } catch (e: any) {
+        if (cancelled) return;
+        console.log(`[VoteConfig] FETCH FAILED: ${e?.message || e}. Using fallback.`);
         setVoteConfig(isOutsider ? {
           ...DEFAULT_VOTE_CONFIG,
           tier: "cas3",
@@ -370,6 +374,7 @@ export default function Person() {
         } : DEFAULT_VOTE_CONFIG);
       }
     })();
+    return () => { cancelled = true; };
   }, [id]);
 
   // Live feed: generate dummy votes with dynamic config (Vague 1: Sujet B+C)
@@ -378,6 +383,8 @@ export default function Person() {
 
     const cfg = voteConfig;
     const outsiderMode = isOutsider;
+
+    console.log(`[LiveFeed] Starting. tier=${cfg.tier} delay=${cfg.interval_min_ms}-${cfg.interval_max_ms}ms lang=${cfg.dominant_language} seed=${cfg.initial_feed_count}`);
 
     // Seed initial votes based on tier
     const initial: LiveVoteEntry[] = [];
@@ -395,9 +402,13 @@ export default function Person() {
     setLiveVotes(initial);
 
     // Schedule next vote with randomized interval from config
+    let active = true;
     const scheduleNextVote = () => {
+      if (!active) return;
       const delay = cfg.interval_min_ms + Math.random() * (cfg.interval_max_ms - cfg.interval_min_ms);
+      console.log(`[LiveFeed] Next vote in ${Math.round(delay / 1000)}s (tier=${cfg.tier})`);
       liveTimeoutRef.current = setTimeout(() => {
+        if (!active) return;
         voteIdCounter.current++;
         const newEntry = generateDummyVote(voteIdCounter.current, outsiderMode, cfg, recentNamesRef.current);
         newEntry.timestamp = Date.now();
@@ -421,6 +432,7 @@ export default function Person() {
     scheduleNextVote();
 
     return () => {
+      active = false;
       if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
     };
   }, [voteConfig, isOutsider]);
