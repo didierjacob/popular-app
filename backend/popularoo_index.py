@@ -411,44 +411,72 @@ async def get_base_index_24h_ago(db, person_id) -> Optional[float]:
 async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Optional[float] = None) -> float:
     """
     Full recalculation of Popularoo Index for a single person.
-    Session 2: Uses α-blended formula for non-outsiders.
-    Outsiders keep legacy formula (strikes + likes).
+    Correction 1 (Vague 2): 3-branch formula based on source.
+      - self_boosted: PI = 3 + (net_votes / 10) * 1.0, cap 30
+      - user_search / user_search_confirmed: meritocratic progression toward ext_score
+      - seed / unknown: α-blended formula (unchanged)
     Updates both 'score' and 'popularoo_index' with the same value.
     """
     from bson import ObjectId
 
     person_id = person["_id"]
-    is_outsider = (
-        person.get("category") == "outsider"
-        or person.get("source") == "self_boosted"
-    )
+    source = person.get("source", "unknown")
+    now = _utcnow()
 
-    if is_outsider:
-        # ── Outsider: legacy formula (unchanged) ──
-        daily_votes = await get_daily_vote_counts(db, person_id)
-        base_24h = await get_base_index_24h_ago(db, person_id)
-        index_val, components = compute_popularoo_index(person, config, daily_votes, base_24h)
-        base = components["base_index"]
-        now = _utcnow()
+    # ── Branch 1: Outsiders (self_boosted) ──
+    if source == "self_boosted":
+        likes = person.get("likes", 0)
+        dislikes = person.get("dislikes", 0)
+        net_votes = max(likes - dislikes, 0)
+        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 30.0)
+        index_val = round(index_val, 1)
 
         await db.persons.update_one(
             {"_id": person_id},
             {"$set": {
                 "popularoo_index": index_val,
-                "base_index": base,
-                "index_components": components,
+                "score": index_val,
                 "last_index_calc": now,
             }}
         )
         await db.index_snapshots.insert_one({
             "person_id": person_id,
-            "base_index": base,
+            "base_index": index_val,
             "popularoo_index": index_val,
             "timestamp": now,
         })
         return index_val
 
-    # ── Non-outsider: α-blended formula (Session 2) ──
+    # ── Branch 2: User-created profiles (meritocratic progression) ──
+    if source in ("user_search", "user_search_confirmed"):
+        ext_score = person.get("popularity_external_score", 0) or 0
+        total_votes = person.get("total_votes", 0) or 0
+        base_score = 15.0 if ext_score >= 50 else 10.0
+        # Progress toward ext_score with real votes, cap by ext_score
+        if ext_score > base_score and total_votes > 0:
+            index_val = base_score + (total_votes / 100.0) * (ext_score - base_score)
+            index_val = min(index_val, ext_score)
+        else:
+            index_val = base_score
+        index_val = round(max(0.0, min(100.0, index_val)), 1)
+
+        await db.persons.update_one(
+            {"_id": person_id},
+            {"$set": {
+                "popularoo_index": index_val,
+                "score": index_val,
+                "last_index_calc": now,
+            }}
+        )
+        await db.index_snapshots.insert_one({
+            "person_id": person_id,
+            "base_index": index_val,
+            "popularoo_index": index_val,
+            "timestamp": now,
+        })
+        return index_val
+
+    # ── Branch 3: Seeds / existing (α-blended, unchanged) ──
     if alpha is None:
         alpha = await get_alpha(db)
 
@@ -456,9 +484,6 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
     score_votes = compute_score_votes_users(person)
     index_val = compute_blended_index(alpha, external_score, score_votes)
 
-    now = _utcnow()
-
-    # Update BOTH score and popularoo_index with the same value (no round-to-25)
     await db.persons.update_one(
         {"_id": person_id},
         {"$set": {
@@ -481,74 +506,54 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
 async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     """
     Quick recalculation after a vote.
-    Session 2: Uses α-blended formula for non-outsiders.
-    Outsiders keep legacy formula (strikes + likes).
+    Correction 1 (Vague 2): 3-branch formula based on source.
     """
-    is_outsider = (
-        person.get("category") == "outsider"
-        or person.get("source") == "self_boosted"
-    )
+    source = person.get("source", "unknown")
 
-    if is_outsider:
-        # ── Outsider: legacy quick recalc (unchanged) ──
-        coeffs = config.get("coefficients", DEFAULT_CONFIG["coefficients"])
-        w_v = coeffs.get("volume", 0.20)
-        w_r = coeffs.get("ratio", 0.40)
-        w_m = coeffs.get("momentum", 0.25)
-        w_reg = coeffs.get("regularity", 0.15)
-
-        volume = calc_score_volume(person, config)
-        ratio = calc_ratio_approbation(person, config)
-        strikes = calc_strikes_bonus(person, config)
-
-        cached_components = person.get("index_components", {})
-        regularity = cached_components.get("regularity", 0.0)
-        momentum_raw = cached_components.get("momentum_24h", 0.0)
-
-        base = (volume * w_v) + (ratio * w_r) + (regularity * w_reg) + strikes
-        final = base + (momentum_raw * w_m)
-
+    # ── Branch 1: Outsiders (self_boosted) ──
+    if source == "self_boosted":
         likes = person.get("likes", 0)
-        superlikes = person.get("superlikes", 0)
         dislikes = person.get("dislikes", 0)
-        total_engagement = likes + (5 * superlikes) + dislikes
-        low_cap = config.get("low_vote_cap", 30)
-        low_threshold = config.get("low_vote_threshold", 10)
-
-        if total_engagement < low_threshold:
-            final = min(final, low_cap)
-
-        final = max(0.0, min(100.0, final))
-        final = round(final, 1)
-
-        components = {
-            "score_volume": round(volume, 2),
-            "ratio_approbation": round(ratio, 2),
-            "momentum_24h": round(momentum_raw, 2),
-            "regularity": round(regularity, 2),
-            "strikes_bonus": round(strikes, 2),
-            "base_index": round(base, 2),
-            "final_index": round(final, 2),
-            "total_engagement": total_engagement,
-        }
+        net_votes = max(likes - dislikes, 0)
+        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 30.0)
+        index_val = round(index_val, 1)
 
         await db.persons.update_one(
             {"_id": person["_id"]},
             {"$set": {
-                "popularoo_index": final,
-                "base_index": round(base, 2),
-                "index_components": components,
+                "popularoo_index": index_val,
+                "score": index_val,
             }}
         )
-        return final
+        return index_val
 
-    # ── Non-outsider: α-blended formula (Session 2) ──
+    # ── Branch 2: User-created profiles (meritocratic progression) ──
+    if source in ("user_search", "user_search_confirmed"):
+        ext_score = person.get("popularity_external_score", 0) or 0
+        total_votes = person.get("total_votes", 0) or 0
+        base_score = 15.0 if ext_score >= 50 else 10.0
+        if ext_score > base_score and total_votes > 0:
+            index_val = base_score + (total_votes / 100.0) * (ext_score - base_score)
+            index_val = min(index_val, ext_score)
+        else:
+            index_val = base_score
+        index_val = round(max(0.0, min(100.0, index_val)), 1)
+
+        await db.persons.update_one(
+            {"_id": person["_id"]},
+            {"$set": {
+                "popularoo_index": index_val,
+                "score": index_val,
+            }}
+        )
+        return index_val
+
+    # ── Branch 3: Seeds / existing (α-blended, unchanged) ──
     alpha = await get_alpha(db)
     external_score = person.get("popularity_external_score")
     score_votes = compute_score_votes_users(person)
     index_val = compute_blended_index(alpha, external_score, score_votes)
 
-    # Update BOTH score and popularoo_index (no round-to-25)
     await db.persons.update_one(
         {"_id": person["_id"]},
         {"$set": {

@@ -287,9 +287,6 @@ export default function HomeScreen() {
   const [createModalName, setCreateModalName] = useState("");
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  // Vague 2: Contributor macaron state
-  const [myOutsiderProfileId, setMyOutsiderProfileId] = useState<string | null>(null);
-  const [myContributorCount, setMyContributorCount] = useState(0);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -338,40 +335,6 @@ export default function HomeScreen() {
     loadData();
     const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Vague 2: Fetch contributor status + my outsider profile ID (once on mount)
-  useEffect(() => {
-    (async () => {
-      try {
-        const did = await AsyncStorage.getItem("popularity_device_id");
-        if (!did) return;
-
-        // Parallel fetch: my-outsider-profile + is-contributor
-        const [outsiderRes, contribRes] = await Promise.all([
-          fetch(API("/me/my-outsider-profile"), {
-            headers: { "X-Device-ID": did },
-          }).catch(() => null),
-          fetch(API("/me/is-contributor"), {
-            headers: { "X-Device-ID": did },
-          }).catch(() => null),
-        ]);
-
-        if (outsiderRes?.ok) {
-          const outsiderData = await outsiderRes.json();
-          if (outsiderData?.id || outsiderData?._id) {
-            setMyOutsiderProfileId(outsiderData.id || outsiderData._id);
-          }
-        }
-
-        if (contribRes?.ok) {
-          const contribData = await contribRes.json();
-          if (contribData?.is_contributor) {
-            setMyContributorCount(contribData.contributed_count || 0);
-          }
-        }
-      } catch {}
-    })();
   }, []);
 
   // BLOC 2.4: Like an outsider directly from the Home card
@@ -632,7 +595,7 @@ export default function HomeScreen() {
         // Navigate to the newly created person page with contributor flag
         router.push({
           pathname: "/person",
-          params: { id: data.person_id, name: data.name, justCreated: "true" },
+          params: { id: data.person_id, name: data.name },
         });
       } else if (data.error === "already_exists") {
         // Profile was created by background task in the meantime — still treat as success for UX
@@ -641,7 +604,7 @@ export default function HomeScreen() {
         setSearchSuggestions([]);
         router.push({
           pathname: "/person",
-          params: { id: data.person_id, name: data.name, justCreated: "true" },
+          params: { id: data.person_id, name: data.name },
         });
       } else {
         // Map error codes to user-friendly messages
@@ -766,13 +729,6 @@ export default function HomeScreen() {
                 pulsingHeart={true}
                 badgeLabel={t("home.outsiderOfTheDay")}
                 badgeCounter={goldenOutsiders.length > 1 ? `${currentOutsiderIndex + 1}/${goldenOutsiders.length}` : undefined}
-                contributorCount={
-                  myOutsiderProfileId &&
-                  goldenOutsiders[currentOutsiderIndex]?.id === myOutsiderProfileId &&
-                  myContributorCount > 0
-                    ? myContributorCount
-                    : undefined
-                }
               />
             </View>
           </Animated.View>

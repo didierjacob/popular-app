@@ -1779,6 +1779,48 @@ async def _background_create_from_search(search_term: str):
         # All guards passed — infer category
         category, confidence = infer_category(description or "")
 
+        # ── Compute dominant_language (C4 fix: harmonize with sync creation) ──
+        primary_country = ""
+        dominant_lang = "en"
+        try:
+            async with _httpx.AsyncClient(timeout=10) as _c:
+                # Fetch P27 (country of citizenship) from Wikidata
+                if wikidata_id:
+                    p27_resp = await _c.get(
+                        "https://www.wikidata.org/w/api.php",
+                        params={"action": "wbgetclaims", "entity": wikidata_id, "property": "P27", "format": "json"},
+                        headers={"User-Agent": "Popularoo/1.0"},
+                    )
+                    if p27_resp.status_code == 200:
+                        p27_claims = p27_resp.json().get("claims", {}).get("P27", [])
+                        if p27_claims:
+                            country_id = p27_claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id", "")
+                            # Map common Wikidata country IDs to ISO codes
+                            WIKIDATA_COUNTRY_MAP = {
+                                "Q142": "FR", "Q30": "US", "Q145": "GB", "Q183": "DE", "Q38": "IT",
+                                "Q29": "ES", "Q45": "PT", "Q155": "BR", "Q16": "CA", "Q408": "AU",
+                                "Q159": "RU", "Q17": "JP", "Q148": "CN", "Q884": "KR", "Q668": "IN",
+                                "Q36": "PL", "Q55": "NL", "Q31": "BE", "Q39": "CH", "Q40": "AT",
+                                "Q574": "TZ", "Q218": "RO", "Q211": "CZ", "Q35": "DK",
+                                "Q34": "SE", "Q33": "FI", "Q20": "NO", "Q27": "IE",
+                                "Q41": "GR", "Q212": "UA", "Q37": "LT", "Q28": "HU",
+                                "Q96": "MX", "Q414": "AR", "Q298": "CL", "Q739": "CO",
+                                "Q1033": "NG", "Q258": "ZA", "Q262": "DZ", "Q1028": "MA",
+                                "Q79": "EG", "Q869": "TH", "Q252": "ID", "Q928": "PH",
+                            }
+                            primary_country = WIKIDATA_COUNTRY_MAP.get(country_id, "")
+
+                # Compute dominant_language from pageviews + primary_country
+                from external_scores import compute_external_score_for_person as _compute_ext2
+                ext_result_lang = await _compute_ext2(canonical_name if 'canonical_name' in dir() else search_term, max_wiki_in_db=None)
+                per_lang = ext_result_lang.get("wiki_pageviews", {}).get("per_lang", [])
+                if per_lang or primary_country:
+                    dominant_lang = compute_dominant_language_from_pageviews(per_lang, primary_country)
+        except Exception as e:
+            logger.debug(f"[BG Search] dominant_language computation failed: {e}")
+            if primary_country:
+                dominant_lang = compute_dominant_language_from_country(primary_country)
+
         # Get canonical name from Wikipedia (proper capitalization)
         canonical_name = search_term
         try:
@@ -1825,6 +1867,8 @@ async def _background_create_from_search(search_term: str):
             "wikidata_id": wikidata_id,
             "wiki_langs": langs,
             "category_confidence": confidence,
+            "dominant_language": dominant_lang,
+            "primary_country": primary_country,
         }
 
         result = await db.persons.insert_one(person_doc)
@@ -1855,9 +1899,10 @@ async def _background_create_from_search(search_term: str):
             wiki_brut = ext_result.get("wiki_score_brut", 0)
             wiki_norm = ext_result.get("wiki_score_norm", 0)
 
-            # Compute popularoo_index = alpha * ext + (1-alpha) * votes (votes=0)
-            alpha = await get_alpha(db)
-            pi = round(alpha * ext_score, 2)
+            # C1: Meritocratic PI for user_search (starts at base, not full ext_score)
+            ext_score_val = ext_score or 0
+            base_pi = 15.0 if ext_score_val >= 50 else 10.0
+            pi = round(base_pi, 2)  # Starts at base (0 votes)
 
             await db.persons.update_one(
                 {"_id": person_id},
@@ -8439,6 +8484,61 @@ async def admin_recalculate_dominant_languages(request: Request):
     }
 
 
+# ── Admin: Recalculate Popularoo Index for ALL profiles (C1 migration) ──
+
+@api_router.post("/admin/recalculate-all-pi")
+async def admin_recalculate_all_pi(request: Request):
+    """
+    Correction 1 (Vague 2): Recalculate popularoo_index for ALL profiles using the new 3-branch formula.
+    - self_boosted → 3 + (net_votes/10)*1.0, cap 30
+    - user_search / user_search_confirmed → meritocratic base + progression
+    - seed / unknown → α-blended (unchanged)
+    Run once after deployment to apply new scoring system.
+    """
+    _require_admin_auth(request)
+
+    from popularoo_index import recalculate_index_for_person, DEFAULT_CONFIG
+
+    cursor = db.persons.find({}, {"name": 1, "slug": 1, "source": 1, "likes": 1, "dislikes": 1,
+                                   "total_votes": 1, "popularity_external_score": 1, "popularoo_index": 1,
+                                   "category": 1})
+    persons = await cursor.to_list(length=10000)
+    config = DEFAULT_CONFIG
+
+    results = {"self_boosted": [], "user_search": [], "seed": [], "total": len(persons)}
+    errors = []
+
+    for p in persons:
+        try:
+            old_pi = p.get("popularoo_index", 0) or 0
+            new_pi = await recalculate_index_for_person(db, p, config)
+            source = p.get("source", "unknown")
+            bucket = "self_boosted" if source == "self_boosted" else "user_search" if source in ("user_search", "user_search_confirmed") else "seed"
+            if abs(new_pi - old_pi) > 0.1:  # Only log significant changes
+                results[bucket].append({
+                    "name": p.get("name"),
+                    "source": source,
+                    "old_pi": round(old_pi, 1),
+                    "new_pi": round(new_pi, 1),
+                    "delta": round(new_pi - old_pi, 1),
+                })
+        except Exception as e:
+            errors.append({"name": p.get("name", "?"), "error": str(e)})
+
+    return {
+        "success": True,
+        "total_persons": len(persons),
+        "outsiders_changed": len(results["self_boosted"]),
+        "user_search_changed": len(results["user_search"]),
+        "seed_changed": len(results["seed"]),
+        "errors": len(errors),
+        "sample_outsiders": results["self_boosted"][:10],
+        "sample_user_search": results["user_search"][:10],
+        "sample_seed": results["seed"][:10],
+        "errors_detail": errors[:5],
+    }
+
+
 # ── Virtual vote config endpoint ──
 
 @api_router.get("/virtual-vote-config/{person_id}")
@@ -8486,6 +8586,19 @@ async def get_virtual_vote_config(person_id: str):
         geo = {"local": 1.0, "international": 0.0}
         initial_feed = 3
 
+    # ── C2: Grace period 24h for user-created profiles ──
+    grace_active = False
+    grace_ends = None
+    if source in ("user_search", "user_search_confirmed"):
+        created_at = person.get("created_at")
+        if created_at:
+            from datetime import timedelta
+            grace_ends = created_at + timedelta(hours=24)
+            if now_utc() < grace_ends:
+                grace_active = True
+            else:
+                grace_ends = None  # Grace period over, don't expose end date
+
     return {
         "person_id": person_id,
         "tier": tier,
@@ -8494,6 +8607,8 @@ async def get_virtual_vote_config(person_id: str):
         "dominant_language": dominant_lang,
         "geo_coefficient": geo,
         "initial_feed_count": initial_feed,
+        "grace_period_active": grace_active,
+        "grace_period_ends_at": grace_ends.isoformat() if grace_ends else None,
     }
 
 
@@ -8596,6 +8711,35 @@ async def create_from_search(
     wiki_brut = 0
     wiki_norm = 0.0
     dominant_lang = "en"
+    primary_country = ""
+
+    # Fetch P27 (country of citizenship) from Wikidata for dominant_language accuracy
+    try:
+        if wikidata_id:
+            import httpx as _httpx2
+            async with _httpx2.AsyncClient(timeout=10) as _c:
+                p27_resp = await _c.get(
+                    "https://www.wikidata.org/w/api.php",
+                    params={"action": "wbgetclaims", "entity": wikidata_id, "property": "P27", "format": "json"},
+                    headers={"User-Agent": "Popularoo/1.0"},
+                )
+                if p27_resp.status_code == 200:
+                    p27_claims = p27_resp.json().get("claims", {}).get("P27", [])
+                    if p27_claims:
+                        country_id = p27_claims[0].get("mainsnak", {}).get("datavalue", {}).get("value", {}).get("id", "")
+                        WIKIDATA_COUNTRY_MAP = {
+                            "Q142": "FR", "Q30": "US", "Q145": "GB", "Q183": "DE", "Q38": "IT",
+                            "Q29": "ES", "Q45": "PT", "Q155": "BR", "Q16": "CA", "Q408": "AU",
+                            "Q159": "RU", "Q17": "JP", "Q148": "CN", "Q884": "KR", "Q668": "IN",
+                            "Q36": "PL", "Q55": "NL", "Q31": "BE", "Q39": "CH", "Q40": "AT",
+                            "Q96": "MX", "Q414": "AR", "Q298": "CL", "Q739": "CO",
+                            "Q1033": "NG", "Q258": "ZA", "Q262": "DZ", "Q1028": "MA",
+                            "Q79": "EG", "Q869": "TH", "Q252": "ID", "Q928": "PH",
+                        }
+                        primary_country = WIKIDATA_COUNTRY_MAP.get(country_id, "")
+    except Exception:
+        pass
+
     try:
         from external_scores import compute_external_score_for_person as _compute_ext
         max_doc = await db.persons.find_one(
@@ -8607,17 +8751,19 @@ async def create_from_search(
         ext_score = ext_result.get("popularity_external_score", 0)
         wiki_brut = ext_result.get("wiki_score_brut", 0)
         wiki_norm = ext_result.get("wiki_score_norm", 0)
-        # Compute dominant_language from pageviews
+        # Compute dominant_language from pageviews + primary_country
         per_lang = ext_result.get("wiki_pageviews", {}).get("per_lang", [])
-        if per_lang:
-            dominant_lang = compute_dominant_language_from_pageviews(per_lang)
+        if per_lang or primary_country:
+            dominant_lang = compute_dominant_language_from_pageviews(per_lang, primary_country)
     except Exception as e:
         logger.warning(f"[create-from-search] External score failed for '{canonical_name}': {e}")
+        if primary_country:
+            dominant_lang = compute_dominant_language_from_country(primary_country)
 
-    # ── Compute popularoo_index ──
-    from popularoo_index import get_alpha
-    alpha = await get_alpha(db)
-    pi = round(alpha * ext_score, 2)
+    # ── Compute popularoo_index (C1: meritocratic formula for user_search_confirmed) ──
+    ext_score_val = ext_score or 0
+    base_pi = 15.0 if ext_score_val >= 50 else 10.0
+    pi = round(base_pi, 2)  # Starts at base (0 votes)
 
     now = now_utc()
     person_doc = {
@@ -8644,6 +8790,7 @@ async def create_from_search(
         "last_external_update": now,
         "popularoo_index": pi,
         "dominant_language": dominant_lang,
+        "primary_country": primary_country,
     }
 
     result = await db.persons.insert_one(person_doc)

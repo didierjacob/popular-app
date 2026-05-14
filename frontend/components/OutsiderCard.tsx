@@ -54,8 +54,6 @@ interface OutsiderCardProps {
   badgeLabel?: string;
   /** Optional counter text (e.g. "1/13") */
   badgeCounter?: string;
-  /** Vague 2: If set and > 0, show "Contributeur Popularoo" macaron */
-  contributorCount?: number;
 }
 
 // ---- Social Badges Row ----
@@ -149,7 +147,7 @@ function TimeBadge({ hours }: { hours: number }) {
 }
 
 // ---- Main OutsiderCard Component ----
-export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, badgeLabel, badgeCounter, contributorCount }: OutsiderCardProps) {
+export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, badgeLabel, badgeCounter }: OutsiderCardProps) {
   const router = useRouter();
   const { t } = useTranslation();
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -217,22 +215,6 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
           </View>
         </View>
       </View>
-
-      {/* Vague 2: Contributeur Popularoo macaron */}
-      {contributorCount != null && contributorCount > 0 && (
-        <TouchableOpacity
-          style={contribStyles.badge}
-          onPress={() =>
-            Alert.alert(
-              "🏆 Contributeur Popularoo",
-              `Tu as enrichi la base Popularoo en ajoutant ${contributorCount} célébrité${contributorCount > 1 ? "s" : ""} !`
-            )
-          }
-          activeOpacity={0.7}
-        >
-          <Text style={contribStyles.badgeText}>🏆 Contributeur Popularoo</Text>
-        </TouchableOpacity>
-      )}
 
       {/* Votes count */}
       <View style={styles.meta}>
@@ -369,26 +351,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
     marginLeft: 5,
-  },
-});
-
-// ── Vague 2: Contributor macaron styles ──
-const contribStyles = StyleSheet.create({
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.4)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginTop: 8,
-  },
-  badgeText: {
-    color: PALETTE.gold,
-    fontSize: 12,
-    fontWeight: "700",
   },
 });
