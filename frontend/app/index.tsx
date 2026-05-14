@@ -613,6 +613,8 @@ export default function HomeScreen() {
           not_human: "Cette recherche ne correspond pas à une personnalité reconnue.",
           deceased: "Cette personnalité ne peut pas être ajoutée.",
           blocked: "Cette personnalité ne peut pas être ajoutée.",
+          not_recognized: "Cette personnalité n'est pas reconnue. Vérifiez l'orthographe ou essayez un autre nom.",
+          low_confidence: "Cette personnalité n'a pas assez de visibilité pour être ajoutée pour le moment.",
           insufficient_languages: "Cette personnalité n'a pas assez de visibilité internationale pour être ajoutée pour le moment.",
           invalid_name: data.message || "Nom invalide. Vérifiez l'orthographe.",
           wikipedia_check_failed: "Erreur de connexion à Wikipedia. Réessayez dans quelques instants.",
@@ -714,7 +716,7 @@ export default function HomeScreen() {
                   Popularoo Index: {personOfTheDay.popularoo_index || Math.round(personOfTheDay.score)}
                 </Text>
               </View>
-              <BigOscillatingGauge score={personOfTheDay.score} size={90} />
+              <BigOscillatingGauge score={personOfTheDay.popularoo_index || personOfTheDay.score} size={90} />
             </View>
           </TouchableOpacity>
         )}

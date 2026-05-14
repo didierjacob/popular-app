@@ -1738,7 +1738,7 @@ async def _background_create_from_search(search_term: str):
     Profile created with real Wikipedia score, visible_in_rankings=false.
     """
     import httpx as _httpx
-    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category, compute_celebrity_confidence, get_wikipedia_pageviews
     from external_scores import compute_external_score_for_person
     from popularoo_index import get_alpha
 
@@ -1770,10 +1770,16 @@ async def _background_create_from_search(search_term: str):
                 logger.info(f"🔍 [BG Search] '{search_term}' is deceased (P570)")
                 return
 
-            # Guard 4: Wikipedia pages in >= 2 languages
+            # Guard 4: Confidence scoring (replaces rigid len(langs) < 2)
             langs = await check_multi_lang_pages(search_term, client)
-            if len(langs) < 2:
-                logger.info(f"🔍 [BG Search] '{search_term}' only {len(langs)} Wiki languages (<2)")
+            pageviews_fr = await get_wikipedia_pageviews(search_term, "fr", client)
+            pageviews_en = await get_wikipedia_pageviews(search_term, "en", client)
+            confidence = compute_celebrity_confidence(
+                is_human=is_human, is_deceased=is_deceased, wikidata_id=wikidata_id,
+                langs=langs, pageviews_fr=pageviews_fr, pageviews_en=pageviews_en,
+            )
+            if confidence < 65:
+                logger.info(f"🔍 [BG Search] '{search_term}' confidence={confidence} (<65), skipped")
                 return
 
         # All guards passed — infer category
@@ -7626,7 +7632,7 @@ async def admin_propose_celebrity(request: Request):
 
     # ── Wikipedia / Wikidata guard-fous ──
     import httpx as _httpx
-    from candidate_detection import check_is_human_alive, check_multi_lang_pages
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages, compute_celebrity_confidence, get_wikipedia_pageviews
 
     try:
         async with _httpx.AsyncClient(timeout=15) as client:
@@ -7639,8 +7645,18 @@ async def admin_propose_celebrity(request: Request):
                 return {"success": False, "error": "deceased"}
 
             langs = await check_multi_lang_pages(name, client)
-            if len(langs) < 2:
-                return {"success": False, "error": "insufficient_languages", "found_langs": langs}
+
+            # Correction B: Confidence scoring
+            pageviews_fr = await get_wikipedia_pageviews(name, "fr", client)
+            pageviews_en = await get_wikipedia_pageviews(name, "en", client)
+            confidence_score = compute_celebrity_confidence(
+                is_human=is_human, is_deceased=is_deceased, wikidata_id=wikidata_id,
+                langs=langs, pageviews_fr=pageviews_fr, pageviews_en=pageviews_en,
+            )
+            if confidence_score < 65:
+                return {"success": False, "error": "low_confidence",
+                        "message": "Cette personnalité n'a pas assez de visibilité pour le moment.",
+                        "confidence_score": confidence_score}
 
     except Exception as e:
         logger.error(f"[propose-celebrity] Wikipedia check failed for '{name}': {e}")
@@ -8660,7 +8676,7 @@ async def create_from_search(
 
     # ── Wikipedia / Wikidata guard-fous ──
     import httpx as _httpx
-    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category
+    from candidate_detection import check_is_human_alive, check_multi_lang_pages, infer_category, compute_celebrity_confidence, get_wikipedia_pageviews
 
     try:
         async with _httpx.AsyncClient(timeout=15) as client:
@@ -8673,8 +8689,28 @@ async def create_from_search(
                 return {"success": False, "error": "deceased"}
 
             langs = await check_multi_lang_pages(name, client)
-            if len(langs) < 2:
-                return {"success": False, "error": "insufficient_languages", "found_langs": langs}
+
+            # Correction B: Confidence scoring replaces rigid len(langs) < 2
+            pageviews_fr = await get_wikipedia_pageviews(name, "fr", client)
+            pageviews_en = await get_wikipedia_pageviews(name, "en", client)
+            confidence_score = compute_celebrity_confidence(
+                is_human=is_human,
+                is_deceased=is_deceased,
+                wikidata_id=wikidata_id,
+                langs=langs,
+                pageviews_fr=pageviews_fr,
+                pageviews_en=pageviews_en,
+            )
+            logger.info(f"[create-from-search] Confidence for '{name}': {confidence_score} (langs={langs}, pv_fr={pageviews_fr}, pv_en={pageviews_en})")
+
+            if confidence_score < 30:
+                return {"success": False, "error": "not_recognized",
+                        "message": "Cette personnalité n'est pas reconnue.",
+                        "confidence_score": confidence_score}
+            if confidence_score < 65:
+                return {"success": False, "error": "low_confidence",
+                        "message": "Cette personnalité n'a pas assez de visibilité pour le moment.",
+                        "confidence_score": confidence_score}
 
     except Exception as e:
         logger.error(f"[create-from-search] Wikipedia check failed for '{name}': {e}")

@@ -521,7 +521,8 @@ export default function Person() {
           total_votes: result.total_votes,
           likes: result.likes,
           dislikes: result.dislikes,
-          score: result.score,
+          score: result.popularoo_index || result.score,
+          popularoo_index: result.popularoo_index || result.score,
         };
         setPerson(updatedPerson);
       }
@@ -567,7 +568,7 @@ export default function Person() {
   // Share
   const shareMessage = t("person.shareMessage", {
     name,
-    score: Math.round(person?.score || 0),
+    score: Math.round(person?.popularoo_index || person?.score || 0),
     votes: formatNumber(displayTotalVotes),
   });
 
@@ -647,7 +648,7 @@ export default function Person() {
                     },
                   ]}
                 >
-                  {Math.round(person?.score || 0)}
+                  {Math.round(person?.popularoo_index || person?.score || 0)}
                 </Text>
               </Animated.View>
               <Text style={styles.indexVotes}>

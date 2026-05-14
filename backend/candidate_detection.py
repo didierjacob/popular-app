@@ -277,6 +277,78 @@ async def check_multi_lang_pages(name: str, client: httpx.AsyncClient) -> List[s
     return langs_found
 
 
+async def get_wikipedia_pageviews(name: str, lang: str, client: httpx.AsyncClient) -> int:
+    """
+    Get average daily pageviews for a Wikipedia article over the last 30 days.
+    Returns 0 on failure.
+    """
+    title = name.replace(" ", "_")
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=30)
+    url = (
+        f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+        f"{lang}.wikipedia.org/all-access/all-agents/{title}/daily/"
+        f"{start.strftime('%Y%m%d')}/{end.strftime('%Y%m%d')}"
+    )
+    try:
+        resp = await client.get(url, headers={"User-Agent": USER_AGENT}, timeout=10)
+        if resp.status_code == 200:
+            items = resp.json().get("items", [])
+            total = sum(item.get("views", 0) for item in items)
+            return total // max(len(items), 1)  # avg daily
+        return 0
+    except Exception:
+        return 0
+
+
+def compute_celebrity_confidence(
+    is_human: bool,
+    is_deceased: bool,
+    wikidata_id: Optional[str],
+    langs: List[str],
+    pageviews_fr: int = 0,
+    pageviews_en: int = 0,
+) -> int:
+    """
+    Correction B (Vague 2): Confidence scoring for celebrity validation.
+    Replaces the rigid `len(langs) < 2` check.
+
+    Score components:
+      - FR Wikipedia exists: +30
+      - EN Wikipedia exists: +25
+      - Wikidata P31=Q5 confirmed: +20
+      - Not deceased: +10
+      - FR pageviews > 1000: +15 (> 200: +8)
+      - EN pageviews > 500: +10 (> 100: +5)
+      - 3+ languages: +20
+
+    Thresholds:
+      >= 65: immediate creation
+      30-64: polite refusal ("not enough visibility for now")
+      < 30: refusal ("not recognized")
+    """
+    score = 0
+    if "fr" in langs:
+        score += 30
+    if "en" in langs:
+        score += 25
+    if is_human and wikidata_id:
+        score += 20
+    if not is_deceased:
+        score += 10
+    if pageviews_fr > 1000:
+        score += 15
+    elif pageviews_fr > 200:
+        score += 8
+    if pageviews_en > 500:
+        score += 10
+    elif pageviews_en > 100:
+        score += 5
+    if len(langs) >= 3:
+        score += 20
+    return min(score, 100)
+
+
 # ==================== ELIGIBILITY FILTERS ====================
 
 def passes_name_filter(name: str) -> bool:
