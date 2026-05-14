@@ -153,6 +153,52 @@ def compute_score_votes_users(person: Dict) -> float:
     return ((likes - dislikes) / total) * 100
 
 
+def compute_user_search_index(person: Dict) -> float:
+    """
+    Vague 4 — Branche 2 : évolution post-création des profils user_search.
+
+    Le PI part de `initial_pi` (champ figé à la création, sous-tâche 6) et
+    est "nudgé" par les VRAIS votes — c.-à-d. les votes encaissés au-delà des
+    ~40 votes simulés au seeding (seed_votes_likes / seed_votes_dislikes).
+
+        real_likes    = max(0, likes    - seed_votes_likes)
+        real_dislikes = max(0, dislikes - seed_votes_dislikes)
+        real_net      = real_likes - real_dislikes
+        nudge         = (real_net / 100.0) * 5.0   # 100 votes nets réels → +5 PI
+        pi            = clamp(initial_pi + nudge, 25.0, 50.0)
+
+    Garde-fous :
+      - initial_pi absent (profils legacy pré-migration sous-tâche 9) → fallback 25.0
+      - seed_votes_* absents (profils anciens / auto_detection) → 0, donc tous
+        les votes comptent comme réels (comportement par défaut acceptable)
+      - aucun vote réel → pi = initial_pi (nudge nul)
+
+    Plafond DUR 50 / plancher DUR 25 : un profil Vague 4 ne peut JAMAIS
+    dépasser 50 ni descendre sous 25, peu importe les votes. Le franchissement
+    de 50 nécessitera une intervention admin manuelle (Lot 4 — "diplôme en seed").
+
+    Sur le coefficient (100.0 / 5.0) : retenu tel quel après tests locaux.
+    Il faut ~200 votes nets réels pour gagner +10 PI, soit plusieurs centaines
+    de votes nets pour franchir un initial_pi de 38 → 50. Progression lente et
+    méritocratique, conforme à l'intention.
+    """
+    initial_pi = person.get("initial_pi")
+    if initial_pi is None:
+        initial_pi = 25.0
+    initial_pi = float(initial_pi)
+
+    real_likes = max(0, person.get("likes", 0) - person.get("seed_votes_likes", 0))
+    real_dislikes = max(0, person.get("dislikes", 0) - person.get("seed_votes_dislikes", 0))
+    real_net = real_likes - real_dislikes
+
+    nudge = (real_net / 100.0) * 5.0
+    pi = initial_pi + nudge
+
+    # Plafond / plancher durs Vague 4
+    pi = min(50.0, max(25.0, pi))
+    return round(pi, 1)
+
+
 def invalidate_config_cache():
     """Force reload config on next call."""
     global _config_cache, _config_last_loaded
@@ -411,9 +457,10 @@ async def get_base_index_24h_ago(db, person_id) -> Optional[float]:
 async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Optional[float] = None) -> float:
     """
     Full recalculation of Popularoo Index for a single person.
-    Correction 1 (Vague 2): 3-branch formula based on source.
-      - self_boosted: PI = 3 + (net_votes / 10) * 1.0, cap 25
-      - user_search / user_search_confirmed: meritocratic progression toward ext_score
+    3-branch formula based on source.
+      - self_boosted / outsider: PI = 3 + (net_votes / 10) * 1.0, cap 25
+      - user_search / user_search_confirmed (Vague 4): initial_pi nudgé par
+        les vrais votes, clamp dur [25, 50] — voir compute_user_search_index()
       - seed / unknown: α-blended formula (unchanged)
     Updates both 'score' and 'popularoo_index' with the same value.
     """
@@ -448,18 +495,12 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
         })
         return index_val
 
-    # ── Branch 2: User-created profiles (meritocratic progression) ──
-    if source in ("user_search", "user_search_confirmed"):
-        ext_score = person.get("popularity_external_score", 0) or 0
-        total_votes = person.get("total_votes", 0) or 0
-        base_score = 15.0 if ext_score >= 50 else 10.0
-        # Progress toward ext_score with real votes, cap by ext_score
-        if ext_score > base_score and total_votes > 0:
-            index_val = base_score + (total_votes / 100.0) * (ext_score - base_score)
-            index_val = min(index_val, ext_score)
-        else:
-            index_val = base_score
-        index_val = round(max(0.0, min(100.0, index_val)), 1)
+    # ── Branch 2: Profils user_search (évolution post-création Vague 4) ──
+    # initial_pi figé à la création (25-40), nudgé par les VRAIS votes.
+    # Plafond dur 50 / plancher dur 25. Les Outsiders (category=outsider) sont
+    # déjà interceptés par la Branche 1 ci-dessus — garde défensive ici malgré tout.
+    if source in ("user_search", "user_search_confirmed") and person.get("category") != "outsider":
+        index_val = compute_user_search_index(person)
 
         await db.persons.update_one(
             {"_id": person_id},
@@ -507,7 +548,7 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
 async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     """
     Quick recalculation after a vote.
-    Correction 1 (Vague 2): 3-branch formula based on source.
+    3-branch formula based on source (cf. recalculate_index_for_person).
     """
     source = person.get("source", "unknown")
 
@@ -529,17 +570,10 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
         )
         return index_val
 
-    # ── Branch 2: User-created profiles (meritocratic progression) ──
-    if source in ("user_search", "user_search_confirmed"):
-        ext_score = person.get("popularity_external_score", 0) or 0
-        total_votes = person.get("total_votes", 0) or 0
-        base_score = 15.0 if ext_score >= 50 else 10.0
-        if ext_score > base_score and total_votes > 0:
-            index_val = base_score + (total_votes / 100.0) * (ext_score - base_score)
-            index_val = min(index_val, ext_score)
-        else:
-            index_val = base_score
-        index_val = round(max(0.0, min(100.0, index_val)), 1)
+    # ── Branch 2: Profils user_search (évolution post-création Vague 4) ──
+    # Garde défensive category != outsider (déjà couvert par la Branche 1).
+    if source in ("user_search", "user_search_confirmed") and person.get("category") != "outsider":
+        index_val = compute_user_search_index(person)
 
         await db.persons.update_one(
             {"_id": person["_id"]},
