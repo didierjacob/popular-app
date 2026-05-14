@@ -409,6 +409,168 @@ def infer_category(description: str) -> Tuple[str, str]:
         return "other", "low"
 
 
+# ==================== SINGLE-NAME VALIDATION (Vague 4) ====================
+
+async def validate_single_name(name: str) -> dict:
+    """
+    Validate a single celebrity name against Wikipedia / Wikidata.
+
+    Vague 4: factorises the validation sequence
+    ``is_human → is_deceased → confidence_score`` (followed by category
+    inference + external score) that used to be duplicated across the
+    now-removed ``/api/create-from-search`` endpoint and the
+    ``_background_create_from_search`` background task in ``server.py``.
+
+    This helper is **side-effect free**: it only performs read-only HTTP
+    calls to Wikipedia / Wikidata / WikiMedia plus pure computations. It
+    never reads from nor writes to the database — callers are responsible
+    for any persistence and for DB-relative score normalisation.
+
+    Pipeline:
+      1. Wikidata P31 (instance of: human) + P570 (date of death) lookup.
+      2. Reject if not a human (covers disambiguation pages, fictional
+         characters, organisations, unknown names…), or if deceased.
+      3. Collect the set of Wikipedia language pages + FR/EN pageviews.
+      4. Compute the celebrity confidence score (0-100).
+      5. Reject if confidence < 65 (see thresholds below).
+      6. Infer the category and compute the external popularity score.
+
+    Confidence thresholds (mirrors the removed endpoint logic):
+      * ``>= 65`` : valid, name accepted.
+      * ``30-64`` : rejected — ``low_confidence`` ("not enough visibility").
+      * ``< 30``  : rejected — ``not_recognized`` ("this person is not recognised").
+
+    Args:
+        name: The raw celebrity name to validate. The caller is expected to
+            have trimmed it already.
+
+    Returns:
+        A ``dict`` that ALWAYS contains, at minimum, the following keys:
+          * ``is_human`` (bool): True if Wikidata P31 = Q5.
+          * ``is_deceased`` (bool): True if Wikidata P570 (date of death) exists.
+          * ``confidence`` (int): celebrity confidence score, 0-100.
+          * ``wiki_langs`` (List[str]): Wikipedia language codes with a page.
+          * ``wiki_score_norm`` (float): normalised Wikipedia score, 0-100
+            (self-normalised here — see note below).
+          * ``popularity_external_score`` (float): combined external score, 0-100.
+          * ``error_code`` (Optional[str]): ``None`` when valid, otherwise one
+            of ``wikipedia_not_found``, ``deceased``, ``not_recognized``,
+            ``low_confidence``, ``wikipedia_check_failed``.
+          * ``error_message`` (Optional[str]): human-readable French message,
+            ``None`` when valid.
+        Plus extra context fields useful to callers: ``valid`` (bool),
+        ``name``, ``wikidata_id``, ``description``, ``category``,
+        ``category_confidence``, ``pageviews_fr``, ``pageviews_en``,
+        ``wiki_score_brut``.
+
+    Note:
+        ``wiki_score_norm`` / ``popularity_external_score`` are computed with
+        ``max_wiki_in_db=None``, i.e. the score is self-normalised against the
+        person's own raw Wikipedia score. Callers that need normalisation
+        relative to the DB population must recompute with their own
+        ``max_wiki_in_db``.
+    """
+    # Default result — every key the contract promises is always present,
+    # whatever branch we exit through.
+    result = {
+        "valid": False,
+        "name": name,
+        "is_human": False,
+        "is_deceased": False,
+        "confidence": 0,
+        "wiki_langs": [],
+        "wiki_score_norm": 0.0,
+        "popularity_external_score": 0.0,
+        "wiki_score_brut": 0.0,
+        "pageviews_fr": 0,
+        "pageviews_en": 0,
+        "wikidata_id": None,
+        "description": None,
+        "category": "other",
+        "category_confidence": "low",
+        "error_code": None,
+        "error_message": None,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # ── Step 1: Wikidata P31 (human) + P570 (deceased) ──
+            is_human, is_deceased, wikidata_id, description = await check_is_human_alive(name, client)
+            result["is_human"] = is_human
+            result["is_deceased"] = is_deceased
+            result["wikidata_id"] = wikidata_id
+            result["description"] = description
+
+            # ── Step 2: Reject non-humans (disambiguation pages, fictional
+            #    characters, organisations, unknown names…) ──
+            if not is_human:
+                result["error_code"] = "wikipedia_not_found"
+                result["error_message"] = "Cette personnalité est introuvable sur Wikipédia."
+                return result
+
+            # ── Step 2b: Reject deceased people ──
+            if is_deceased:
+                result["error_code"] = "deceased"
+                result["error_message"] = "Cette personnalité est décédée."
+                return result
+
+            # ── Step 3: Wikipedia language pages + FR/EN pageviews ──
+            langs = await check_multi_lang_pages(name, client)
+            pageviews_fr = await get_wikipedia_pageviews(name, "fr", client)
+            pageviews_en = await get_wikipedia_pageviews(name, "en", client)
+            result["wiki_langs"] = langs
+            result["pageviews_fr"] = pageviews_fr
+            result["pageviews_en"] = pageviews_en
+
+            # ── Step 4: Celebrity confidence score (0-100) ──
+            confidence = compute_celebrity_confidence(
+                is_human=is_human,
+                is_deceased=is_deceased,
+                wikidata_id=wikidata_id,
+                langs=langs,
+                pageviews_fr=pageviews_fr,
+                pageviews_en=pageviews_en,
+            )
+            result["confidence"] = confidence
+
+            # ── Step 5: Apply confidence thresholds ──
+            if confidence < 30:
+                result["error_code"] = "not_recognized"
+                result["error_message"] = "Cette personnalité n'est pas reconnue."
+                return result
+            if confidence < 65:
+                result["error_code"] = "low_confidence"
+                result["error_message"] = "Cette personnalité n'a pas assez de visibilité pour le moment."
+                return result
+
+        # ── Step 6: Category inference (pure, from the Wikidata description) ──
+        category, category_confidence = infer_category(description or "")
+        result["category"] = category
+        result["category_confidence"] = category_confidence
+
+        # ── Step 7: External popularity score (Wikipedia pageviews based) ──
+        #    No DB access here: max_wiki_in_db is left to None, so the score is
+        #    self-normalised. A non-fatal failure here keeps the name valid.
+        try:
+            from external_scores import compute_external_score_for_person
+            ext_result = await compute_external_score_for_person(name, max_wiki_in_db=None)
+            result["popularity_external_score"] = ext_result.get("popularity_external_score", 0.0)
+            result["wiki_score_norm"] = ext_result.get("wiki_score_norm", 0.0)
+            result["wiki_score_brut"] = ext_result.get("wiki_score_brut", 0.0)
+        except Exception as e:
+            logger.warning(f"[validate_single_name] external score failed for '{name}': {e}")
+
+        # All guards passed.
+        result["valid"] = True
+        return result
+
+    except Exception as e:
+        logger.error(f"[validate_single_name] validation failed for '{name}': {e}")
+        result["error_code"] = "wikipedia_check_failed"
+        result["error_message"] = str(e)
+        return result
+
+
 # ==================== MAIN DETECTION PIPELINE ====================
 
 async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
