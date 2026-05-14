@@ -324,55 +324,93 @@ async def run_monthly_category_review_job(db):
         logger.error(f"❌ [Scheduler] Category review failed: {e}")
 
 
-async def run_auto_promote_user_created(db):
+# ==================== VAGUE 4 — SOUS-TÂCHE 7: Process user submissions ====================
+
+# Défensif : on ne dépile pas plus de 100 soumissions par run, pour éviter la
+# saturation si une grosse vague de soumissions user_search arrive d'un coup.
+USER_SUBMISSIONS_BATCH_LIMIT = 100
+
+
+async def run_process_user_submissions_job(db):
     """
-    Session 3: Auto-promote user-created profiles after 48h.
-    Runs every 6 hours. Only promotes if not in blocklist and not deleted.
+    Vague 4, sous-tâche 7 — Dépile les soumissions user_search arrivées à échéance.
+
+    Toutes les 30 minutes : récupère les entrées candidate_queue avec
+    source="user_search", status="pending" et process_after <= now (l'échéance
+    de 24h est atteinte), triées FIFO (requested_at ascendant — les plus
+    anciennes d'abord), limitées à 100 par run (défensif).
+
+    Chaque soumission éligible est passée à approve_user_search_candidate
+    (sous-tâche 6) qui gère validation / rejet / duplicate / création.
+
+    Pas de propagation d'erreur : si une soumission plante (timeout Wikipedia,
+    etc.), l'erreur est loggée dans le document candidate (champ last_error) et
+    le job continue avec la suivante. Le run ne s'arrête jamais sur un cas isolé.
     """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    logger.info(f"📨 [UserSubmissions] Job started at {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
     try:
-        from datetime import datetime, timezone, timedelta
+        from candidate_detection import approve_user_search_candidate
 
-        now = datetime.now(timezone.utc)
-        cutoff_48h = now - timedelta(hours=48)
-
-        # Find all user_search profiles older than 48h still invisible
-        candidates = await db.persons.find({
-            "source": "user_search",
-            "visible_in_rankings": False,
-            "created_at": {"$lt": cutoff_48h},
-            "approved": True,
-        }).to_list(500)
-
-        if not candidates:
-            return
-
-        # Load blocklist
-        settings = await db.app_settings.find_one({"_id": "global"}) or {}
-        blocked_slugs = set(settings.get("seed_blocklist", []))
-
-        promoted = 0
-        blocked = 0
-
-        for person in candidates:
-            slug = person.get("slug", "")
-            if slug in blocked_slugs:
-                # Blocked — silently delete the profile
-                await db.persons.delete_one({"_id": person["_id"]})
-                blocked += 1
-                logger.info(f"🚫 [AutoPromote] Deleted blocked profile: {person.get('name')}")
-                continue
-
-            # Promote
-            await db.persons.update_one(
-                {"_id": person["_id"]},
-                {"$set": {"visible_in_rankings": True, "promoted_at": now}}
-            )
-            promoted += 1
-
-        if promoted > 0 or blocked > 0:
-            logger.info(f"🔄 [AutoPromote] {promoted} promoted, {blocked} blocked/deleted")
+        due = await (
+            db.candidate_queue.find({
+                "source": "user_search",
+                "status": "pending",
+                "process_after": {"$lte": now},
+            })
+            .sort("requested_at", 1)
+            .limit(USER_SUBMISSIONS_BATCH_LIMIT)
+            .to_list(length=USER_SUBMISSIONS_BATCH_LIMIT)
+        )
     except Exception as e:
-        logger.error(f"❌ [AutoPromote] Failed: {e}")
+        logger.error(f"❌ [UserSubmissions] Could not fetch due submissions: {e}")
+        return
+
+    if not due:
+        logger.info("📨 [UserSubmissions] No due submissions — nothing to process")
+        return
+
+    processed = approved = rejected = duplicates = errors = 0
+
+    for candidate in due:
+        name = candidate.get("name", "?")
+        try:
+            outcome = await approve_user_search_candidate(db, candidate)
+            status = outcome.get("status")
+            if status == "approved":
+                approved += 1
+            elif status == "rejected":
+                rejected += 1
+            elif status == "duplicate":
+                duplicates += 1
+        except Exception as e:
+            # Cas isolé : on log l'erreur dans le document candidate et on continue.
+            # La soumission reste status="pending" → réessayée au prochain run.
+            errors += 1
+            logger.error(f"❌ [UserSubmissions] '{name}' failed: {e}")
+            try:
+                await db.candidate_queue.update_one(
+                    {"_id": candidate["_id"]},
+                    {"$set": {"last_error": str(e), "last_error_at": now}},
+                )
+            except Exception as log_err:
+                logger.error(f"❌ [UserSubmissions] Could not record last_error for '{name}': {log_err}")
+        processed += 1
+
+    logger.info(
+        f"📨 [UserSubmissions] Run complete — {processed} processed: "
+        f"{approved} approved, {rejected} rejected, {duplicates} duplicates, {errors} errors"
+    )
+    return {
+        "processed": processed,
+        "approved": approved,
+        "rejected": rejected,
+        "duplicates": duplicates,
+        "errors": errors,
+    }
 
 
 def init_scheduler(db, trends_service, email_svc=None):
@@ -523,18 +561,21 @@ def init_scheduler(db, trends_service, email_svc=None):
         replace_existing=True
     )
 
-    # ── Session 3: Auto-promote user-created profiles every 6 hours ──
-    # Profiles created via /api/search with visible_in_rankings=false
-    # are promoted to visible after 48h, unless blocked.
+    # ── Vague 4 sous-tâche 7: Process user submissions every 30 minutes ──
+    # Dépile les soumissions user_search arrivées à échéance (process_after <= now),
+    # FIFO, max 100/run, et les passe à approve_user_search_candidate
+    # (validation / rejet / duplicate / création).
+    # Remplace l'ancien job auto_promote_user_created_job (création immédiate
+    # supprimée — Vague 4 sous-tâches 3+4).
     scheduler.add_job(
-        run_auto_promote_user_created,
-        IntervalTrigger(hours=6),
+        run_process_user_submissions_job,
+        IntervalTrigger(minutes=30),
         args=[db],
-        id='auto_promote_user_created_job',
-        name='Auto-Promote User Search Profiles (6h)',
+        id='process_user_submissions_job',
+        name='Process User Submissions (user_search, 30min)',
         replace_existing=True
     )
-    
+
     logger.info("Scheduler initialized with daily tasks")
     # Note: Daily Google Trends auto-ingestion DISABLED (Session 2 audit)
     logger.info("Boost expiration checker runs every 15 minutes")
@@ -548,7 +589,8 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Daily external scores (Wikipedia) scheduled at 3:00 AM UTC")
     logger.info("Daily candidate detection (Wikipedia) scheduled at 5:00 AM UTC")
     logger.info("Monthly category review (Wikipedia) scheduled on 1st of month at 4:00 AM UTC")
-    
+    logger.info("Process user submissions (user_search) runs every 30 minutes")
+
     return scheduler
 
 
