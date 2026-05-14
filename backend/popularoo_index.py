@@ -423,12 +423,13 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
     source = person.get("source", "unknown")
     now = _utcnow()
 
-    # ── Branch 1: Outsiders (self_boosted) ──
-    if source == "self_boosted":
+    # ── Branch 1: Outsiders (self_boosted OR category=outsider OR is_outsider) ──
+    _is_outsider = source == "self_boosted" or person.get("category") == "outsider" or person.get("is_outsider") is True
+    if _is_outsider:
         likes = person.get("likes", 0)
         dislikes = person.get("dislikes", 0)
         net_votes = max(likes - dislikes, 0)
-        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 25.0)
+        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 25.0)  # Cap Outsider PI at 25
         index_val = round(index_val, 1)
 
         await db.persons.update_one(
@@ -510,12 +511,13 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     """
     source = person.get("source", "unknown")
 
-    # ── Branch 1: Outsiders (self_boosted) ──
-    if source == "self_boosted":
+    # ── Branch 1: Outsiders (self_boosted OR category=outsider OR is_outsider) ──
+    _is_outsider = source == "self_boosted" or person.get("category") == "outsider" or person.get("is_outsider") is True
+    if _is_outsider:
         likes = person.get("likes", 0)
         dislikes = person.get("dislikes", 0)
         net_votes = max(likes - dislikes, 0)
-        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 25.0)
+        index_val = min(3.0 + (net_votes / 10.0) * 1.0, 25.0)  # Cap Outsider PI at 25
         index_val = round(index_val, 1)
 
         await db.persons.update_one(
