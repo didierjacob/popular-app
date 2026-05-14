@@ -1106,7 +1106,10 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     await _check_person_not_suspended(person)
 
     new_val = int(body.value)
-    is_outsider = person.get("source") in ("self_boosted", "seed")
+    # An Outsider is a self-boosted profile OR a seed explicitly categorized "outsider".
+    # NOT every seed — that bug blocked dislikes on all seed celebrities and allowed
+    # superlikes on them. Outsiders = self_boosted OR category == "outsider".
+    is_outsider = person.get("source") == "self_boosted" or person.get("category") == "outsider"
 
     # Block dislikes on outsiders (anti-harassment protection)
     if new_val == -1 and is_outsider:
@@ -8565,7 +8568,7 @@ async def admin_recalculate_dominant_languages(request: Request):
 async def admin_recalculate_all_pi(request: Request):
     """
     Correction 1 (Vague 2): Recalculate popularoo_index for ALL profiles using the new 3-branch formula.
-    - self_boosted → 3 + (net_votes/10)*1.0, cap 30
+    - self_boosted → 3 + (net_votes/10)*1.0, cap 25
     - user_search / user_search_confirmed → meritocratic base + progression
     - seed / unknown → α-blended (unchanged)
     Run once after deployment to apply new scoring system.
