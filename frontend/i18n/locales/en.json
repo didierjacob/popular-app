@@ -369,5 +369,11 @@
     "booster_24h_desc": "Premium features included",
     "booster_7d": "7 days",
     "booster_7d_desc": "Top priority placement"
+  },
+  "search": {
+    "queued_message": "✨ Your request will be processed within 24 hours.",
+    "already_exists": "This personality already exists on Popularoo.",
+    "already_pending": "This personality is already pending validation.",
+    "queue_error": "An error occurred. Please try again in a moment."
   }
 }

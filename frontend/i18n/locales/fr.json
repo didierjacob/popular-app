@@ -369,5 +369,11 @@
     "booster_24h_desc": "Fonctionnalités premium incluses",
     "booster_7d": "7 jours",
     "booster_7d_desc": "7 Premiums, placement premium"
+  },
+  "search": {
+    "queued_message": "✨ Votre demande sera traitée sous 24h.",
+    "already_exists": "Cette personnalité existe déjà sur Popularoo.",
+    "already_pending": "Cette personnalité est déjà en attente de validation.",
+    "queue_error": "Une erreur s'est produite. Réessayez dans un instant."
   }
 }

@@ -369,5 +369,11 @@
     "booster_24h_desc": "Premium-Funktionen inklusive",
     "booster_7d": "7 Tage",
     "booster_7d_desc": "Absolute Top-Platzierung"
+  },
+  "search": {
+    "queued_message": "✨ Ihre Anfrage wird innerhalb von 24 Stunden bearbeitet.",
+    "already_exists": "Diese Persönlichkeit existiert bereits auf Popularoo.",
+    "already_pending": "Diese Persönlichkeit wartet bereits auf Validierung.",
+    "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut."
   }
 }
