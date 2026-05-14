@@ -6791,6 +6791,35 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found or not pending")
 
+    # ── Vague 4, sous-tâche 6: user_search candidates use the deferred-V4 flow ──
+    # (fresh re-validation + Q1 PI + Q4 simulated votes + Q3 implicit like).
+    if candidate.get("source") == "user_search":
+        from candidate_detection import approve_user_search_candidate
+        outcome = await approve_user_search_candidate(db, candidate)
+        if outcome["status"] == "rejected":
+            return {
+                "success": False,
+                "error": "rejected",
+                "error_code": outcome.get("error_code"),
+                "name": outcome["name"],
+            }
+        if outcome["status"] == "duplicate":
+            return {
+                "success": False,
+                "error": "duplicate",
+                "name": outcome["name"],
+                "person_id": outcome.get("person_id"),
+            }
+        logger.info(f"✅ Candidate approved (user_search): {outcome['name']} PI={outcome['initial_pi']:.2f}")
+        return {
+            "success": True,
+            "name": outcome["name"],
+            "category": outcome["category"],
+            "person_id": outcome["person_id"],
+            "initial_pi": outcome["initial_pi"],
+            "source": "user_search",
+        }
+
     # Allow category override from body
     body = {}
     try:

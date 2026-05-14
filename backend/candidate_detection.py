@@ -665,6 +665,199 @@ async def process_celebrity_request(db, name: str, device_id: str) -> dict:
     return {"status": "queued", "process_after": process_after.isoformat()}
 
 
+# ==================== VAGUE 4 — SOUS-TÂCHE 6: Approve a user_search candidate ====================
+
+# Q1 — Initial Popularoo Index for a deferred user_search creation.
+# initial_pi = clamp(25..40, 25 + ext_score * 0.15), ext_score being the
+# already log-normalised external popularity score (0-100).
+USER_SEARCH_PI_MIN = 25.0
+USER_SEARCH_PI_MAX = 40.0
+USER_SEARCH_PI_SLOPE = 0.15
+
+# Q4 — 40 simulated votes, lightly randomised so two creations don't look
+# identical: 26-30 likes + 10-14 dislikes (before the implicit like of Q3).
+USER_SEARCH_LIKES_RANGE = (26, 30)
+USER_SEARCH_DISLIKES_RANGE = (10, 14)
+
+
+async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -> dict:
+    """
+    Vague 4, sous-tâche 6 — Approve a 'user_search' candidate from candidate_queue.
+
+    This is the third branch of the admin approve_candidate flow (the first two
+    handle auto_detection / manual_proposal). It is called by
+    admin_approve_candidate in server.py when ``candidate["source"] == "user_search"``.
+
+    Unlike the seed branches, a user_search candidate sat 24h in the queue, so:
+      1. It is re-validated *fresh* via validate_single_name (sous-tâche 4) —
+         e.g. the person may have died in the meantime.
+      2. If invalid → candidate_queue status 'rejected' + validation_error, NO
+         person is created.
+      3. If a profile with the same slug appeared meanwhile (admin manual path,
+         etc.) → candidate_queue status 'duplicate', NO person is created.
+      4. Otherwise the person is created with the deferred-V4 formulas:
+         - initial PI         : Q1 clamp(25..40, 25 + ext_score*0.15)
+         - 40 simulated votes : Q4 26-30 likes / 10-14 dislikes (randomised)
+         - implicit like      : Q3 +1 like if candidate.pending_vote_value == 1
+         and the contributor (requested_by_device_id) is credited.
+
+    Args:
+        db: the Mongo-like database handle (real or fake).
+        candidate: the full candidate_queue document (must have ``_id``,
+            ``name``, ``slug``, ``source == "user_search"``; usually also
+            ``name_normalized``, ``requested_by_device_id``, ``pending_vote_value``).
+        validate_fn: injection point for tests; defaults to validate_single_name.
+
+    Returns:
+        dict with a ``status`` key:
+          - ``rejected``  + error_code           → fresh validation failed
+          - ``duplicate`` + person_id            → slug already in persons
+          - ``approved``  + person_id, initial_pi, category, likes, dislikes,
+            total_votes                          → person created
+    """
+    import random
+
+    if validate_fn is None:
+        validate_fn = validate_single_name
+
+    oid = candidate["_id"]
+    name = candidate["name"]
+    slug = candidate.get("slug") or slugify_name(name)
+    now = datetime.now(timezone.utc)
+
+    # ── Step 1: fresh re-validation (24h later — death, disambiguation, …) ──
+    result = await validate_fn(name)
+    if not result.get("valid"):
+        error_code = result.get("error_code") or "unknown"
+        await db.candidate_queue.update_one(
+            {"_id": oid},
+            {"$set": {
+                "status": "rejected",
+                "validated_at": now,
+                "validation_error": error_code,
+            }},
+        )
+        logger.info(f"🚫 [UserSearch] Rejected '{name}' on approve: {error_code}")
+        return {"status": "rejected", "name": name, "error_code": error_code}
+
+    # ── Step 2: dedup — a profile may have been created by another path ──
+    existing = await db.persons.find_one({"slug": slug})
+    if existing:
+        await db.candidate_queue.update_one(
+            {"_id": oid},
+            {"$set": {
+                "status": "duplicate",
+                "validated_at": now,
+                "person_id": str(existing["_id"]),
+            }},
+        )
+        logger.info(f"♻️  [UserSearch] '{name}' already exists (slug={slug}) → duplicate")
+        return {"status": "duplicate", "name": name, "person_id": str(existing["_id"])}
+
+    # ── Step 3: initial Popularoo Index (Q1) ──
+    ext_score = result["popularity_external_score"]
+    initial_pi = max(
+        USER_SEARCH_PI_MIN,
+        min(USER_SEARCH_PI_MAX, USER_SEARCH_PI_MIN + ext_score * USER_SEARCH_PI_SLOPE),
+    )
+
+    # ── Step 4: 40 simulated votes, lightly randomised (Q4) ──
+    likes_sim = random.randint(*USER_SEARCH_LIKES_RANGE)
+    dislikes_sim = random.randint(*USER_SEARCH_DISLIKES_RANGE)
+
+    # ── Step 5: implicit like — searching a name counts as a +1 (Q3) ──
+    pending_vote = candidate.get("pending_vote_value", 0)
+    if pending_vote == 1:
+        likes_final = likes_sim + 1
+        dislikes_final = dislikes_sim
+    else:
+        likes_final = likes_sim
+        dislikes_final = dislikes_sim
+    total_votes = likes_final + dislikes_final
+
+    # ── Step 6: create the persons document ──
+    person_doc = {
+        "name": name,
+        "name_normalized": candidate.get("name_normalized"),
+        "slug": slug,
+        "source": "user_search",
+        "created_via": "deferred_v4",
+        "visible_in_rankings": True,
+        "approved": True,
+        "suspended": False,
+        "category": result["category"],
+        "score": initial_pi,
+        "popularoo_index": initial_pi,
+        "initial_pi": initial_pi,  # frozen reference value (sous-tâche 8)
+        "popularity_external_score": ext_score,
+        "wiki_score_norm": result["wiki_score_norm"],
+        "wiki_score_brut": result["wiki_score_brut"],
+        "wiki_langs": result["wiki_langs"],
+        "wikidata_id": result["wikidata_id"],
+        "likes": likes_final,
+        "dislikes": dislikes_final,
+        "superlikes": 0,
+        "total_votes": total_votes,
+        "seed_votes_likes": likes_sim,      # without the implicit +1 (distinguishable later)
+        "seed_votes_dislikes": dislikes_sim,
+        "active_strikes": 0,
+        "created_at": now,
+        "last_updated": now,
+        "last_external_update": now,
+        "created_by_device_id": candidate.get("requested_by_device_id"),
+    }
+    insert_res = await db.persons.insert_one(person_doc)
+    person_id = insert_res.inserted_id
+
+    # ── Step 7: initial tick (coherence with the other profiles) ──
+    await db.person_ticks.insert_one({
+        "person_id": person_id,
+        "score": initial_pi,
+        "total_votes": total_votes,
+        "created_at": now,
+    })
+
+    # ── Step 8: contributor tracking — credit the device that submitted ──
+    device_id = candidate.get("requested_by_device_id")
+    if device_id:
+        await db.user_settings.update_one(
+            {"device_id": device_id},
+            {
+                "$addToSet": {"contributed_person_ids": str(person_id)},
+                "$setOnInsert": {"created_at": now},
+                "$set": {"updated_at": now},
+            },
+            upsert=True,
+        )
+
+    # ── Step 9: mark the candidate approved ──
+    await db.candidate_queue.update_one(
+        {"_id": oid},
+        {"$set": {
+            "status": "approved",
+            "validated_at": now,
+            "person_id": str(person_id),
+            "initial_pi": initial_pi,
+            "validation_confidence": result["confidence"],
+        }},
+    )
+
+    logger.info(
+        f"✅ [UserSearch] Created '{name}' PI={initial_pi:.2f} "
+        f"votes={likes_final}+{dislikes_final} (device={str(device_id)[:8]}…)"
+    )
+    return {
+        "status": "approved",
+        "name": name,
+        "person_id": str(person_id),
+        "initial_pi": initial_pi,
+        "category": result["category"],
+        "likes": likes_final,
+        "dislikes": dislikes_final,
+        "total_votes": total_votes,
+    }
+
+
 # ==================== MAIN DETECTION PIPELINE ====================
 
 async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
