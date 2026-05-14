@@ -4515,6 +4515,36 @@ async def admin_fix_visible_user_search(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@api_router.post("/admin/migrate-user-search-v4")
+async def admin_migrate_user_search_v4(request: Request):
+    """
+    Vague 4, sous-tâche 9 — One-time migration of legacy user_search profiles
+    to the deferred-V4 formula.
+
+    Recomputes the V4 initial PI (clamp 25..40, 25 + ext_score*0.15) and grafts
+    ~40 simulated votes onto profiles with source in
+    {"user_search", "user_search_confirmed"} + approved, so the old profiles
+    (PI ~10-15, 0 votes) sit coherently next to the new deferred_v4 ones.
+
+    - Defensive guard: category == "outsider" is skipped.
+    - Idempotent: a profile with a non-null `migrated_v4_at` is skipped, so the
+      endpoint can be re-run safely.
+    - Real existing votes are preserved and the simulated votes added on top.
+
+    Triggered manually via curl (NOT automatic at deploy):
+      curl -X POST https://<host>/api/admin/migrate-user-search-v4 \\
+           -H "X-Admin-Password: <password>"
+    """
+    _require_admin_auth(request)
+    try:
+        from candidate_detection import migrate_user_search_v4
+        result = await migrate_user_search_v4(db)
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"migrate-user-search-v4 error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @api_router.get("/admin/index-config")
 async def admin_get_index_config(request: Request):
