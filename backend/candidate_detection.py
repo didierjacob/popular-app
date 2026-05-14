@@ -571,6 +571,100 @@ async def validate_single_name(name: str) -> dict:
         return result
 
 
+# ==================== VAGUE 4 — SOUS-TÂCHE 5: User Celebrity Request Enqueue ====================
+
+# Delay before a user-submitted name becomes eligible for processing by
+# process_user_submissions_job (heavy Wikipedia/Wikidata validation at T+24h).
+USER_SUBMISSION_PROCESS_DELAY = timedelta(hours=24)
+
+# Implicit "like" attached to a user search — decided in Q3: searching for a
+# celebrity counts as an implicit like. The job applies this vote at T+24h.
+USER_SUBMISSION_PENDING_VOTE_VALUE = 1
+
+
+def slugify_name(name: str) -> str:
+    """Slug for dedup. Mirrors server.slugify so persons-collection lookups match."""
+    s = name.strip().lower()
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    s = re.sub(r"[\s-]+", "-", s)
+    return s.strip("-")
+
+
+async def process_celebrity_request(db, name: str, device_id: str) -> dict:
+    """
+    Vague 4, sous-tâche 5 — Core logic for POST /api/submit-celebrity-request.
+
+    Normalizes the submitted name, runs the 4 dedup/blocklist checks, and (if
+    none match) enqueues a 'user_search' entry in candidate_queue. The heavy
+    validation (Wikipedia, Wikidata, scoring) is NOT done here — it runs later
+    in process_user_submissions_job via validate_single_name. The enqueue must
+    stay fast (< 200ms), so this only touches the local DB.
+
+    Returns a dict with a 'status' key:
+      - already_exists   + person_id      → slug already in persons
+      - already_pending  + process_after  → same slug already queued (user_search)
+      - rejected                          → slug in seed_blocklist (caller masks
+                                            this as 'queued' to the user)
+      - queued           + process_after  → new entry inserted in candidate_queue
+
+    Raises ValueError on empty name / device_id (caller maps to HTTP 400).
+    """
+    # ── Normalisation: trim + collapse whitespace + clean capitalization ──
+    clean_name = re.sub(r"\s+", " ", (name or "").strip()).title()
+    clean_device_id = (device_id or "").strip()
+    if not clean_name:
+        raise ValueError("name is required")
+    if not clean_device_id:
+        raise ValueError("device_id is required")
+
+    slug = slugify_name(clean_name)
+    name_norm = unidecode(clean_name).lower().strip()
+    now = datetime.now(timezone.utc)
+
+    # ── Check 1: strict duplicate against real persons ──
+    existing_person = await db.persons.find_one({"slug": slug})
+    if existing_person:
+        return {"status": "already_exists", "person_id": str(existing_person["_id"])}
+
+    # ── Check 2: duplicate against a still-pending user_search entry ──
+    existing_pending = await db.candidate_queue.find_one({
+        "source": "user_search",
+        "slug": slug,
+        "status": "pending",
+    })
+    if existing_pending:
+        original = existing_pending.get("process_after")
+        return {
+            "status": "already_pending",
+            "process_after": original.isoformat() if hasattr(original, "isoformat") else original,
+        }
+
+    # ── Check 3: blocklist — silent rejection (caller still shows the 24h wait) ──
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    blocked_slugs = set(settings.get("seed_blocklist", []))
+    if slug in blocked_slugs:
+        return {"status": "rejected"}
+
+    # ── Enqueue: no synchronous validation, just the normalized name ──
+    process_after = now + USER_SUBMISSION_PROCESS_DELAY
+    candidate_doc = {
+        # Préliminaires habituels
+        "name": clean_name,
+        "name_normalized": name_norm,
+        "slug": slug,
+        # Champs user_search (plan Vague 4)
+        "source": "user_search",
+        "requested_by_device_id": clean_device_id,
+        "requested_at": now,
+        "process_after": process_after,
+        "pending_vote_value": USER_SUBMISSION_PENDING_VOTE_VALUE,
+        "status": "pending",
+    }
+    await db.candidate_queue.insert_one(candidate_doc)
+    logger.info(f"📥 [UserRequest] Enqueued '{clean_name}' (device={clean_device_id[:8]}…), process_after={process_after.isoformat()}")
+    return {"status": "queued", "process_after": process_after.isoformat()}
+
+
 # ==================== MAIN DETECTION PIPELINE ====================
 
 async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:

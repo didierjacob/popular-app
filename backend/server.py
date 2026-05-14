@@ -1594,6 +1594,56 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
     return {"ok": True}
 
 
+# ==================== VAGUE 4 — SOUS-TÂCHE 5: User Celebrity Request ====================
+
+@api_router.post("/submit-celebrity-request")
+async def submit_celebrity_request(body: Dict[str, Any]):
+    """
+    Vague 4, sous-tâche 5 — A user asks for a celebrity that isn't in Popularoo yet.
+
+    Normalizes the name, runs 4 dedup/blocklist checks, and (if none match)
+    enqueues a 'user_search' entry in candidate_queue. There is NO synchronous
+    Wikipedia/Wikidata validation here — the response must stay fast (< 200ms).
+    The heavy validation runs 24h later in process_user_submissions_job via
+    validate_single_name (sous-tâche 4).
+
+    Body: { "name": str, "device_id": str }  — both required.
+    """
+    from candidate_detection import process_celebrity_request
+
+    name = (body.get("name") or "").strip()
+    device_id = (body.get("device_id") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required")
+
+    result = await process_celebrity_request(db, name, device_id)
+    status = result["status"]
+
+    if status == "already_exists":
+        return {"status": "already_exists", "person_id": result["person_id"]}
+
+    if status == "already_pending":
+        return {
+            "status": "already_pending",
+            "process_after": result["process_after"],
+            "message_key": "search.queued_message",
+        }
+
+    # "rejected" (slug in seed_blocklist) is masked as "queued": the user still
+    # gets the standard 24h waiting message so the blocklist stays invisible.
+    process_after = result.get("process_after")
+    if status == "rejected":
+        process_after = (now_utc() + timedelta(hours=24)).isoformat()
+
+    return {
+        "status": "queued",
+        "process_after": process_after,
+        "message_key": "search.queued_message",
+    }
+
+
 import unicodedata
 import httpx
 
