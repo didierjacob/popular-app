@@ -1673,6 +1673,9 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
         search_term_normalized = remove_accents(search_term)
         
         # Build filter: approved, not deceased
+        # NOTE: visible_in_rankings is intentionally NOT filtered here.
+        # /api/search must return ALL approved profiles (including user_search ones)
+        # so users can find them. Only /api/people (rankings) filters on visible_in_rankings.
         filter_q: Dict[str, Any] = {"approved": True, "is_deceased": {"$ne": True}}
         
         # Check blocklist to filter results
@@ -1854,7 +1857,8 @@ async def _background_create_from_search(search_term: str):
 
         now = now_utc()
 
-        # Create profile with 0 votes, visible_in_rankings=false
+        # Create profile with 0 votes
+        # visible_in_rankings=True because Guard 4 (confidence >= 65) already passed at this point
         person_doc = {
             "name": canonical_name,
             "slug": final_slug,
@@ -1868,7 +1872,7 @@ async def _background_create_from_search(search_term: str):
             "total_votes": 0,
             "source": "user_search",
             "created_via": "auto",
-            "visible_in_rankings": False,
+            "visible_in_rankings": True,
             "wiki_description": description or "",
             "wikidata_id": wikidata_id,
             "wiki_langs": langs,
@@ -1922,7 +1926,7 @@ async def _background_create_from_search(search_term: str):
                 }}
             )
             logger.info(f"✅ [BG Search] Created '{canonical_name}' ({category}/{confidence}) "
-                        f"ext={ext_score:.1f} pi={pi:.1f} visible_in_rankings=false")
+                        f"ext={ext_score:.1f} pi={pi:.1f} visible_in_rankings=true")
         except Exception as e:
             logger.warning(f"⚠️ [BG Search] Created '{canonical_name}' but ext score failed: {e}")
 
@@ -4581,6 +4585,61 @@ async def admin_recalculate_indices(request: Request):
     except Exception as e:
         logger.error(f"Recalculation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/fix-visible-user-search")
+async def admin_fix_visible_user_search(request: Request):
+    """Admin-only: Migrate existing user_search profiles to visible_in_rankings=True.
+    
+    Targets profiles matching ALL 4 criteria:
+    - source: "user_search"
+    - approved: true
+    - popularity_external_score >= 65
+    - visible_in_rankings: false
+    """
+    _require_admin_auth(request)
+    try:
+        # Find matching profiles
+        query_filter = {
+            "source": "user_search",
+            "approved": True,
+            "popularity_external_score": {"$gte": 65},
+            "visible_in_rankings": False,
+        }
+
+        # Collect names before update
+        cursor = db.persons.find(query_filter, {"name": 1})
+        migrated_names = []
+        async for doc in cursor:
+            migrated_names.append(doc.get("name", "???"))
+
+        if not migrated_names:
+            return {
+                "success": True,
+                "message": "No profiles to migrate",
+                "migrated_count": 0,
+                "migrated_names": [],
+            }
+
+        # Apply update
+        result = await db.persons.update_many(
+            query_filter,
+            {"$set": {"visible_in_rankings": True, "updated_at": now_utc()}}
+        )
+
+        logger.info(f"✅ [Admin] fix-visible-user-search: migrated {result.modified_count} profiles: {migrated_names}")
+
+        return {
+            "success": True,
+            "message": f"Migrated {result.modified_count} profiles to visible_in_rankings=true",
+            "migrated_count": result.modified_count,
+            "migrated_names": migrated_names,
+        }
+
+    except Exception as e:
+        logger.error(f"fix-visible-user-search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @api_router.get("/admin/index-config")
