@@ -210,6 +210,7 @@ async def create_seed_outsiders(db) -> Dict[str, Any]:
             "name": seed["name"],
             "slug": _generate_slug(seed["name"]),
             "category": "outsider",
+            "source": "seed_outsider",  # explicit source — avoids being read as "unknown" downstream
             "approved": True,
             "is_outsider": True,
             "is_seed": True,

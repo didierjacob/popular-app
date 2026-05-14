@@ -216,6 +216,34 @@ def compute_effective_score(person):
     return raw_score, score, effective_likes, effective_dislikes, effective_total
 
 
+def _is_outsider_doc(doc) -> bool:
+    """
+    An Outsider = source 'self_boosted' OR category 'outsider' OR is_outsider flag.
+    Covers seeded outsiders (seed_outsiders.py) which carry no `source` field at all
+    (popularoo_index.py reads that absence as "unknown").
+    """
+    return (
+        doc.get("source") == "self_boosted"
+        or doc.get("category") == "outsider"
+        or doc.get("is_outsider") is True
+    )
+
+
+def _displayed_score(doc, eff_score: float) -> float:
+    """
+    The score shown to users.
+    - popularoo_index when it has been computed (> 0), else the vote-ratio eff_score.
+    - Outsiders are hard-capped at 25 — Vague 4 hierarchy (Q5):
+      Outsiders ≤ 25 < Nouveaux entrants 25-50 < Célébrités confirmées sans plafond.
+      The cap applies to every outsider profile, not just source == "self_boosted".
+    """
+    pi = doc.get("popularoo_index")
+    score = pi if (pi is not None and pi > 0) else eff_score
+    if _is_outsider_doc(doc):
+        score = min(score, 25.0)
+    return score
+
+
 # -------------------- Pydantic Models --------------------
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -878,14 +906,9 @@ def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
         # Apply seed decay for displayed score (fallback for outsiders / legacy)
         _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(doc)
 
-        # Session 2: For non-outsiders, the displayed score IS the popularoo_index (blended).
-        # For outsiders (no external Wikipedia score), keep eff_score (vote ratio).
-        is_outsider = doc.get("source") == "self_boosted" or doc.get("category") == "outsider"
-        pi = doc.get("popularoo_index")
-        if not is_outsider and pi is not None and pi > 0:
-            displayed_score = pi
-        else:
-            displayed_score = eff_score
+        # Session 2 / Vague 4: the displayed score IS the popularoo_index when computed.
+        # Outsiders are additionally hard-capped at 25 (see _displayed_score).
+        displayed_score = _displayed_score(doc, eff_score)
 
         # Strike level
         active_strikes = _safe_int(doc.get("active_strikes", 0))
@@ -1133,7 +1156,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
                 _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(person)
                 return VoteOut(
                     id=str(person["_id"]),
-                    score=float(eff_score),
+                    score=float(_displayed_score(person, eff_score)),
                     likes=int(eff_likes),
                     dislikes=int(eff_dislikes),
                     superlikes=int(person.get("superlikes", 0)),
@@ -1203,7 +1226,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(updated)
         return VoteOut(
             id=str(updated["_id"]),
-            score=float(eff_score),
+            score=float(_displayed_score(updated, eff_score)),
             likes=int(eff_likes),
             dislikes=int(eff_dislikes),
             superlikes=int(updated.get("superlikes", 0)),
@@ -1231,7 +1254,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
             _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(person)
             return VoteOut(
                 id=str(person["_id"]),
-                score=float(eff_score),
+                score=float(_displayed_score(person, eff_score)),
                 likes=int(eff_likes),
                 dislikes=int(eff_dislikes),
                 superlikes=int(person.get("superlikes", 0)),
@@ -1316,7 +1339,7 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     _, eff_score, eff_likes, eff_dislikes, eff_total = compute_effective_score(updated)
     return VoteOut(
         id=str(updated["_id"]),
-        score=float(eff_score),
+        score=float(_displayed_score(updated, eff_score)),
         likes=int(eff_likes),
         dislikes=int(eff_dislikes),
         superlikes=int(updated.get("superlikes", 0)),
