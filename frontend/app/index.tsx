@@ -16,7 +16,6 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -282,11 +281,9 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [searchName, setSearchName] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
-  // Vague 2: Create-from-search modal
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [createModalName, setCreateModalName] = useState("");
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // Vague 4: feedback banner shown after a celebrity request is submitted
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  const searchMsgTimer = useRef<NodeJS.Timeout | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -521,10 +518,21 @@ export default function HomeScreen() {
     titleTapTimer.current = setTimeout(() => { titleTapCount.current = 0; }, 2000);
   };
 
+  // Vague 4: clear the search field + banner 3s after a request is submitted
+  const scheduleSearchClear = () => {
+    if (searchMsgTimer.current) clearTimeout(searchMsgTimer.current);
+    searchMsgTimer.current = setTimeout(() => {
+      setSearchName("");
+      setSearchSuggestions([]);
+      setSearchMessage(null);
+    }, 3000);
+  };
+
   const handleSearch = async () => {
     if (!searchName.trim()) return;
     const query = searchName.trim().toLowerCase();
-    
+    setSearchMessage(null);
+
     // FAST PATH: Check locally loaded people first for instant navigation
     const localMatch = people.find(p => 
       p.name.toLowerCase() === query || 
@@ -554,77 +562,45 @@ export default function HomeScreen() {
       }
     } catch {}
 
-    // Vague 2: Instead of alert(), show the create-from-search modal
-    setCreateModalName(searchName.trim());
-    setCreateError(null);
-    setCreateLoading(false);
-    setCreateModalVisible(true);
-  };
-
-  // Vague 2: Handle "Create profile" from modal
-  const handleCreateFromSearch = async () => {
-    setCreateLoading(true);
-    setCreateError(null);
+    // Vague 4: no match anywhere → submit a celebrity request, show a banner
     try {
       let did = await AsyncStorage.getItem("popularity_device_id");
       if (!did) {
         did = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         await AsyncStorage.setItem("popularity_device_id", did);
       }
-      const response = await fetch(API("/create-from-search"), {
+      const response = await fetch(API("/submit-celebrity-request"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Device-ID": did,
-        },
-        body: JSON.stringify({ name: createModalName }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: searchName.trim(), device_id: did }),
       });
 
       if (!response.ok) {
-        // HTTP error (400, 500, etc.)
-        setCreateError("Erreur de connexion au serveur. Réessayez dans quelques instants.");
+        setSearchMessage(t("search.queue_error"));
+        scheduleSearchClear();
         return;
       }
 
       const data = await response.json();
 
-      if (data.success) {
-        setCreateModalVisible(false);
+      if (data.status === "already_exists" && data.person_id) {
+        // Typo that still matched an existing profile → redirect to it
+        setSearchMessage(t("search.already_exists"));
+        router.push({ pathname: "/person", params: { id: data.person_id } });
         setSearchName("");
         setSearchSuggestions([]);
-        // Navigate to the newly created person page with contributor flag
-        router.push({
-          pathname: "/person",
-          params: { id: data.person_id, name: data.name },
-        });
-      } else if (data.error === "already_exists") {
-        // Profile was created by background task in the meantime — still treat as success for UX
-        setCreateModalVisible(false);
-        setSearchName("");
-        setSearchSuggestions([]);
-        router.push({
-          pathname: "/person",
-          params: { id: data.person_id, name: data.name },
-        });
+        setSearchMessage(null);
+        return;
+      } else if (data.status === "already_pending") {
+        setSearchMessage(t("search.already_pending"));
       } else {
-        // Map error codes to user-friendly messages
-        const errorMessages: Record<string, string> = {
-          wikipedia_not_found: "Désolé, cette personnalité n'a pas été trouvée sur Wikipedia. Vérifiez l'orthographe ou essayez un autre nom.",
-          not_human: "Cette recherche ne correspond pas à une personnalité reconnue.",
-          deceased: "Cette personnalité ne peut pas être ajoutée.",
-          blocked: "Cette personnalité ne peut pas être ajoutée.",
-          not_recognized: "Cette personnalité n'est pas reconnue. Vérifiez l'orthographe ou essayez un autre nom.",
-          low_confidence: "Cette personnalité n'a pas assez de visibilité pour être ajoutée pour le moment.",
-          insufficient_languages: "Cette personnalité n'a pas assez de visibilité internationale pour être ajoutée pour le moment.",
-          invalid_name: data.message || "Nom invalide. Vérifiez l'orthographe.",
-          wikipedia_check_failed: "Erreur de connexion à Wikipedia. Réessayez dans quelques instants.",
-        };
-        setCreateError(errorMessages[data.error] || `Erreur : ${data.error}`);
+        // "queued" — also covers "rejected" (masked by the backend)
+        setSearchMessage(t("search.queued_message"));
       }
-    } catch (e: any) {
-      setCreateError("Erreur de connexion. Vérifiez votre connexion internet et réessayez.");
-    } finally {
-      setCreateLoading(false);
+      scheduleSearchClear();
+    } catch {
+      setSearchMessage(t("search.queue_error"));
+      scheduleSearchClear();
     }
   };
 
@@ -674,6 +650,12 @@ export default function HomeScreen() {
               <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
             </TouchableOpacity>
           </View>
+          {/* Vague 4: celebrity-request feedback banner */}
+          {searchMessage && (
+            <View style={styles.searchBanner}>
+              <Text style={styles.searchBannerText}>{searchMessage}</Text>
+            </View>
+          )}
           {/* Auto-complete suggestions */}
           {searchSuggestions.length > 0 && searchName.length >= 2 && (
             <View style={styles.suggestionsContainer}>
@@ -813,65 +795,6 @@ export default function HomeScreen() {
         <View style={{ height: 80 }} />
         </View>
       </ScrollView>
-
-      {/* Vague 2: Create-from-search Modal */}
-      <Modal
-        visible={createModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { if (!createLoading) setCreateModalVisible(false); }}
-      >
-        <View style={cfsStyles.overlay}>
-          <View style={cfsStyles.card}>
-            {!createError ? (
-              <>
-                <Text style={cfsStyles.emoji}>🌟</Text>
-                <Text style={cfsStyles.title}>
-                  Personne n'a encore voté pour{"\n"}
-                  <Text style={cfsStyles.name}>{createModalName}</Text>
-                </Text>
-                <Text style={cfsStyles.subtitle}>
-                  Sois la première à le faire et crée sa fiche dans Popularoo !
-                </Text>
-
-                {createLoading ? (
-                  <View style={cfsStyles.loaderBox}>
-                    <ActivityIndicator size="large" color={PALETTE.accent2} />
-                    <Text style={cfsStyles.loaderText}>Création en cours...</Text>
-                    <Text style={cfsStyles.loaderSubtext}>Vérification Wikipedia & Wikidata</Text>
-                  </View>
-                ) : (
-                  <View style={cfsStyles.buttons}>
-                    <TouchableOpacity style={cfsStyles.primaryBtn} onPress={handleCreateFromSearch}>
-                      <Text style={cfsStyles.primaryBtnText}>✨ Créer sa fiche</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={cfsStyles.secondaryBtn}
-                      onPress={() => setCreateModalVisible(false)}
-                    >
-                      <Text style={cfsStyles.secondaryBtnText}>Annuler</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                <Text style={cfsStyles.emoji}>😔</Text>
-                <Text style={cfsStyles.errorTitle}>{createError}</Text>
-                <View style={cfsStyles.buttons}>
-                  <TouchableOpacity
-                    style={cfsStyles.secondaryBtn}
-                    onPress={() => { setCreateError(null); setCreateModalVisible(false); }}
-                  >
-                    <Text style={cfsStyles.secondaryBtnText}>Fermer</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-
     </SafeAreaView>
   );
 }
@@ -919,6 +842,22 @@ const styles = StyleSheet.create({
   suggestionMeta: {
     color: PALETTE.subtext,
     fontSize: 11,
+  },
+  // Vague 4: celebrity-request feedback banner
+  searchBanner: {
+    marginTop: 8,
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  searchBannerText: {
+    color: PALETTE.text,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
   },
   searchInput: {
     flex: 1,
@@ -1132,99 +1071,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
-  },
-});
-
-// ── Vague 2: Create-from-search Modal styles ──
-const cfsStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  card: {
-    backgroundColor: "#1C3A2C",
-    borderRadius: 20,
-    padding: 28,
-    width: "100%",
-    maxWidth: 360,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2E6148",
-  },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  title: {
-    color: "#EAEAEA",
-    fontSize: 17,
-    fontWeight: "600",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 8,
-  },
-  name: {
-    color: "#E04F5F",
-    fontWeight: "700",
-  },
-  subtitle: {
-    color: "#C9D8D2",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  loaderBox: {
-    alignItems: "center",
-    paddingVertical: 16,
-  },
-  loaderText: {
-    color: "#EAEAEA",
-    fontSize: 15,
-    fontWeight: "600",
-    marginTop: 12,
-  },
-  loaderSubtext: {
-    color: "#8FA89B",
-    fontSize: 12,
-    marginTop: 4,
-  },
-  buttons: {
-    width: "100%",
-    gap: 10,
-  },
-  primaryBtn: {
-    backgroundColor: "#E04F5F",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#2E6148",
-  },
-  secondaryBtnText: {
-    color: "#C9D8D2",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  errorTitle: {
-    color: "#EAEAEA",
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 20,
   },
 });
