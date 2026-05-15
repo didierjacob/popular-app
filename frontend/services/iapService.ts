@@ -46,10 +46,17 @@ class IAPService {
     }
     try {
       const products = await getProducts({ skus: IAP_SKUS });
-      console.log('[IAP] Products loaded:', products.length);
+      if (products.length === 0) {
+        console.error(
+          '[IAP] StoreKit returned 0 products for SKUs:', IAP_SKUS,
+          '— likely causes: IAP not attached to current build in App Store Connect, sandbox tester not signed in, IAP status not "Ready to Submit", or bundle ID mismatch.'
+        );
+      } else {
+        console.log('[IAP] Products loaded:', products.length);
+      }
       return products;
     } catch (error) {
-      console.error('[IAP] Failed to get products:', error);
+      console.error('[IAP] Network/exception while fetching products:', error);
       return [];
     }
   }

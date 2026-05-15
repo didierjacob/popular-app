@@ -243,7 +243,7 @@ export default function Premium() {
           { text: t('premium.ok') },
           { text: t('premium.retry'), onPress: () => {
             // Try to reinitialize IAP
-            iapService.getProducts().then((products: any) => {
+            iapService.getStoreProducts().then((products) => {
               if (products && products.length > 0) {
                 setStoreProducts(products);
                 setIapReady(true);
