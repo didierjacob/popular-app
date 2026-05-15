@@ -46,18 +46,37 @@ BLACKLISTED_DESCRIPTION_WORDS = {
 # ── Category inference from Wikipedia short description ──
 # ⚠️ Synchronisé avec backend/server.py:6303 (CATEGORY_KEYWORD_MAP).
 # Modifier les deux ensemble pour éviter divergence audit.
-# Ordre d'évaluation (premier match gagne) : politics → sport → culture → business → influencer.
+#
+# Ordre d'évaluation (premier match gagne) :
+#   politics → sport → culture → influencer → business
+#
+# Justification produit (validée Didier 2026-05) :
+# Popularoo classe selon la PERCEPTION POPULAIRE dominante, pas selon la réalité
+# entrepreneuriale. Une YouTubeuse devenue businesswoman (Kylie Jenner, Kim K, Zoella)
+# reste "influencer" aux yeux du public. influencer est donc évalué AVANT business.
+# Modifier cet ordre nécessite une validation produit.
+#
+# Note hybrides : les profils acteur/wrestler comme Dwayne Johnson tomberont en sport
+# (cohérent avec leur description Wikipedia primaire "American actor and former
+# professional wrestler"). Idem hybrides YouTuber/boxer (KSI, Logan Paul) → sport.
+#
+# Note tokens courts : tous les tokens ≤ 4 lettres ont été audités pour éviter les
+# matches en sous-chaîne (ex: "king" matchait "working", "earl" matchait "early").
+# Toujours préférer des n-grams explicites ("king of", "earl of") aux tokens nus.
 CATEGORY_KEYWORDS = {
     "politics": [
         "politician", "president", "vice president", "prime minister",
         "deputy prime minister", "senator", "governor", "governor of",
         "minister", "secretary of state", "political", "political activist",
         "diplomat", "ambassador", "chancellor", "mayor", "premier of",
-        "congressman", "congresswoman", "member of parliament", "parliament",
-        "mp ", "chairperson", "head of state", "head of government",
-        "king", "queen", "prince", "princess", "monarch", "royal",
-        "emperor", "empress", "tsar", "sultan", "emir", "sheikh",
-        "duke", "duchess", "earl", "baron", "baroness", "archduke", "viceroy",
+        "congressman", "congresswoman", "congressm", "representative",
+        "member of parliament", "parliament", "mp ", "chairperson",
+        "head of state", "head of government",
+        "king of", "kings of", "king consort", "queen", "prince", "princess",
+        "monarch", "royal",
+        "emperor", "empress", "tsar", "sultan", "emir of", "emirate", "sheikh",
+        "duke", "duchess", "earl of", "the earl", "earldom",
+        "baron", "baroness", "archduke", "viceroy",
         "pope", "pontiff", "cardinal", "archbishop", "dalai lama", "ayatollah",
         "revolutionary", "first lady",
     ],
@@ -65,17 +84,17 @@ CATEGORY_KEYWORDS = {
         "footballer", "football player", "football manager", "football coach",
         "soccer", "soccer player", "basketball", "basketball player",
         "tennis", "tennis player", "rugby", "rugby player", "athlete",
-        "athletics", "swimmer", "runner", "boxer", "wrestler", "golfer",
-        "cricket", "racing", "racing driver", "motor racing", "motorsport",
-        "formula one", "f1", "olympic", "paralympic", "skier", "cyclist",
-        "martial art", "mma", "ufc", "baseball", "hockey", "gymnast",
-        "volleyball", "handball", "surfer", "skater", "snowboarder",
-        "sprinter", "head coach", "coach", "manager of", "national team",
-        "fighter", "kickboxer", "judoka", "taekwondo", "karate", "fencer",
-        "weightlifter", "rower", "darts", "snooker", "esports",
-        "sportsperson", "sportsman", "sportswoman", "striker", "goalkeeper",
-        "midfielder", "defender", "quarterback", "pitcher",
-        "entraîneur", "sélectionneur",
+        "athletics", "swimmer", "runner", "boxer", "wrestler", "wrestling",
+        "golfer", "cricket", "racing", "racing driver", "motor racing",
+        "motorsport", "formula one", "f1", "f1 driver", "olympic", "paralympic",
+        "skier", "cyclist", "martial", "martial art", "mma fighter", "ufc",
+        "baseball", "hockey", "gymnast", "volleyball", "handball", "surfer",
+        "skater", "snowboarder", "sprinter", "head coach", "coach",
+        "manager of", "national team", "fighter", "kickboxer", "judoka",
+        "taekwondo", "karate", "fencer", "weightlifter", "rower",
+        "darts", "snooker", "esports", "sportsperson", "sportsman",
+        "sportswoman", "striker", "goalkeeper", "midfielder", "defender",
+        "quarterback", "pitcher", "entraîneur", "sélectionneur",
     ],
     "culture": [
         "actor", "actress", "voice actor", "singer", "singer-songwriter",
@@ -85,29 +104,32 @@ CATEGORY_KEYWORDS = {
         "comedian", "stand-up", "entertainer", "model", "dancer",
         "choreographer", "television", "tv host", "tv presenter",
         "television presenter", "talk show host", "radio host", "presenter",
-        "news anchor", "journalist", "media personality", "artist", "painter",
+        "news anchor", "journalist", "artist", "painter",
         "sculptor", "photographer", "designer", "fashion", "fashion designer",
-        "theatre", "theater", "opera", "magician", "chef", "drag queen", "dj",
+        "theatre", "theater", "opera", "magician", "chef", "drag queen",
+        "dj ", "dj and", "dj producer",
         "cartoonist", "illustrator", "animator", "guitarist", "drummer",
         "pianist", "violinist", "cellist", "saxophonist", "bassist",
         "conductor", "record label", "youtube creator", "k-pop", "boy group",
         "girl group", "rock band", "pop star", "hip hop",
     ],
-    "business": [
-        "entrepreneur", "business", "businessman", "businesswoman",
-        "businessperson", "ceo", "cfo", "coo", "cto", "chief executive",
-        "chief financial", "chief operating", "chairman", "chairwoman",
-        "founder", "co-founder", "cofounder", "investor", "billionaire",
-        "executive", "industrialist", "magnate", "tycoon", "philanthropist",
-        "venture capitalist", "venture capital", "hedge fund",
-        "banker", "financier", "real estate developer",
-    ],
     "influencer": [
         "youtuber", "youtube personality", "youtube channel", "streamer",
         "twitch streamer", "kick streamer", "tiktoker", "tiktok",
         "instagram", "instagrammer", "influencer", "content creator",
-        "social media", "internet personality", "online personality",
-        "web personality", "vlogger", "blogger", "twitch", "podcaster",
+        "social media", "media personality", "social media personality",
+        "internet personality", "online personality", "web personality",
+        "vlogger", "blogger", "twitch", "podcaster",
+    ],
+    "business": [
+        "entrepreneur", "business", "businessman", "businesswoman",
+        "businessperson", "ceo", "cfo", "cto of", "chief technology officer",
+        "chief executive", "chief financial", "chief operating",
+        "chairman", "chairwoman",
+        "founder", "co-founder", "cofounder", "investor", "billionaire",
+        "executive", "industrialist", "magnate", "tycoon", "philanthropist",
+        "venture capitalist", "venture capital", "hedge fund",
+        "banker", "financier", "real estate developer",
     ],
 }
 
