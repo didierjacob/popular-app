@@ -15,6 +15,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import OutsiderCard, { type OutsiderData } from "../components/OutsiderCard";
 import BackHeader from "../components/BackHeader";
+import { fetchSWR } from "../services/cacheService";
+import { cacheKeyOutsiders } from "./splash";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -80,20 +82,31 @@ export default function OutsidersPage() {
   }, []);
 
   const loadOutsiders = useCallback(async () => {
-    try {
-      const res = await fetch(API("/outsiders"));
-      if (res.ok) {
-        const data = await res.json();
-        // Backend returns { golden: [...], regular: [...] }
-        const allOutsiders = [...(data.golden || []), ...(data.regular || [])];
-        setOutsiders(allOutsiders);
-      }
-    } catch (err) {
-      console.error("Failed to load outsiders:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    const applyData = (data: any) => {
+      const allOutsiders = [...(data?.golden || []), ...(data?.regular || [])];
+      setOutsiders(allOutsiders);
+    };
+
+    await fetchSWR<any>(
+      cacheKeyOutsiders(),
+      async () => {
+        const res = await fetch(API("/outsiders"));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      },
+      {
+        onCached: (data) => {
+          applyData(data);
+          setLoading(false);
+        },
+        onFresh: applyData,
+        onError: (err) => console.error("Failed to load outsiders:", err),
+      },
+      60 * 1000,
+    );
+
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {

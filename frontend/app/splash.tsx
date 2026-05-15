@@ -1,8 +1,62 @@
 import React, { useRef, useEffect } from "react";
 import { View, StyleSheet, Animated, Easing, useWindowDimensions } from "react-native";
+import * as Localization from "expo-localization";
+import { CacheService } from "../services/cacheService";
 
 interface SplashScreenProps {
   onFinish?: () => void;
+}
+
+// Clés de cache partagées avec les écrans Home / Outsiders.
+// Tout changement ici doit être répliqué dans index.tsx, list.tsx, outsiders.tsx.
+const API_BASE =
+  process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
+const PREFETCH_TTL_MS = 60 * 1000;
+
+export const cacheKeyPeopleHome = (country: string) =>
+  `people_home_50_${country || "ALL"}`;
+export const cacheKeyOutsiders = () => `outsiders_v1`;
+
+/**
+ * Lance le préfetch des 2 endpoints critiques au démarrage de l'app
+ * (Home `/api/people?limit=50` + `/api/outsiders`) pendant que les 3 secondes
+ * du splash défilent. Les réponses sont stockées dans CacheService (TTL 60s)
+ * et lues en SWR par index.tsx au mount.
+ *
+ * Volontairement isolé du flux d'animation : un échec réseau ne casse rien,
+ * l'écran Home retombera sur son fetch normal au mount.
+ */
+function prefetchCriticalData() {
+  const regionCode = Localization.getLocales()?.[0]?.regionCode || "";
+  const countryParam = regionCode ? `&country=${regionCode}` : "";
+
+  const peopleUrl = `${API_BASE}/api/people?limit=50${countryParam}`;
+  const outsidersUrl = `${API_BASE}/api/outsiders`;
+
+  // Fire-and-forget : pas de await, on n'attend rien.
+  fetch(peopleUrl)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data) {
+        return CacheService.set(
+          cacheKeyPeopleHome(regionCode),
+          data,
+          PREFETCH_TTL_MS,
+        );
+      }
+    })
+    .catch(() => {
+      // Silencieux : Home refetchera au mount si pas de cache.
+    });
+
+  fetch(outsidersUrl)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data) {
+        return CacheService.set(cacheKeyOutsiders(), data, PREFETCH_TTL_MS);
+      }
+    })
+    .catch(() => {});
 }
 
 /**
@@ -28,6 +82,10 @@ export default function SplashScreen({ onFinish = () => {} }: SplashScreenProps)
   const fadeOut = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Préfetch immédiat des endpoints critiques (Home + Outsiders).
+    // Démarre à T=0 pour absorber le maximum des 3s du splash.
+    prefetchCriticalData();
+
     // ── ACT 1 (T=0 → T=0.5s): Pure black. Nothing happens. ──
     const act1Timer = setTimeout(() => {
       // ── ACT 2 (T=0.5s → T=1.2s): Black fades to green. Icon still hidden. ──

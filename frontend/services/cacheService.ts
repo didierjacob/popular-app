@@ -105,9 +105,54 @@ export async function fetchWithCache<T>(
 
   // Pas en cache, faire la requête
   const data = await fetchFn();
-  
+
   // Sauvegarder dans le cache
   await CacheService.set(cacheKey, data, ttl);
-  
+
   return data;
+}
+
+/**
+ * Stale-While-Revalidate: appelle `onCached` immédiatement si une valeur
+ * est en cache (même expirée), puis lance un fetch frais en arrière-plan
+ * et appelle `onFresh` lorsque la réponse fraîche est disponible.
+ * Le cache est toujours rafraîchi en cas de succès.
+ *
+ * Si le fetch échoue, le callback `onError` est appelé. Si aucun cache
+ * n'existait, l'appelant doit gérer l'état de chargement initial.
+ */
+export async function fetchSWR<T>(
+  cacheKey: string,
+  fetchFn: () => Promise<T>,
+  callbacks: {
+    onCached?: (data: T) => void;
+    onFresh?: (data: T) => void;
+    onError?: (err: any) => void;
+  } = {},
+  ttl: number = DEFAULT_TTL,
+): Promise<{ hadCache: boolean }> {
+  let hadCache = false;
+
+  // 1) Lire le cache (même expiré) pour affichage instantané
+  try {
+    const raw = await AsyncStorage.getItem(`${CACHE_PREFIX}${cacheKey}`);
+    if (raw) {
+      const entry: CacheEntry<T> = JSON.parse(raw);
+      hadCache = true;
+      callbacks.onCached?.(entry.data);
+    }
+  } catch {
+    // Ignore — on tombera sur le fetch frais
+  }
+
+  // 2) Fetch frais en arrière-plan
+  try {
+    const fresh = await fetchFn();
+    await CacheService.set(cacheKey, fresh, ttl);
+    callbacks.onFresh?.(fresh);
+  } catch (err) {
+    callbacks.onError?.(err);
+  }
+
+  return { hadCache };
 }

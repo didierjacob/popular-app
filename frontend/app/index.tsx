@@ -25,6 +25,8 @@ import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import OutsiderCard from "../components/OutsiderCard";
+import { fetchSWR } from "../services/cacheService";
+import { cacheKeyPeopleHome, cacheKeyOutsiders } from "./splash";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -292,40 +294,68 @@ export default function HomeScreen() {
   const heartPulse = useRef(new Animated.Value(1)).current;
   // Removed: listFadeAnim was used by the old periodic shuffle, replaced by Algo A
 
-  const loadData = async (silent = false) => {
-    try {
-      if (!silent) setLoading(true);
-      setError(null);
+  const applyPeople = (data: any) => {
+    if (!Array.isArray(data)) return;
+    const sortedByVotes = [...data]
+      .filter((p: Person) => p.source !== "self_boosted" && p.category !== "outsider")
+      .sort((a: Person, b: Person) => b.total_votes - a.total_votes);
+    setPeople(sortedByVotes);
 
-      // Detect user country from device locale
-      const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
-      const countryParam = regionCode ? `&country=${regionCode}` : '';
-
-      const [peopleRes, outsidersData] = await Promise.all([
-        fetch(API(`/people?limit=50${countryParam}`)),
-        CreditsService.getOutsiders(),
-      ]);
-
-      if (!peopleRes.ok) throw new Error(`HTTP ${peopleRes.status}`);
-      const data = await peopleRes.json();
-
-      const sortedByVotes = [...data]
-        .filter((p: Person) => p.source !== "self_boosted" && p.category !== "outsider") // P0 BUG FIX: Never show outsiders (self_boosted or seeds) in Top list
-        .sort((a: Person, b: Person) => b.total_votes - a.total_votes);
-      setPeople(sortedByVotes);
-
-      if (data.length > 0) {
-        const sorted = [...data].sort((a: Person, b: Person) => b.score - a.score);
-        setPersonOfTheDay(sorted[0]);
-      }
-
-      setGoldenOutsiders(outsidersData.golden || []);
-
-    } catch (e: any) {
-      if (!silent) setError(e.message);
-    } finally {
-      if (!silent) setLoading(false);
+    if (data.length > 0) {
+      const sorted = [...data].sort((a: Person, b: Person) => b.score - a.score);
+      setPersonOfTheDay(sorted[0]);
     }
+  };
+
+  const applyOutsiders = (data: any) => {
+    setGoldenOutsiders(data?.golden || []);
+  };
+
+  // SWR : lit d'abord le cache (prefetché par splash.tsx ou refresh précédent),
+  // affiche instantanément, puis revalide en arrière-plan. Si aucun cache et le
+  // fetch échoue, on remonte l'erreur classique.
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+
+    const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
+    const countryParam = regionCode ? `&country=${regionCode}` : '';
+
+    let hadPeopleCache = false;
+
+    const peoplePromise = fetchSWR<any[]>(
+      cacheKeyPeopleHome(regionCode),
+      async () => {
+        const res = await fetch(API(`/people?limit=50${countryParam}`));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      },
+      {
+        onCached: (data) => {
+          hadPeopleCache = true;
+          applyPeople(data);
+          if (!silent) setLoading(false);
+        },
+        onFresh: applyPeople,
+        onError: (err: any) => {
+          if (!silent && !hadPeopleCache) setError(err?.message || 'Network error');
+        },
+      },
+      60 * 1000,
+    );
+
+    const outsidersPromise = fetchSWR<any>(
+      cacheKeyOutsiders(),
+      () => CreditsService.getOutsiders() as Promise<any>,
+      {
+        onCached: applyOutsiders,
+        onFresh: applyOutsiders,
+      },
+      60 * 1000,
+    );
+
+    await Promise.all([peoplePromise, outsidersPromise]);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => {

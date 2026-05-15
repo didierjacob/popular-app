@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
 import { getTrendDirection, hasGlowEffect } from "../utils/trendUtils";
+import { fetchSWR } from "../services/cacheService";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -72,21 +73,34 @@ export default function List() {
   }, [params.category]);
 
   const load = useCallback(async () => {
-    try {
-      const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
-      const countryParam = regionCode ? `&country=${regionCode}` : '';
-      const data = await apiGet<Person[]>(`/people?limit=300${countryParam}`);
-      // Defensive filter: exclude any outsider that slipped through backend filter
-      const cleaned = data.filter((p: Person) =>
-        p.category !== "outsider" && p.source !== "self_boosted"
+    const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
+    const countryParam = regionCode ? `&country=${regionCode}` : '';
+    const cacheKey = `people_list_300_${regionCode || 'ALL'}`;
+
+    const applyData = (data: any) => {
+      if (!Array.isArray(data)) return;
+      const cleaned = (data as Person[]).filter((p) =>
+        (p as any).category !== "outsider" && (p as any).source !== "self_boosted"
       );
       setPeople(cleaned);
-    } catch (error) {
-      console.error("Failed to load top 300:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    };
+
+    await fetchSWR<Person[]>(
+      cacheKey,
+      () => apiGet<Person[]>(`/people?limit=300${countryParam}`),
+      {
+        onCached: (data) => {
+          applyData(data);
+          setLoading(false);
+        },
+        onFresh: applyData,
+        onError: (e) => console.error("Failed to load top 300:", e),
+      },
+      60 * 1000,
+    );
+
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {

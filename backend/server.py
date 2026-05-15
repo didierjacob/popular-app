@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -1914,17 +1915,32 @@ async def get_outsiders(
                 {"is_seed": True, "seed_active": True}, # Active seeds only
             ],
         }
-        active_boosts = await db.active_boosts.find(boost_filter).sort("start_time", -1).to_list(length=100)
+        # Aggregation pipeline : remplace l'ancien pattern N+1
+        # (1 find + 100 find_one) par 1 seule round-trip Mongo avec $lookup.
+        # Gain attendu sur Render : 8s -> ~1-2s pour /api/outsiders.
+        pipeline: List[Dict[str, Any]] = [
+            {"$match": boost_filter},
+            {"$sort": {"start_time": -1}},
+            {"$limit": 100},
+            {
+                "$lookup": {
+                    "from": "persons",
+                    "localField": "person_id",
+                    "foreignField": "_id",
+                    "as": "person",
+                }
+            },
+            {"$unwind": {"path": "$person", "preserveNullAndEmptyArrays": False}},
+        ]
+        boosts_with_person = await db.active_boosts.aggregate(pipeline).to_list(length=100)
 
         golden_outsiders = []
         regular_outsiders = []
 
         user_country = country.upper().strip() if country else None
 
-        for boost in active_boosts:
-            person = await db.persons.find_one({"_id": boost["person_id"]})
-            if not person:
-                continue
+        for boost in boosts_with_person:
+            person = boost["person"]
 
             # Country restriction: outsiders visible only to same-country users
             if user_country:
@@ -5298,6 +5314,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+# Compression gzip pour les payloads JSON > 1KB (typiquement /api/people et
+# /api/outsiders). Économie ~70% sur les réponses listes — gain perçu majeur
+# côté client mobile sur 4G/5G.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Configure logging
 logging.basicConfig(
