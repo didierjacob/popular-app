@@ -386,5 +386,25 @@
     "already_exists": "Diese Persönlichkeit existiert bereits auf Popularoo.",
     "already_pending": "Diese Persönlichkeit wartet bereits auf Validierung.",
     "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut."
+  },
+  "report": {
+    "title": "Outsider melden",
+    "subtitle": "Für: {{name}}",
+    "reasons": {
+      "inappropriate": "Unangemessener Inhalt",
+      "fake": "Falsche Identität",
+      "offensive": "Beleidigende Sprache",
+      "spam": "Spam oder Wiederholung",
+      "other": "Anderer Grund"
+    },
+    "commentPlaceholder": "Beschreibe das Problem (optional)",
+    "cancel": "Abbrechen",
+    "submit": "Meldung senden",
+    "successTitle": "Danke",
+    "successMessage": "Deine Meldung wurde registriert. Unser Team wird sie prüfen.",
+    "alreadyReportedTitle": "Bereits gemeldet",
+    "alreadyReportedMessage": "Du hast dieses Profil bereits in den letzten 24 Stunden gemeldet.",
+    "errorTitle": "Fehler",
+    "errorMessage": "Etwas ist schiefgelaufen. Bitte versuche es gleich erneut."
   }
 }

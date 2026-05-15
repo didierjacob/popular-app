@@ -4,10 +4,12 @@ import {
   ActivityIndicator,
   Animated,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   Easing,
@@ -21,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { fetchWithCache } from "../services/cacheService";
+import { CreditsService } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
 
@@ -297,6 +300,14 @@ export default function Person() {
   const [voteConfig, setVoteConfig] = useState<VirtualVoteConfig | null>(null);
   const recentNamesRef = useRef<string[]>([]);
 
+  // Report modal state (Lot 5 sub-task B)
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState<
+    "inappropriate" | "fake" | "offensive" | "spam" | "other" | null
+  >(null);
+  const [reportComment, setReportComment] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
   // Index pulsing animation
   const indexPulse = useRef(new Animated.Value(1)).current;
 
@@ -351,6 +362,35 @@ export default function Person() {
   const liveLikesDelta = useRef(0);
   const liveDislikesDelta = useRef(0);
   const isOutsider = person?.source === "self_boosted" || person?.category === "outsider";
+  // Lot 5 sub-task B: report button shown ONLY for self_boosted profiles (strict),
+  // because backend /api/report-outsider rejects category-only outsiders with 400.
+  const canReport = person?.source === "self_boosted";
+
+  const closeReportModal = useCallback(() => {
+    setReportModalVisible(false);
+    setReportReason(null);
+    setReportComment("");
+  }, []);
+
+  const submitReport = useCallback(async () => {
+    if (!reportReason || !id || reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      await CreditsService.reportOutsider(id, reportReason, reportComment);
+      closeReportModal();
+      Alert.alert(t("report.successTitle"), t("report.successMessage"));
+    } catch (e: any) {
+      if (e?.status === 429) {
+        closeReportModal();
+        Alert.alert(t("report.alreadyReportedTitle"), t("report.alreadyReportedMessage"));
+      } else {
+        // Keep modal open + preserve user input on generic errors
+        Alert.alert(t("report.errorTitle"), t("report.errorMessage"));
+      }
+    } finally {
+      setReportSubmitting(false);
+    }
+  }, [reportReason, reportComment, id, reportSubmitting, t, closeReportModal]);
 
   // Vague 1: Fetch virtual vote config from backend (once per page load)
   useEffect(() => {
@@ -622,7 +662,25 @@ export default function Person() {
                 <Text style={styles.backArrow}>{"<"}</Text>
                 <Text style={styles.homeText}>{t("person.home")}</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>{name}</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.title} numberOfLines={2}>
+                  {name}
+                </Text>
+                {canReport && (
+                  <TouchableOpacity
+                    onPress={() => setReportModalVisible(true)}
+                    style={styles.reportBtn}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel={t("report.title")}
+                  >
+                    <Ionicons
+                      name="flag-outline"
+                      size={22}
+                      color={PALETTE.subtext}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
               <Text style={styles.meta}>
                 {isOutsider
                   ? `${formatNumber(displayLikes)} supporters`
@@ -899,6 +957,97 @@ export default function Person() {
           fadeOut={true}
         />
       )}
+
+      {/* Report Outsider Modal — Lot 5 sub-task B */}
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!reportSubmitting) closeReportModal();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t("report.title")}</Text>
+            <Text style={styles.modalSubtitle}>
+              {t("report.subtitle", { name })}
+            </Text>
+            <View style={styles.reasonChips}>
+              {(
+                ["inappropriate", "fake", "offensive", "spam", "other"] as const
+              ).map((r) => {
+                const selected = reportReason === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[
+                      styles.reasonChip,
+                      selected && styles.reasonChipSelected,
+                    ]}
+                    onPress={() => setReportReason(r)}
+                    activeOpacity={0.7}
+                    disabled={reportSubmitting}
+                  >
+                    <Text
+                      style={[
+                        styles.reasonChipText,
+                        selected && styles.reasonChipTextSelected,
+                      ]}
+                    >
+                      {t(`report.reasons.${r}`)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              style={styles.commentInput}
+              placeholder={t("report.commentPlaceholder")}
+              placeholderTextColor={PALETTE.subtext}
+              value={reportComment}
+              onChangeText={setReportComment}
+              multiline
+              maxLength={500}
+              editable={!reportSubmitting}
+            />
+            <Text style={styles.commentCounter}>
+              {reportComment.length}/500
+            </Text>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={closeReportModal}
+                disabled={reportSubmitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalBtnCancelText}>
+                  {t("report.cancel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalBtn,
+                  styles.modalBtnSubmit,
+                  (!reportReason || reportSubmitting) &&
+                    styles.modalBtnSubmitDisabled,
+                ]}
+                onPress={submitReport}
+                disabled={!reportReason || reportSubmitting}
+                activeOpacity={0.7}
+              >
+                {reportSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalBtnSubmitText}>
+                    {t("report.submit")}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -933,11 +1082,21 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginRight: 2,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   title: {
     color: PALETTE.text,
     fontSize: 26,
     fontWeight: "700",
     letterSpacing: -0.5,
+    flex: 1,
+  },
+  reportBtn: {
+    padding: 4,
   },
   meta: {
     color: PALETTE.subtext,
@@ -1168,5 +1327,112 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  // Report Modal — Lot 5 sub-task B
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: PALETTE.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  modalTitle: {
+    color: PALETTE.text,
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  reasonChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  reasonChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: "transparent",
+  },
+  reasonChipSelected: {
+    backgroundColor: PALETTE.green,
+    borderColor: PALETTE.green,
+  },
+  reasonChipText: {
+    color: PALETTE.text,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  reasonChipTextSelected: {
+    color: "#fff",
+  },
+  commentInput: {
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    borderRadius: 10,
+    padding: 12,
+    color: PALETTE.text,
+    fontSize: 14,
+    textAlignVertical: "top",
+    backgroundColor: "rgba(0,0,0,0.15)",
+  },
+  commentCounter: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 46,
+  },
+  modalBtnCancel: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  modalBtnCancelText: {
+    color: PALETTE.subtext,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  modalBtnSubmit: {
+    backgroundColor: PALETTE.green,
+  },
+  modalBtnSubmitDisabled: {
+    opacity: 0.4,
+  },
+  modalBtnSubmitText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

@@ -319,6 +319,39 @@ export class CreditsService {
     return await response.json();
   }
 
+  /**
+   * Report an outsider profile for moderation review.
+   * Uses popularity_device_id (header X-Device-ID) for backend anti-spam (1/24h).
+   * Throws Error with .status === 429 when already reported in the last 24h.
+   */
+  static async reportOutsider(
+    outsiderPersonId: string,
+    reason: 'spam' | 'inappropriate' | 'fake' | 'offensive' | 'other',
+    comment: string,
+  ): Promise<{ success: boolean; report_id?: string }> {
+    const DEVICE_KEY = 'popularity_device_id';
+    let deviceId = await AsyncStorage.getItem(DEVICE_KEY);
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      await AsyncStorage.setItem(DEVICE_KEY, deviceId);
+    }
+    const response = await fetch(API('/report-outsider'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+      body: JSON.stringify({
+        outsider_person_id: outsiderPersonId,
+        reason,
+        comment: (comment || '').slice(0, 500),
+      }),
+    });
+    if (!response.ok) {
+      const err: any = new Error(`Report failed (${response.status})`);
+      err.status = response.status;
+      throw err;
+    }
+    return await response.json();
+  }
+
   static async updateSocialLinks(boostId: string, links: SocialLinks): Promise<any> {
     try {
       const response = await fetch(API(`/outsiders/${boostId}/social-links`), {

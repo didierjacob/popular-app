@@ -386,5 +386,25 @@
     "already_exists": "Cette personnalité existe déjà sur Popularoo.",
     "already_pending": "Cette personnalité est déjà en attente de validation.",
     "queue_error": "Une erreur s'est produite. Réessayez dans un instant."
+  },
+  "report": {
+    "title": "Signaler un Outsider",
+    "subtitle": "Pour : {{name}}",
+    "reasons": {
+      "inappropriate": "Contenu inapproprié",
+      "fake": "Fausse identité",
+      "offensive": "Propos offensants",
+      "spam": "Spam ou répétition",
+      "other": "Autre raison"
+    },
+    "commentPlaceholder": "Décrivez le problème (facultatif)",
+    "cancel": "Annuler",
+    "submit": "Envoyer le signalement",
+    "successTitle": "Merci",
+    "successMessage": "Votre signalement a été enregistré. Notre équipe va l'examiner.",
+    "alreadyReportedTitle": "Déjà signalé",
+    "alreadyReportedMessage": "Vous avez déjà signalé ce profil dans les dernières 24 heures.",
+    "errorTitle": "Erreur",
+    "errorMessage": "Une erreur s'est produite. Réessayez dans un instant."
   }
 }
