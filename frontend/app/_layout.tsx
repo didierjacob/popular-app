@@ -113,6 +113,15 @@ export default function RootLayout() {
           href: null,
         }}
       />
+      {/* ====================================================================
+          Bull Run + Daily Run : DESACTIVES EN V1 (App Store release).
+          Tabs gardes ici avec href:null pour neutraliser l'auto-decouverte
+          d'expo-router (sinon les fichiers .tsx du dossier app/ apparaissent
+          comme tabs visibles par defaut). Les ecrans eux-memes sont des
+          placeholders qui redirigent vers Home — voir doc en tete de
+          frontend/app/bullrun.tsx et frontend/app/dailyrun.tsx pour la
+          procedure de reactivation V2.
+          ==================================================================== */}
       <Tabs.Screen
         name="dailyrun"
         options={{
