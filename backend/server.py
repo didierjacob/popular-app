@@ -7451,6 +7451,163 @@ async def admin_reject_category_review(review_id: str, request: Request):
     return {"success": True, "review_id": review_id, "status": "rejected"}
 
 
+@api_router.get("/admin/debug-category-review-single")
+async def admin_debug_category_review_single(
+    request: Request,
+    person_id: str = "",
+    name: str = "",
+):
+    """
+    Diagnostique temporaire (Lot 4) : reproduit le pipeline de run-category-review
+    pour UN seul profil et renvoie chaque étape en JSON. Lecture seule, n'écrit rien.
+    Usage : ?person_id=<oid>  OU  ?name=Didier+Deschamps
+    """
+    _require_admin_auth(request)
+    import httpx as _httpx
+    from candidate_detection import infer_category
+
+    # --- 1. Lookup person --------------------------------------------------
+    person = None
+    if person_id:
+        try:
+            person = await db.persons.find_one({"_id": ObjectId(person_id)})
+        except Exception as exc:
+            return {"step": "lookup_by_id", "error": f"invalid ObjectId: {exc}"}
+    elif name:
+        person = await db.persons.find_one(
+            {"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}
+        )
+    if not person:
+        return {"step": "lookup", "error": "person not found", "person_id": person_id, "name": name}
+
+    full_name = person.get("name", "")
+    current_cat = person.get("category", "other")
+    person_source = person.get("source", "")
+    person_approved = person.get("approved", None)
+
+    # --- 2. Mongo filter check (the same filter as run-category-review) -----
+    matches_filter = (
+        person_source != "self_boosted"
+        and current_cat != "outsider"
+    )
+
+    # --- 3. Clean name + Wikipedia fetch ------------------------------------
+    clean_name, suffix = _clean_name_parentheses(full_name)
+    title = clean_name.replace(" ", "_")
+
+    wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}"
+    wiki_status = None
+    wiki_description = ""
+    wiki_error = None
+    wiki_payload_keys: list = []
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                wiki_url,
+                headers={"User-Agent": "Popularoo/1.0"},
+                follow_redirects=True,
+            )
+            wiki_status = resp.status_code
+            if resp.status_code == 200:
+                data = resp.json()
+                wiki_payload_keys = sorted(list(data.keys()))
+                wiki_description = data.get("description", "")
+    except Exception as exc:
+        wiki_error = f"{type(exc).__name__}: {exc}"
+
+    # --- 4. infer_category (same path as run-category-review) ---------------
+    suggested_cat, confidence = infer_category(wiki_description)
+
+    would_flag = (
+        bool(wiki_description)
+        and suggested_cat != current_cat
+        and suggested_cat != "other"
+    )
+
+    # --- 5. Existing review (read only) -------------------------------------
+    pending_existing = await db.category_reviews.find_one({
+        "person_id": person["_id"],
+        "status": "pending",
+    })
+    pending_existing_summary = None
+    if pending_existing:
+        pending_existing_summary = {
+            "id": str(pending_existing["_id"]),
+            "current_category": pending_existing.get("current_category"),
+            "suggested_category": pending_existing.get("suggested_category"),
+            "created_at": pending_existing.get("created_at").isoformat()
+            if pending_existing.get("created_at") else None,
+        }
+
+    # All reviews for this person, any status (debug context)
+    all_reviews = await db.category_reviews.find(
+        {"person_id": person["_id"]}
+    ).sort("created_at", -1).to_list(20)
+    all_reviews_summary = [
+        {
+            "id": str(r["_id"]),
+            "status": r.get("status"),
+            "current_category": r.get("current_category"),
+            "suggested_category": r.get("suggested_category"),
+            "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+        }
+        for r in all_reviews
+    ]
+
+    # --- 6. Decision branch (mirrors run-category-review logic) -------------
+    if not would_flag:
+        decision = "skip_not_a_divergence"
+        decision_reason = (
+            "description empty" if not wiki_description
+            else "suggested == current" if suggested_cat == current_cat
+            else "suggested == 'other'"
+        )
+    elif not pending_existing:
+        decision = "would_insert_new"
+        decision_reason = "no pending review exists yet"
+    elif pending_existing.get("suggested_category") != suggested_cat:
+        decision = "would_update_existing"
+        decision_reason = (
+            f"pending review exists with suggestion="
+            f"{pending_existing.get('suggested_category')}, new suggestion={suggested_cat}"
+        )
+    else:
+        decision = "noop_already_pending_identical"
+        decision_reason = (
+            "pending review with SAME suggested_category already exists "
+            "→ divergences counter NOT incremented by run-category-review"
+        )
+
+    return {
+        "person": {
+            "id": str(person["_id"]),
+            "name": full_name,
+            "current_category": current_cat,
+            "source": person_source,
+            "approved": person_approved,
+        },
+        "matches_run_category_review_filter": matches_filter,
+        "wikipedia": {
+            "url": wiki_url,
+            "clean_name": clean_name,
+            "suffix_stripped": suffix,
+            "status_code": wiki_status,
+            "payload_keys": wiki_payload_keys,
+            "description": wiki_description,
+            "error": wiki_error,
+        },
+        "infer_category": {
+            "suggested_category": suggested_cat,
+            "confidence": confidence,
+        },
+        "would_flag_as_divergence": would_flag,
+        "existing_pending_review": pending_existing_summary,
+        "all_reviews_history": all_reviews_summary,
+        "decision": decision,
+        "decision_reason": decision_reason,
+    }
+
+
 # ==================== SESSION 3 — LOT 2: Dashboard Stats ====================
 
 @api_router.get("/admin/dashboard-stats")
