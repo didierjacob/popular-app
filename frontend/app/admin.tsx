@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -151,6 +152,42 @@ interface Candidate {
 const CANDIDATE_CATEGORIES = ['culture', 'sport', 'politics', 'business', 'influencer', 'other'] as const;
 type CandidateCategory = typeof CANDIDATE_CATEGORIES[number];
 
+// Vague 4 sous-tache 5 — Ajout manuel (POST /admin/propose-celebrity)
+interface ManualAddLastCreation {
+  name: string;            // canonical name renvoye par Wikipedia
+  category: CandidateCategory;
+  popularoo_index: number;
+  popularity_external_score: number;
+  wikipedia_langs: string[];
+}
+
+// Mapping FR des codes d'erreur retournes par /admin/propose-celebrity avec success=false.
+const MANUAL_ADD_ERROR_FR: Record<string, string> = {
+  already_exists:         'Cette celebrite existe deja dans la base.',
+  blocked:                'Ce nom est dans la blocklist (deces confirme precedemment) — impossible a ajouter.',
+  wikipedia_not_found:    'Aucune page Wikipedia/Wikidata trouvee pour ce nom. Verifie l\'orthographe (Wikipedia anglais d\'abord).',
+  deceased:               'Personne marquee decedee dans Wikidata — utilise l\'onglet Decedes pour gerer.',
+  low_confidence:         'Visibilite Wikipedia insuffisante (score de confiance < 65). Attends que la personne ait plus de couverture.',
+  wikipedia_check_failed: 'Echec de la verification Wikipedia. Reessaie dans quelques secondes.',
+};
+
+// Validation client-side du nom (miroir des verifs server.py /admin/propose-celebrity ligne 7727-7740)
+// Retourne null si OK, ou un message FR si invalide.
+function validateManualAddName(raw: string): string | null {
+  const name = raw.trim();
+  if (!name) return 'Le nom est obligatoire.';
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return 'Le nom doit contenir au moins 2 mots (prenom + nom).';
+  if (/\d/.test(name)) return 'Le nom ne doit pas contenir de chiffres.';
+  for (const w of words) {
+    // Acronymes all-caps non purement alphabetiques (ex: "X.AE", "U2S")
+    if (w.length > 1 && w === w.toUpperCase() && !/^[A-Za-zÀ-ÿ]+$/.test(w)) {
+      return `Acronyme suspect dans le nom : "${w}".`;
+    }
+  }
+  return null;
+}
+
 // Vague 4 sous-tache 2 — Signalements Outsiders
 // La reponse backend est groupee par outsider_person_id (1 ligne = 1 Outsider, signalements imbriques).
 type OutsiderReportStatus = 'pending' | 'ignored' | 'warned' | 'deleted';
@@ -177,12 +214,27 @@ interface OutsiderReportGroup {
 
 type OutsiderReportsFilter = 'pending' | 'all';
 
+// Vague 4 sous-tache 3 — Decedes (deceased_queue + 5 endpoints /admin/deceased*)
+// Note divergence brief vs backend: confirm DESACTIVE le profil (is_deceased=true, approved=false,
+// deactivated_reason=deceased) + annule Daily Runs actifs + ajoute slug a seed_blocklist. Pas de
+// suppression DB. Reject marque la queue 'false_positive', le profil reste actif et publie.
+interface DeceasedItem {
+  id: string;
+  person_id: string;
+  name: string;
+  category: string;
+  death_date: string; // Wikidata time "+2024-11-28T00:00:00Z" OU "unknown" / "unknown_date" / ""
+  wikidata_id: string | null;
+  detected_at: string | null;
+  status: string;
+}
+
 type Tab =
   | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
   | 'activity'        // existant
   | 'candidates'      // placeholder, sous-tache 1
   | 'outsider_reports'// placeholder, sous-tache 2
-  | 'manual_add'      // placeholder, sous-tache 3
+  | 'manual_add'      // sous-tache 5 (creation immediate via /admin/propose-celebrity)
   | 'deceased'        // placeholder, sous-tache 4
   | 'categories'      // placeholder, sous-tache 5
   | 'moderation'      // existant
@@ -252,6 +304,22 @@ export default function Admin() {
   const [outsiderReportsLoading, setOutsiderReportsLoading] = useState(false);
   const [outsiderReportsError, setOutsiderReportsError] = useState<string | null>(null);
   const [outsiderReportsFilter, setOutsiderReportsFilter] = useState<OutsiderReportsFilter>('pending');
+
+  // Vague 4 sous-tache 3 — Decedes
+  const [deceasedItems, setDeceasedItems] = useState<DeceasedItem[]>([]);
+  const [deceasedLoading, setDeceasedLoading] = useState(false);
+  const [deceasedError, setDeceasedError] = useState<string | null>(null);
+  // Loading dedie pour le bouton "Lancer la detection" (job lourd cote serveur, rate-limit 2/60min).
+  const [deceasedRunChecking, setDeceasedRunChecking] = useState(false);
+  // Loading dedie pour le bouton "Confirmer tout" (boucle backend sur N profils).
+  const [deceasedBulkConfirming, setDeceasedBulkConfirming] = useState(false);
+
+  // Vague 4 sous-tache 5 — Ajout manuel
+  const [manualAddName, setManualAddName] = useState('');
+  const [manualAddCategory, setManualAddCategory] = useState<CandidateCategory>('culture');
+  const [manualAddLoading, setManualAddLoading] = useState(false);
+  const [manualAddError, setManualAddError] = useState<string | null>(null);
+  const [manualAddLast, setManualAddLast] = useState<ManualAddLastCreation | null>(null);
 
   const [adminToken, setAdminToken] = useState<string>('');
 
@@ -785,6 +853,280 @@ export default function Admin() {
     );
   }, [adminFetch]);
 
+  // ---------- Vague 4 sous-tache 3 — Decedes ----------
+  // Section sensible (mort de personnes reelles): tone neutre, pas de rouge, pas d'emojis.
+  // Confirm = desactivation profil + cancel Daily Runs + slug -> seed_blocklist (irreversible).
+  // Reject = false_positive (profil reste vivant).
+  const loadDeceased = useCallback(async () => {
+    setDeceasedLoading(true);
+    setDeceasedError(null);
+    try {
+      const res = await adminFetch(API('/admin/deceased-queue?status=pending'));
+      if (res.ok) {
+        const data: DeceasedItem[] = await res.json();
+        setDeceasedItems(Array.isArray(data) ? data : []);
+      } else if (res.status !== 403) {
+        setDeceasedError('Impossible de charger la file des deces');
+      }
+    } catch {
+      setDeceasedError('Erreur reseau');
+    } finally {
+      setDeceasedLoading(false);
+    }
+  }, [adminFetch]);
+
+  useEffect(() => {
+    if (authenticated && currentTab === 'deceased') {
+      loadDeceased();
+    }
+  }, [authenticated, currentTab, loadDeceased]);
+
+  const deceasedConfirm = useCallback((item: DeceasedItem) => {
+    Alert.alert(
+      'Confirmer le deces',
+      `Confirmer le deces de ${item.name} ?\n\nCette action :\n` +
+        `• Desactive le profil (retire des classements)\n` +
+        `• Annule les Daily Runs actifs lies a cette personne\n` +
+        `• Ajoute le nom a la blocklist permanente (anti-reinsertion)\n\n` +
+        `Action irreversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer le deces',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/deceased/${item.id}/confirm`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setDeceasedItems((prev) => prev.filter((x) => x.id !== item.id));
+                Alert.alert('Deces confirme', `${item.name} a ete retire des classements.`);
+              } else {
+                let msg = 'Echec de la confirmation';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const deceasedReject = useCallback((item: DeceasedItem) => {
+    Alert.alert(
+      'Faux positif',
+      `Marquer la detection de ${item.name} comme faux positif ?\n\nLe profil reste actif et publie.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Faux positif',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/deceased/${item.id}/reject`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setDeceasedItems((prev) => prev.filter((x) => x.id !== item.id));
+                Alert.alert('Marque faux positif', `Detection de ${item.name} ignoree.`);
+              } else {
+                let msg = 'Echec';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const deceasedConfirmAll = useCallback(() => {
+    const count = deceasedItems.length;
+    if (count === 0) return;
+    Alert.alert(
+      'Confirmer tous les deces',
+      `Confirmer le deces de ${count} profil${count > 1 ? 's' : ''} detecte${count > 1 ? 's' : ''} ?\n\n` +
+        `Chaque profil sera desactive et ses Daily Runs actifs annules. Tous les noms seront ajoutes a la blocklist permanente.\n\n` +
+        `Action irreversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: `Confirmer (${count})`,
+          onPress: async () => {
+            setDeceasedBulkConfirming(true);
+            try {
+              const res = await adminFetch(API('/admin/deceased/confirm-all'), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const confirmed = Number(data?.confirmed ?? 0);
+                setDeceasedItems([]);
+                Alert.alert('Deces confirmes', `${confirmed} profil${confirmed > 1 ? 's' : ''} retire${confirmed > 1 ? 's' : ''} des classements.`);
+              } else {
+                let msg = 'Echec';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            } finally {
+              setDeceasedBulkConfirming(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, deceasedItems.length]);
+
+  const deceasedRunCheck = useCallback(() => {
+    Alert.alert(
+      'Lancer la detection',
+      `Le serveur va interroger Wikidata pour toutes les personnalites (sweep complete). ` +
+        `L'operation peut prendre plusieurs minutes. La file sera rafraichie automatiquement au retour.\n\n` +
+        `Lancer ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Lancer',
+          onPress: async () => {
+            setDeceasedRunChecking(true);
+            try {
+              const res = await adminFetch(API('/admin/run-deceased-check'), {
+                method: 'POST',
+              });
+              if (res.status === 429) {
+                Alert.alert(
+                  'Detection deja lancee recemment',
+                  'Limite atteinte (2 lancements par heure). Reessaie dans environ une heure.'
+                );
+                return;
+              }
+              if (res.ok) {
+                const data = await res.json();
+                const checked = Number(data?.checked ?? 0);
+                const detected = Number(data?.detected ?? 0);
+                Alert.alert(
+                  'Detection terminee',
+                  `${checked} profil${checked > 1 ? 's' : ''} verifie${checked > 1 ? 's' : ''}, ${detected} deces detecte${detected > 1 ? 's' : ''}.`
+                );
+                // Refetch queue pour voir les nouveaux items
+                loadDeceased();
+              } else {
+                let msg = 'Echec du lancement';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            } finally {
+              setDeceasedRunChecking(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, loadDeceased]);
+
+  // ---------- Vague 4 sous-tache 5 — Soumission ajout manuel ----------
+  // Cree immediatement une celebrite via /admin/propose-celebrity (visible=true, source=admin_manual).
+  // Pipeline backend: validation Wikidata (humain vivant) + confidence ≥ 65 + external score + PI.
+  const manualAddSubmit = useCallback(() => {
+    const trimmed = manualAddName.trim();
+    // Validation client en miroir du backend, evite un aller-retour 400.
+    const localErr = validateManualAddName(trimmed);
+    if (localErr) {
+      setManualAddError(localErr);
+      return;
+    }
+    setManualAddError(null);
+
+    Alert.alert(
+      'Creer cette celebrite ?',
+      `"${trimmed}" sera publie(e) IMMEDIATEMENT en categorie "${manualAddCategory}".\n\nPipeline auto: verification Wikidata (humain vivant, non decede), score externe Wikipedia, calcul du Popularoo Index.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Creer',
+          onPress: async () => {
+            setManualAddLoading(true);
+            setManualAddError(null);
+            try {
+              const res = await adminFetch(API('/admin/propose-celebrity'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: trimmed, category: manualAddCategory }),
+              });
+
+              if (res.status === 403) {
+                // adminFetch a deja gere la deconnexion + alerte. On sort proprement.
+                return;
+              }
+
+              // 4xx (validation backend) -> {detail: string}
+              if (!res.ok) {
+                let detail = 'Echec de la creation.';
+                try {
+                  const data = await res.json();
+                  if (data?.detail) detail = String(data.detail);
+                } catch {}
+                setManualAddError(detail);
+                return;
+              }
+
+              const data = await res.json();
+              if (data?.success === false) {
+                const code: string = data?.error || 'unknown';
+                const fr = MANUAL_ADD_ERROR_FR[code] || data?.message || `Echec (${code}).`;
+                setManualAddError(fr);
+                return;
+              }
+
+              // Succes: capture le canonical name + index + score + langs renvoyes par le backend.
+              const canonical: string = data?.name || trimmed;
+              const last: ManualAddLastCreation = {
+                name: canonical,
+                category: (data?.category as CandidateCategory) || manualAddCategory,
+                popularoo_index: Number(data?.popularoo_index ?? 0),
+                popularity_external_score: Number(data?.popularity_external_score ?? 0),
+                wikipedia_langs: Array.isArray(data?.wikipedia_langs) ? data.wikipedia_langs : [],
+              };
+              setManualAddLast(last);
+              setManualAddName(''); // reset uniquement le nom; on garde la categorie (probable usage en serie)
+
+              // Toast confirmation
+              Alert.alert(
+                '✅ Cree',
+                `${canonical} cree(e) — PI ${last.popularoo_index.toFixed(1)}.`,
+              );
+
+              // Refresh des contextes impactes: dashboard-stats (total_celebrities, category_breakdown,
+              // top5) + zone Candidats (publies recents). Aucun impact attendu sur la pending queue.
+              loadData();
+              loadCandidates();
+            } catch (e) {
+              setManualAddError('Erreur reseau. Verifie ta connexion et reessaie.');
+            } finally {
+              setManualAddLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, manualAddName, manualAddCategory, loadData, loadCandidates]);
+
+  // Le recap de la derniere creation est ephemere: 3s puis disparait (brief Didier).
+  useEffect(() => {
+    if (!manualAddLast) return;
+    const t = setTimeout(() => setManualAddLast(null), 3000);
+    return () => clearTimeout(t);
+  }, [manualAddLast]);
+
   // ---------- Actions zone 1 (pending queue) ----------
   const pendingForceValidate = useCallback((entry: PendingQueueEntry) => {
     Alert.alert(
@@ -1142,11 +1484,31 @@ export default function Admin() {
             )}
 
             {currentTab === 'manual_add' && (
-              <PlaceholderSection tab="manual_add" />
+              <ManualAddSection
+                name={manualAddName}
+                onNameChange={setManualAddName}
+                category={manualAddCategory}
+                onCategoryChange={setManualAddCategory}
+                loading={manualAddLoading}
+                error={manualAddError}
+                lastCreation={manualAddLast}
+                onSubmit={manualAddSubmit}
+              />
             )}
 
             {currentTab === 'deceased' && (
-              <PlaceholderSection tab="deceased" />
+              <DeceasedSection
+                items={deceasedItems}
+                loading={deceasedLoading}
+                error={deceasedError}
+                runChecking={deceasedRunChecking}
+                bulkConfirming={deceasedBulkConfirming}
+                onRefresh={loadDeceased}
+                onConfirm={deceasedConfirm}
+                onReject={deceasedReject}
+                onConfirmAll={deceasedConfirmAll}
+                onRunCheck={deceasedRunCheck}
+              />
             )}
 
             {currentTab === 'categories' && (
@@ -2298,6 +2660,349 @@ function OutsiderReportsSection({
   );
 }
 
+// ---------- Vague 4 sous-tache 5 — Section Ajout manuel ----------
+// UI focalisee sur /admin/propose-celebrity (creation immediate, validation Wikidata pipeline).
+// Skip volontaire des endpoints /propose-celebrity-to-queue (legacy, doublon visuel avec onglet
+// Candidats) et /add-celebrities-batch (seeding marketing avec votes random, pas un outil admin).
+
+interface ManualAddSectionProps {
+  name: string;
+  onNameChange: (v: string) => void;
+  category: CandidateCategory;
+  onCategoryChange: (c: CandidateCategory) => void;
+  loading: boolean;
+  error: string | null;
+  lastCreation: ManualAddLastCreation | null;
+  onSubmit: () => void;
+}
+
+function ManualAddSection({
+  name,
+  onNameChange,
+  category,
+  onCategoryChange,
+  loading,
+  error,
+  lastCreation,
+  onSubmit,
+}: ManualAddSectionProps) {
+  const trimmed = name.trim();
+  const localErr = trimmed ? validateManualAddName(trimmed) : null;
+  // Le bouton est disabled si: chargement en cours, ou input vide, ou validation locale en echec.
+  const disabled = loading || !trimmed || !!localErr;
+
+  return (
+    <View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>➕ Ajout manuel</Text>
+        <Text style={styles.manualAddIntro}>
+          Cree une celebrite IMMEDIATEMENT. Le backend verifie Wikipedia/Wikidata (humain
+          vivant, score de visibilite minimal) puis publie en categorie choisie avec son
+          Popularoo Index initial.
+        </Text>
+
+        <View style={styles.card}>
+          <Text style={styles.manualAddLabel}>Nom complet</Text>
+          <TextInput
+            style={styles.manualAddInput}
+            value={name}
+            onChangeText={onNameChange}
+            placeholder="Ex: Pope Leo XIV"
+            placeholderTextColor={PALETTE.subtext}
+            autoCapitalize="words"
+            autoCorrect={false}
+            editable={!loading}
+          />
+          <Text style={styles.manualAddHelper}>
+            Prenom + nom (2 mots minimum). Pas de chiffres. Orthographe Wikipedia anglais
+            recommandee pour optimiser la detection.
+          </Text>
+
+          <Text style={[styles.manualAddLabel, { marginTop: 16 }]}>Categorie</Text>
+          <View style={styles.manualAddCategoryRow}>
+            {CANDIDATE_CATEGORIES.map((c) => {
+              const active = c === category;
+              return (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => onCategoryChange(c)}
+                  disabled={loading}
+                  style={[
+                    styles.manualAddCategoryChip,
+                    active && styles.manualAddCategoryChipActive,
+                    loading && { opacity: 0.5 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.manualAddCategoryChipText,
+                      active && styles.manualAddCategoryChipTextActive,
+                    ]}
+                  >
+                    {c}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            onPress={onSubmit}
+            disabled={disabled}
+            style={[
+              styles.manualAddSubmitBtn,
+              disabled && styles.manualAddSubmitBtnDisabled,
+            ]}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <>
+                <Ionicons name="flash" size={18} color="#000" />
+                <Text style={styles.manualAddSubmitBtnText}>Creer maintenant</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Erreur (validation locale OU backend) */}
+          {!!(error || localErr) && (
+            <View style={styles.manualAddErrorBox}>
+              <Ionicons name="alert-circle" size={16} color={PALETTE.accent} />
+              <Text style={styles.manualAddErrorText}>{error || localErr}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Recap ephemere (3s) — feedback immediat sur ce que le backend a determine */}
+        {lastCreation && (
+          <View style={styles.manualAddLastCard}>
+            <View style={styles.manualAddLastHeader}>
+              <Ionicons name="checkmark-circle" size={18} color={PALETTE.green} />
+              <Text style={styles.manualAddLastTitle}>Derniere creation</Text>
+            </View>
+            <Text style={styles.manualAddLastName}>{lastCreation.name}</Text>
+            <Text style={styles.manualAddLastMeta}>
+              Categorie: {lastCreation.category} • PI{' '}
+              <Text style={styles.manualAddLastPi}>
+                {lastCreation.popularoo_index.toFixed(1)}
+              </Text>{' '}
+              • Score externe {lastCreation.popularity_external_score.toFixed(1)}
+            </Text>
+            {lastCreation.wikipedia_langs.length > 0 && (
+              <Text style={styles.manualAddLastMeta}>
+                Wikipedia: {lastCreation.wikipedia_langs.join(', ')}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Bloc info permanent en bas: oriente vers les autres flux d'ajout */}
+        <View style={styles.manualAddInfoCard}>
+          <Ionicons name="information-circle-outline" size={18} color={PALETTE.subtext} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.manualAddInfoText}>
+              <Text style={{ fontWeight: '700' }}>Soumettre puis valider plus tard ?</Text>{' '}
+              Les demandes utilisateur passent par la file 24h, gerable depuis l'onglet
+              Candidats.
+            </Text>
+            <Text style={[styles.manualAddInfoText, { marginTop: 6 }]}>
+              <Text style={{ fontWeight: '700' }}>Ajout en masse ?</Text> Reserve aux scripts
+              de seeding (commande backend), pas exposee en UI admin.
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ---------- Vague 4 sous-tache 3 — Section Decedes ----------
+// Tone neutre, professionnel: pas de rouge, pas d'emojis dans les Alerts (mort de personnes
+// reelles). Variants 'neutral' pour les actions; la modale de confirmation porte la gravite.
+
+// Wikidata renvoie le death_date au format ISO precede d'un '+' (ex: "+2024-11-28T00:00:00Z").
+// Cas particuliers: "unknown", "unknown_date" ou chaine vide -> "Date inconnue".
+function formatDeathDateFR(raw: string | null | undefined): string {
+  if (!raw) return 'Date inconnue';
+  if (raw === 'unknown' || raw === 'unknown_date') return 'Date inconnue';
+  const cleaned = raw.startsWith('+') ? raw.slice(1) : raw;
+  const ts = Date.parse(cleaned);
+  if (Number.isNaN(ts)) return 'Date inconnue';
+  const d = new Date(ts);
+  return `${d.getDate()} ${FR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+interface DeceasedSectionProps {
+  items: DeceasedItem[];
+  loading: boolean;
+  error: string | null;
+  runChecking: boolean;
+  bulkConfirming: boolean;
+  onRefresh: () => void;
+  onConfirm: (item: DeceasedItem) => void;
+  onReject: (item: DeceasedItem) => void;
+  onConfirmAll: () => void;
+  onRunCheck: () => void;
+}
+
+function DeceasedSection({
+  items,
+  loading,
+  error,
+  runChecking,
+  bulkConfirming,
+  onRefresh,
+  onConfirm,
+  onReject,
+  onConfirmAll,
+  onRunCheck,
+}: DeceasedSectionProps) {
+  const count = items.length;
+  const bulkDisabled = count === 0 || bulkConfirming || runChecking;
+  const runDisabled = runChecking || bulkConfirming;
+
+  return (
+    <View>
+      {/* Header */}
+      <View style={[styles.section, { paddingBottom: 0 }]}>
+        <View style={styles.candidatesHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Profils decedes a verifier</Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {count} deces a verifier
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Actions header: detection manuelle + bulk confirm */}
+        <View style={styles.deceasedHeaderActions}>
+          <TouchableOpacity
+            onPress={onRunCheck}
+            disabled={runDisabled}
+            style={[styles.deceasedHeaderBtn, runDisabled && { opacity: 0.5 }]}
+            activeOpacity={0.8}
+          >
+            {runChecking ? (
+              <ActivityIndicator color={PALETTE.text} size="small" />
+            ) : (
+              <Ionicons name="search-outline" size={16} color={PALETTE.text} />
+            )}
+            <Text style={styles.deceasedHeaderBtnText}>
+              {runChecking ? 'Detection en cours...' : 'Lancer la detection'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={onConfirmAll}
+            disabled={bulkDisabled}
+            style={[
+              styles.deceasedHeaderBtn,
+              styles.deceasedHeaderBtnAccent,
+              bulkDisabled && { opacity: 0.5 },
+            ]}
+            activeOpacity={0.8}
+          >
+            {bulkConfirming ? (
+              <ActivityIndicator color={PALETTE.text} size="small" />
+            ) : (
+              <Ionicons name="checkmark-done-outline" size={16} color={PALETTE.text} />
+            )}
+            <Text style={styles.deceasedHeaderBtnText}>
+              {bulkConfirming ? 'Confirmation...' : `Confirmer tout${count > 0 ? ` (${count})` : ''}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : error ? (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{error}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <ReviewList<DeceasedItem>
+          data={items}
+          keyExtractor={(it) => it.id}
+          emptyText="Aucun deces a verifier"
+          renderItem={(it) => {
+            const deathLabel = formatDeathDateFR(it.death_date);
+            const detectedRel = formatDateFR(it.detected_at);
+            const catFr = categoryFR(it.category);
+            const wikiHref = it.wikidata_id
+              ? `https://www.wikidata.org/wiki/${it.wikidata_id}`
+              : null;
+            return (
+              <View>
+                <AdminCard
+                  person={{
+                    id: it.id,
+                    name: it.name,
+                    category: it.category,
+                  }}
+                  rightSlot={
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.deceasedDeathDate}>{deathLabel}</Text>
+                      {!!detectedRel && (
+                        <Text style={styles.candidatesDateText}>Detecte {detectedRel}</Text>
+                      )}
+                      <Text style={styles.deceasedCategoryTag}>{catFr}</Text>
+                    </View>
+                  }
+                />
+                <View style={styles.deceasedSourceRow}>
+                  {wikiHref ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(wikiHref).catch(() => {})}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={styles.deceasedSourceLink}>
+                        Source : Wikidata {it.wikidata_id} (P570) ↗
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.deceasedSourceText}>Source : Wikidata P570</Text>
+                  )}
+                </View>
+              </View>
+            );
+          }}
+          actions={(it) => [
+            {
+              label: 'Confirmer le deces',
+              icon: 'checkmark-circle-outline',
+              variant: 'neutral',
+              onPress: () => onConfirm(it),
+            },
+            {
+              label: 'Faux positif',
+              icon: 'close-circle-outline',
+              variant: 'neutral',
+              onPress: () => onReject(it),
+            },
+          ]}
+        />
+      )}
+    </View>
+  );
+}
+
 // Placeholder rendu pour les 5 sections restantes en construction (sous-taches 2-5 a venir).
 function PlaceholderSection({ tab }: { tab: Tab }) {
   const meta = TAB_LABELS[tab];
@@ -2793,5 +3498,211 @@ const styles = StyleSheet.create({
     color: PALETTE.accent,
     fontSize: 11,
     fontWeight: '700',
+  },
+
+  // ---------- Styles Vague 4 sous-tache 3 — Decedes ----------
+  // Tone sobre: gris-bleu pour les boutons header, pas de rouge accent.
+  deceasedHeaderActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  deceasedHeaderBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: PALETTE.bg,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  // Variante "accent neutre" pour le bouton bulk: bordure plus marquee, fond legerement different,
+  // sans rouge. Distingue visuellement l'action de masse sans dramatiser.
+  deceasedHeaderBtnAccent: {
+    backgroundColor: '#1A4A6A',
+    borderColor: '#2A6A8A',
+  },
+  deceasedHeaderBtnText: {
+    color: PALETTE.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  deceasedDeathDate: {
+    color: PALETTE.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  deceasedCategoryTag: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  deceasedSourceRow: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.border,
+  },
+  deceasedSourceLink: {
+    color: '#7AB8E0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  deceasedSourceText: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+  },
+
+  // ---------- Styles Vague 4 sous-tache 5 — Ajout manuel ----------
+  manualAddIntro: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  manualAddLabel: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  manualAddInput: {
+    backgroundColor: PALETTE.bg,
+    borderWidth: 2,
+    borderColor: PALETTE.border,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    color: PALETTE.text,
+    fontSize: 16,
+  },
+  manualAddHelper: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 6,
+    lineHeight: 16,
+  },
+  manualAddCategoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  manualAddCategoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.bg,
+  },
+  manualAddCategoryChipActive: {
+    borderColor: PALETTE.gold,
+    backgroundColor: PALETTE.gold + '22',
+  },
+  manualAddCategoryChipText: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  manualAddCategoryChipTextActive: {
+    color: PALETTE.gold,
+  },
+  manualAddSubmitBtn: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: PALETTE.gold,
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  manualAddSubmitBtnDisabled: {
+    opacity: 0.4,
+  },
+  manualAddSubmitBtnText: {
+    color: '#000',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  manualAddErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: PALETTE.accent + '22',
+    borderLeftWidth: 3,
+    borderLeftColor: PALETTE.accent,
+    borderRadius: 6,
+  },
+  manualAddErrorText: {
+    color: PALETTE.text,
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+  },
+  manualAddLastCard: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: PALETTE.green + '15',
+    borderLeftWidth: 3,
+    borderLeftColor: PALETTE.green,
+  },
+  manualAddLastHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  manualAddLastTitle: {
+    color: PALETTE.green,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  manualAddLastName: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  manualAddLastMeta: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  manualAddLastPi: {
+    color: PALETTE.gold,
+    fontWeight: '700',
+  },
+  manualAddInfoCard: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 14,
+    backgroundColor: PALETTE.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    borderStyle: 'dashed',
+  },
+  manualAddInfoText: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });
