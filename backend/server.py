@@ -7312,7 +7312,7 @@ async def admin_run_category_review(request: Request):
             try:
                 resp = await client.get(
                     f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
-                    headers={"User-Agent": "Popularoo/1.0"},
+                    headers={"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"},
                     follow_redirects=True,
                 )
                 if resp.status_code == 200:
@@ -7504,7 +7504,7 @@ async def admin_debug_category_review_single(
         async with _httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 wiki_url,
-                headers={"User-Agent": "Popularoo/1.0"},
+                headers={"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"},
                 follow_redirects=True,
             )
             wiki_status = resp.status_code
@@ -8023,7 +8023,7 @@ async def admin_propose_celebrity(request: Request):
             title = name.replace(" ", "_")
             resp = await client.get(
                 f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
-                headers={"User-Agent": "Popularoo/1.0"},
+                headers={"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"},
                 follow_redirects=True,
             )
             if resp.status_code == 200:

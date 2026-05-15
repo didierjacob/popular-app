@@ -276,7 +276,7 @@ async def run_monthly_category_review_job(db):
                 try:
                     resp = await client.get(
                         f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
-                        headers={"User-Agent": "Popularoo/1.0"},
+                        headers={"User-Agent": "Popularoo/1.0 (contact@popularoo.com)"},
                         follow_redirects=True,
                     )
                     if resp.status_code == 200:
