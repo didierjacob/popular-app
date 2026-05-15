@@ -7573,6 +7573,140 @@ async def admin_delete_block_user_creation(person_id: str, request: Request):
     return {"success": True, "name": name, "blocked_slug": name_slug}
 
 
+# ==================== VAGUE 4 — Lot 4 sous-tache 1: Pending Candidate Queue (admin) ====================
+
+@api_router.get("/admin/pending-candidate-queue")
+async def admin_list_pending_candidate_queue(request: Request):
+    """
+    Vague 4 — List user_search candidate_queue entries still waiting for the
+    24h auto-validation. These are the real submissions admin can intervene on
+    before the scheduled process_after.
+
+    Filter: source="user_search" AND status="pending".
+    Sort: requested_at ASC (oldest first — they'll be processed first).
+    No limit (the queue stays small in V1).
+    """
+    _require_admin_auth(request)
+
+    items = await db.candidate_queue.find({
+        "source": "user_search",
+        "status": "pending",
+    }).sort("requested_at", 1).to_list(None)
+
+    def _iso(v):
+        return v.isoformat() if hasattr(v, "isoformat") else v
+
+    return [
+        {
+            "id": str(c["_id"]),
+            "name": c.get("name"),
+            "slug": c.get("slug"),
+            "requested_at": _iso(c.get("requested_at")),
+            "process_after": _iso(c.get("process_after")),
+            "requested_by_device_id": c.get("requested_by_device_id"),
+            "pending_vote_value": c.get("pending_vote_value", 0),
+            # validation_error is set when a previous approve attempt failed (rare for pending,
+            # but kept for visibility if a retry left the entry in pending state).
+            "last_error": c.get("validation_error"),
+        }
+        for c in items
+    ]
+
+
+@api_router.post("/admin/candidate-queue/{candidate_id}/force-validate")
+async def admin_force_validate_candidate(candidate_id: str, request: Request):
+    """
+    Vague 4 — Force-validate a pending user_search candidate BEFORE the 24h delay.
+    Re-uses approve_user_search_candidate (sous-tache 6) which handles fresh
+    re-validation, dedup, PI computation, simulated votes, and queue status update.
+    """
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(candidate_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid candidate ID")
+
+    candidate = await db.candidate_queue.find_one({
+        "_id": oid,
+        "source": "user_search",
+        "status": "pending",
+    })
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found or not pending")
+
+    from candidate_detection import approve_user_search_candidate
+    outcome = await approve_user_search_candidate(db, candidate)
+
+    if outcome["status"] == "approved":
+        return {
+            "success": True,
+            "person_id": outcome["person_id"],
+            "initial_pi": outcome["initial_pi"],
+            "category": outcome["category"],
+            "name": outcome["name"],
+        }
+    if outcome["status"] == "duplicate":
+        return {
+            "success": False,
+            "error_code": "duplicate",
+            "error_message": f"'{outcome['name']}' already exists in DB",
+            "person_id": outcome.get("person_id"),
+        }
+    # rejected
+    return {
+        "success": False,
+        "error_code": outcome.get("error_code") or "unknown",
+        "error_message": f"Validation failed: {outcome.get('error_code')}",
+        "name": outcome.get("name"),
+    }
+
+
+@api_router.post("/admin/candidate-queue/{candidate_id}/reject")
+async def admin_reject_candidate_queue(candidate_id: str, request: Request):
+    """
+    Vague 4 — Reject a pending user_search candidate BEFORE the 24h delay.
+    Marks the queue entry as rejected (admin_manual_reject) and adds the slug
+    to the seed_blocklist so the same submission cannot be re-queued.
+    """
+    _require_admin_auth(request)
+
+    try:
+        oid = ObjectId(candidate_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid candidate ID")
+
+    candidate = await db.candidate_queue.find_one({
+        "_id": oid,
+        "source": "user_search",
+        "status": "pending",
+    })
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found or not pending")
+
+    now = now_utc()
+    slug = candidate.get("slug") or slugify(candidate.get("name", ""))
+
+    await db.candidate_queue.update_one(
+        {"_id": oid},
+        {"$set": {
+            "status": "rejected",
+            "validated_at": now,
+            "validation_error": "admin_manual_reject",
+        }},
+    )
+
+    if slug:
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$addToSet": {"seed_blocklist": slug}},
+            upsert=True,
+        )
+
+    logger.info(f"🚫 [Admin] Rejected pending user_search candidate '{candidate.get('name')}' + blocklisted slug='{slug}'")
+    return {"success": True, "candidate_id": candidate_id, "blocked_slug": slug}
+
+
 # ==================== SESSION 3 — LOT 3: Outsider Moderation + Manual Proposal ====================
 
 # ── Family 1: POST /api/admin/propose-celebrity — Manual admin celebrity addition ──

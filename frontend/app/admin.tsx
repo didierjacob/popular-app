@@ -97,6 +97,37 @@ interface Settings {
   maintenance_mode: boolean;
 }
 
+// Vague 4 — Candidats (2 zones)
+// Zone 1: candidate_queue (en attente de validation auto 24h, intervention admin avant echeance)
+interface PendingQueueEntry {
+  id: string;
+  name: string;
+  slug: string | null;
+  requested_at: string | null;
+  process_after: string | null;
+  requested_by_device_id: string | null;
+  pending_vote_value: number;
+  last_error: string | null;
+}
+
+// Zone 2: persons.source=user_search publies recemment (moderation post-publication)
+interface Candidate {
+  id: string;
+  name: string;
+  category: string;
+  category_confidence: string;
+  score: number;
+  popularoo_index: number;
+  popularity_external_score: number;
+  total_votes: number;
+  visible_in_rankings: boolean;
+  wiki_description: string;
+  created_at: string | null;
+}
+
+const CANDIDATE_CATEGORIES = ['culture', 'sport', 'politics', 'business', 'influencer', 'other'] as const;
+type CandidateCategory = typeof CANDIDATE_CATEGORIES[number];
+
 type Tab =
   | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
   | 'activity'        // existant
@@ -153,6 +184,17 @@ export default function Admin() {
   
   // Settings
   const [settings, setSettings] = useState<Settings | null>(null);
+
+  // Vague 4 — Candidats (zone 2: publies recents)
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const [publishedCollapsed, setPublishedCollapsed] = useState(false);
+
+  // Vague 4 — Candidats (zone 1: en attente queue 24h)
+  const [pendingQueue, setPendingQueue] = useState<PendingQueueEntry[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
 
   const [adminToken, setAdminToken] = useState<string>('');
 
@@ -471,6 +513,236 @@ export default function Admin() {
     }
   };
 
+  // ---------- Vague 4 — Candidats ----------
+  const loadCandidates = useCallback(async () => {
+    setCandidatesLoading(true);
+    setCandidatesError(null);
+    try {
+      const res = await adminFetch(API('/admin/user-creations'));
+      if (res.ok) {
+        const data: Candidate[] = await res.json();
+        setCandidates(data);
+      } else if (res.status !== 403) {
+        setCandidatesError('Impossible de charger les candidats');
+      }
+    } catch (e) {
+      setCandidatesError('Erreur reseau');
+    } finally {
+      setCandidatesLoading(false);
+    }
+  }, [adminFetch]);
+
+  const loadPendingQueue = useCallback(async () => {
+    setPendingLoading(true);
+    setPendingError(null);
+    try {
+      const res = await adminFetch(API('/admin/pending-candidate-queue'));
+      if (res.ok) {
+        const data: PendingQueueEntry[] = await res.json();
+        setPendingQueue(data);
+      } else if (res.status !== 403) {
+        setPendingError('Impossible de charger la file en attente');
+      }
+    } catch (e) {
+      setPendingError('Erreur reseau');
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [adminFetch]);
+
+  const loadCandidatesAll = useCallback(() => {
+    loadPendingQueue();
+    loadCandidates();
+  }, [loadPendingQueue, loadCandidates]);
+
+  // Auto-fetch quand on entre dans l'onglet candidates (et au refresh global)
+  useEffect(() => {
+    if (authenticated && currentTab === 'candidates') {
+      loadCandidatesAll();
+    }
+  }, [authenticated, currentTab, loadCandidatesAll]);
+
+  // ---------- Actions zone 1 (pending queue) ----------
+  const pendingForceValidate = useCallback((entry: PendingQueueEntry) => {
+    Alert.alert(
+      'Valider maintenant',
+      `Publier "${entry.name}" immediatement (avant l'echeance 24h) ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Valider maintenant',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/candidate-queue/${entry.id}/force-validate`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data?.success) {
+                  setPendingQueue((prev) => prev.filter((e) => e.id !== entry.id));
+                  Alert.alert('Publie', `${entry.name} a ete publie (PI ${Math.round(data.initial_pi ?? 0)}).`);
+                  // Refresh la zone 2 pour voir le nouvel arrivant
+                  loadCandidates();
+                } else {
+                  const msg = data?.error_message || `Validation impossible: ${data?.error_code || 'unknown'}`;
+                  Alert.alert('Echec', msg);
+                  // Le backend a peut-etre change le statut (rejected/duplicate), refresh queue
+                  loadPendingQueue();
+                }
+              } else {
+                let msg = 'Echec de la validation';
+                try {
+                  const data = await res.json();
+                  if (data?.detail) msg = String(data.detail);
+                } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, loadCandidates, loadPendingQueue]);
+
+  const pendingReject = useCallback((entry: PendingQueueEntry) => {
+    Alert.alert(
+      'Refuser',
+      `Refuser "${entry.name}" ? Cette action ajoute le slug a la blocklist permanente — la meme soumission ne pourra plus etre re-mise en file.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Refuser',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/candidate-queue/${entry.id}/reject`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setPendingQueue((prev) => prev.filter((e) => e.id !== entry.id));
+                Alert.alert('Refuse', `${entry.name} a ete refuse et ajoute a la blocklist.`);
+              } else {
+                let msg = 'Echec du refus';
+                try {
+                  const data = await res.json();
+                  if (data?.detail) msg = String(data.detail);
+                } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const candidateValidate = useCallback((candidate: Candidate) => {
+    Alert.alert(
+      'Valider et publier',
+      `Publier "${candidate.name}" et le rendre visible dans les classements ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Valider',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/user-creations/${candidate.id}/validate`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+                Alert.alert('Publie', `${candidate.name} a ete publie.`);
+              } else {
+                let msg = 'Echec de la validation';
+                try {
+                  const data = await res.json();
+                  if (data?.detail) msg = String(data.detail);
+                } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const candidateUpdateCategory = useCallback((candidate: Candidate) => {
+    const buttons = CANDIDATE_CATEGORIES.map((cat) => ({
+      text: cat === candidate.category ? `${cat} (actuel)` : cat,
+      onPress: async () => {
+        if (cat === candidate.category) return;
+        try {
+          const res = await adminFetch(API(`/admin/user-creations/${candidate.id}/update-category`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: cat }),
+          });
+          if (res.ok) {
+            setCandidates((prev) =>
+              prev.map((c) => (c.id === candidate.id ? { ...c, category: cat } : c))
+            );
+            Alert.alert('Categorie mise a jour', `${candidate.name} -> ${cat}`);
+          } else {
+            let msg = 'Echec de la mise a jour';
+            try {
+              const data = await res.json();
+              if (data?.detail) msg = String(data.detail);
+            } catch {}
+            Alert.alert('Erreur', msg);
+          }
+        } catch {
+          Alert.alert('Erreur', 'Erreur reseau');
+        }
+      },
+    }));
+    Alert.alert(
+      'Corriger la categorie',
+      `${candidate.name}\n\nChoisissez la nouvelle categorie :`,
+      [...buttons, { text: 'Annuler', style: 'cancel' as const }]
+    );
+  }, [adminFetch]);
+
+  const candidateDeleteBlock = useCallback((candidate: Candidate) => {
+    Alert.alert(
+      'Refuser et bloquer',
+      `Cette action ajoute "${candidate.name}" a la blocklist permanente. Vous ne pourrez plus le soumettre.\n\nConfirmer ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Refuser + bloquer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/user-creations/${candidate.id}/delete-block`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+                Alert.alert('Refuse et bloque', `${candidate.name} a ete refuse et ajoute a la blocklist.`);
+              } else {
+                let msg = 'Echec du refus';
+                try {
+                  const data = await res.json();
+                  if (data?.detail) msg = String(data.detail);
+                } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
@@ -612,7 +884,23 @@ export default function Admin() {
             )}
 
             {currentTab === 'candidates' && (
-              <PlaceholderSection tab="candidates" />
+              <CandidatesSection
+                pendingQueue={pendingQueue}
+                pendingLoading={pendingLoading}
+                pendingError={pendingError}
+                onPendingRefresh={loadPendingQueue}
+                onForceValidate={pendingForceValidate}
+                onPendingReject={pendingReject}
+                candidates={candidates}
+                candidatesLoading={candidatesLoading}
+                candidatesError={candidatesError}
+                publishedCollapsed={publishedCollapsed}
+                onTogglePublishedCollapsed={() => setPublishedCollapsed((v) => !v)}
+                onCandidatesRefresh={loadCandidates}
+                onValidate={candidateValidate}
+                onUpdateCategory={candidateUpdateCategory}
+                onDeleteBlock={candidateDeleteBlock}
+              />
             )}
 
             {currentTab === 'outsider_reports' && (
@@ -1136,7 +1424,262 @@ export function AdminCard({
   );
 }
 
-// Placeholder rendu pour les 6 sections en construction (sous-taches 1-5 a venir).
+// ---------- Vague 4 — Section Candidats ----------
+
+function formatRelativeShort(iso: string | null): string {
+  if (!iso) return '';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return '';
+  const diffMs = Date.now() - ts;
+  const absMs = Math.abs(diffMs);
+  const future = diffMs < 0;
+  const minutes = Math.round(absMs / 60000);
+  if (minutes < 1) return future ? 'imminent' : "a l'instant";
+  if (minutes < 60) return future ? `dans ${minutes} min` : `il y a ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return future ? `dans ${hours}h` : `il y a ${hours}h`;
+  const days = Math.round(hours / 24);
+  return future ? `dans ${days}j` : `il y a ${days}j`;
+}
+
+interface CandidatesSectionProps {
+  // Zone 1 — file en attente (24h)
+  pendingQueue: PendingQueueEntry[];
+  pendingLoading: boolean;
+  pendingError: string | null;
+  onPendingRefresh: () => void;
+  onForceValidate: (e: PendingQueueEntry) => void;
+  onPendingReject: (e: PendingQueueEntry) => void;
+  // Zone 2 — publies recents
+  candidates: Candidate[];
+  candidatesLoading: boolean;
+  candidatesError: string | null;
+  publishedCollapsed: boolean;
+  onTogglePublishedCollapsed: () => void;
+  onCandidatesRefresh: () => void;
+  onValidate: (c: Candidate) => void;
+  onUpdateCategory: (c: Candidate) => void;
+  onDeleteBlock: (c: Candidate) => void;
+}
+
+function CandidatesSection({
+  pendingQueue,
+  pendingLoading,
+  pendingError,
+  onPendingRefresh,
+  onForceValidate,
+  onPendingReject,
+  candidates,
+  candidatesLoading,
+  candidatesError,
+  publishedCollapsed,
+  onTogglePublishedCollapsed,
+  onCandidatesRefresh,
+  onValidate,
+  onUpdateCategory,
+  onDeleteBlock,
+}: CandidatesSectionProps) {
+  return (
+    <View>
+      {/* ============ Zone 1 — En attente de validation (24h) ============ */}
+      <View style={[styles.candidatesPendingZone, styles.section, { paddingBottom: 0 }]}>
+        <View style={styles.candidatesHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>⏳ En attente de validation (24h)</Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {pendingQueue.length} soumission{pendingQueue.length > 1 ? 's' : ''} en file
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onPendingRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.candidatesHelpText}>
+          Ces celebrites seront publiees automatiquement a l'echeance. Vous pouvez intervenir avant si besoin.
+        </Text>
+      </View>
+
+      {pendingLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : pendingError ? (
+        <View style={[styles.candidatesPendingZone, styles.section]}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{pendingError}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onPendingRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.candidatesPendingZone}>
+          <ReviewList<PendingQueueEntry>
+            data={pendingQueue}
+            keyExtractor={(e) => e.id}
+            emptyText="Aucune soumission en attente"
+            renderItem={(e) => {
+              const requestedRel = formatRelativeShort(e.requested_at);
+              const processRel = formatRelativeShort(e.process_after);
+              const isFutureDeadline = e.process_after
+                ? Date.parse(e.process_after) > Date.now()
+                : false;
+              const deadlineLabel = isFutureDeadline
+                ? processRel
+                : processRel
+                  ? `echeance: ${processRel}`
+                  : '';
+              const subline = e.last_error
+                ? `Tentative precedente echouee: ${e.last_error}`
+                : undefined;
+              return (
+                <AdminCard
+                  person={{
+                    id: e.id,
+                    name: e.name,
+                  }}
+                  subline={subline}
+                  rightSlot={
+                    <View style={{ alignItems: 'flex-end' }}>
+                      {!!requestedRel && (
+                        <Text style={styles.candidatesDateText}>Demande {requestedRel}</Text>
+                      )}
+                      {!!deadlineLabel && (
+                        <Text style={styles.candidatesDeadlineText}>{deadlineLabel}</Text>
+                      )}
+                      {e.pending_vote_value === 1 && (
+                        <Text style={styles.candidatesImplicitLike}>👍 like implicite</Text>
+                      )}
+                    </View>
+                  }
+                />
+              );
+            }}
+            actions={(e) => [
+              {
+                label: 'Valider maintenant',
+                icon: 'flash',
+                variant: 'primary',
+                onPress: () => onForceValidate(e),
+              },
+              {
+                label: 'Refuser',
+                icon: 'ban',
+                variant: 'danger',
+                onPress: () => onPendingReject(e),
+              },
+            ]}
+          />
+        </View>
+      )}
+
+      {/* ============ Zone 2 — Publies recents (72h) ============ */}
+      <View style={[styles.section, { paddingBottom: 0 }]}>
+        <TouchableOpacity
+          onPress={onTogglePublishedCollapsed}
+          activeOpacity={0.7}
+          style={styles.candidatesHeaderRow}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>
+              {publishedCollapsed ? '▸' : '▾'} Publies recents (72h)
+            </Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {candidates.length} profil{candidates.length > 1 ? 's' : ''} cree{candidates.length > 1 ? 's' : ''}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onCandidatesRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
+      {publishedCollapsed ? null : candidatesLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : candidatesError ? (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{candidatesError}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onCandidatesRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <ReviewList<Candidate>
+          data={candidates}
+          keyExtractor={(c) => c.id}
+          emptyText="Aucun profil publie (72h)"
+          renderItem={(c) => {
+            const isPending = !c.visible_in_rankings;
+            const wikiScore = Math.round(c.popularity_external_score);
+            const subline = c.wiki_description
+              ? c.wiki_description.length > 120
+                ? `${c.wiki_description.slice(0, 117)}...`
+                : c.wiki_description
+              : undefined;
+            return (
+              <View style={!isPending ? undefined : { opacity: 0.85 }}>
+                <AdminCard
+                  person={{
+                    id: c.id,
+                    name: c.name,
+                    category: c.category,
+                  }}
+                  subline={subline}
+                  rightSlot={
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.candidatesWikiScore}>Wiki {wikiScore}</Text>
+                      <Text style={styles.candidatesDateText}>{formatRelativeShort(c.created_at)}</Text>
+                      {!isPending && (
+                        <Text style={styles.candidatesPublishedTag}>Publie</Text>
+                      )}
+                    </View>
+                  }
+                />
+              </View>
+            );
+          }}
+          actions={(c) => [
+            {
+              label: 'Valider',
+              icon: 'checkmark-circle',
+              variant: 'primary',
+              onPress: () => onValidate(c),
+              disabled: c.visible_in_rankings,
+            },
+            {
+              label: 'Categorie',
+              icon: 'pricetag',
+              variant: 'neutral',
+              onPress: () => onUpdateCategory(c),
+            },
+            {
+              label: 'Refuser + bloquer',
+              icon: 'ban',
+              variant: 'danger',
+              onPress: () => onDeleteBlock(c),
+            },
+          ]}
+        />
+      )}
+    </View>
+  );
+}
+
+// Placeholder rendu pour les 5 sections restantes en construction (sous-taches 2-5 a venir).
 function PlaceholderSection({ tab }: { tab: Tab }) {
   const meta = TAB_LABELS[tab];
   return (
@@ -1447,5 +1990,94 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     textAlign: 'center',
+  },
+
+  // ---------- Styles Vague 4 — Candidats ----------
+  candidatesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  candidatesHeaderCount: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  candidatesFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.gold,
+    backgroundColor: PALETTE.gold + '22',
+  },
+  candidatesFilterChipText: {
+    color: PALETTE.gold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  candidatesRefreshBtn: {
+    padding: 6,
+  },
+  candidatesWikiScore: {
+    color: PALETTE.gold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  candidatesDateText: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  candidatesPublishedTag: {
+    color: PALETTE.green,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  candidatesErrorText: {
+    color: PALETTE.accent,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  candidatesRetryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: PALETTE.gold,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  candidatesRetryBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  candidatesPendingZone: {
+    backgroundColor: '#13354B', // bleu legerement teinte pour distinguer la zone "en attente"
+  },
+  candidatesHelpText: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  candidatesDeadlineText: {
+    color: '#7AB8E0',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  candidatesImplicitLike: {
+    color: PALETTE.green,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
 });
