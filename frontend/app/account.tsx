@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CreditsService, type Transaction } from "../services/creditsService";
+import { CreditsService, BOOSTER_TIERS, type Transaction } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { setLanguage, LANGUAGE_STORAGE_KEY } from "../i18n";
@@ -84,6 +84,23 @@ const LANGUAGES = [
 type Screen = "main" | "billing" | "help" | "mydata";
 
 // ---- GDPR Data Shape ----
+interface MyOutsiderData {
+  found: boolean;
+  person_id: string;
+  name: string;
+  category: string;
+  source: string;
+  score: number;
+  likes: number;
+  dislikes: number;
+  superlikes: number;
+  total_votes: number;
+  boost_active: boolean;
+  boost_tier: string;
+  hours_remaining: number;
+  boost_end_time: string | null;
+}
+
 interface GDPRData {
   device_id: string;
   email_on_file: string | null;
@@ -127,10 +144,15 @@ export default function AccountScreen() {
   const [gdprLoading, setGdprLoading] = useState(false);
   const [gdprDeleting, setGdprDeleting] = useState(false);
 
+  // My Outsider (Cas A — withdraw)
+  const [myOutsider, setMyOutsider] = useState<MyOutsiderData | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
+
   useEffect(() => {
     loadSavedPreferences();
     loadTransactions();
     loadActiveBoostSocial();
+    loadMyOutsider();
   }, []);
 
   const loadSavedPreferences = async () => {
@@ -226,6 +248,47 @@ export default function AccountScreen() {
       console.error("Failed to load active boost social:", e);
     }
   };
+
+  const loadMyOutsider = useCallback(async () => {
+    try {
+      const data = await CreditsService.getMyOutsiderProfile();
+      if (data && data.boost_active) {
+        setMyOutsider(data as MyOutsiderData);
+      } else {
+        setMyOutsider(null);
+      }
+    } catch (e) {
+      console.error("Failed to load my outsider:", e);
+    }
+  }, []);
+
+  const handleWithdrawOutsider = useCallback(() => {
+    Alert.alert(
+      t("account.withdrawModalTitle"),
+      t("account.withdrawModalBody"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("account.withdrawConfirm"),
+          style: "destructive",
+          onPress: async () => {
+            setWithdrawing(true);
+            try {
+              await CreditsService.deleteMyOutsiderProfile();
+              setMyOutsider(null);
+              setActiveBoostId(null);
+              setCurrentSocial({});
+              Alert.alert(t("common.success"), t("account.withdrawSuccess"));
+            } catch (e: any) {
+              Alert.alert(t("common.errorTitle"), e?.message || t("account.withdrawError"));
+            } finally {
+              setWithdrawing(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [t]);
 
   const handleSaveSocial = async () => {
     if (!activeBoostId) return;
@@ -605,6 +668,56 @@ export default function AccountScreen() {
           </View>
         </View>
 
+        {/* ===== MY OUTSIDER (Cas A — withdraw) ===== */}
+        {myOutsider && myOutsider.boost_active && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              <Ionicons name="star" size={16} color={PALETTE.gold} /> {t("account.myOutsider")}
+            </Text>
+            <View style={styles.card}>
+              <View style={moStyles.headerRow}>
+                <Text style={moStyles.name} numberOfLines={1}>{myOutsider.name}</Text>
+                <View style={moStyles.tierBadge}>
+                  <Text style={moStyles.tierText}>
+                    {BOOSTER_TIERS.find((b) => b.id === myOutsider.boost_tier)?.name || myOutsider.boost_tier}
+                  </Text>
+                </View>
+              </View>
+              <Text style={moStyles.timeLeft}>
+                ⏱ {t("account.myOutsiderHoursLeft", { hours: myOutsider.hours_remaining.toFixed(1) })}
+              </Text>
+              <View style={moStyles.statsRow}>
+                <View style={moStyles.statBox}>
+                  <Text style={moStyles.statValue}>{myOutsider.likes ?? 0}</Text>
+                  <Text style={moStyles.statLabel}>{t("account.myOutsiderLikes")}</Text>
+                </View>
+                <View style={moStyles.statBox}>
+                  <Text style={moStyles.statValue}>{myOutsider.dislikes ?? 0}</Text>
+                  <Text style={moStyles.statLabel}>{t("account.myOutsiderDislikes")}</Text>
+                </View>
+                <View style={moStyles.statBox}>
+                  <Text style={moStyles.statValue}>{myOutsider.score ?? 0}</Text>
+                  <Text style={moStyles.statLabel}>{t("account.myOutsiderScore")}</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.dangerBtn, { marginTop: 16 }]}
+                onPress={handleWithdrawOutsider}
+                disabled={withdrawing}
+              >
+                {withdrawing ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="exit-outline" size={18} color="#FFF" />
+                    <Text style={styles.dangerBtnText}>{t("account.withdrawButton")}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ===== SOCIAL ACCOUNTS ===== */}
         {activeBoostId && (
           <View style={styles.section}>
@@ -915,6 +1028,19 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.danger, borderRadius: 12, paddingVertical: 14,
   },
   dangerBtnText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
+});
+
+// My Outsider styles (Cas A)
+const moStyles = StyleSheet.create({
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  name: { flex: 1, color: PALETTE.text, fontSize: 18, fontWeight: "700", marginRight: 10 },
+  tierBadge: { backgroundColor: PALETTE.gold + "22", borderColor: PALETTE.gold, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  tierText: { color: PALETTE.gold, fontSize: 12, fontWeight: "700" },
+  timeLeft: { color: PALETTE.subtext, fontSize: 13, marginBottom: 14 },
+  statsRow: { flexDirection: "row", gap: 10 },
+  statBox: { flex: 1, backgroundColor: PALETTE.bg, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: PALETTE.border },
+  statValue: { color: PALETTE.text, fontSize: 18, fontWeight: "700" },
+  statLabel: { color: PALETTE.subtext, fontSize: 11, marginTop: 2 },
 });
 
 // Social config styles

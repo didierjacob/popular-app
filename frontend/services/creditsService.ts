@@ -282,6 +282,43 @@ export class CreditsService {
     }
   }
 
+  /**
+   * Fetch the current user's outsider profile (if any active boost exists).
+   * NOTE: backend endpoint param is named `device_id` but the value it matches against
+   * is `active_boosts.user_id`, which the app populates with popular_user_id.
+   * So we pass popular_user_id as device_id intentionally.
+   */
+  static async getMyOutsiderProfile(): Promise<any | null> {
+    try {
+      const userId = await getUserId();
+      const response = await fetch(API(`/me/my-outsider-profile?device_id=${encodeURIComponent(userId)}`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.found ? data : null;
+    } catch (error) {
+      console.error('Get my outsider profile error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Permanently delete the current user's outsider profile.
+   * Backend behavior: deletes person, expires boosts, blocklists slug (no re-creation),
+   * purges votes/ticks. No refund.
+   * Same device_id/user_id convention as getMyOutsiderProfile.
+   */
+  static async deleteMyOutsiderProfile(): Promise<any> {
+    const userId = await getUserId();
+    const response = await fetch(API(`/me/my-outsider-profile?device_id=${encodeURIComponent(userId)}`), {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to delete outsider profile');
+    }
+    return await response.json();
+  }
+
   static async updateSocialLinks(boostId: string, links: SocialLinks): Promise<any> {
     try {
       const response = await fetch(API(`/outsiders/${boostId}/social-links`), {

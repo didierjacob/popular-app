@@ -285,7 +285,18 @@
     "gdprDeleteSuccess": "Your data has been deleted/anonymized. The app will reset.",
     "gdprDeleteError": "Error during deletion. Please try again later.",
     "gdprLegalNotice": "Under French Commercial Code Art. L123-22, anonymized financial data is kept for 10 years.",
-    "gdprLoading": "Loading your data..."
+    "gdprLoading": "Loading your data...",
+    "myOutsider": "My Outsider",
+    "myOutsiderHoursLeft": "{{hours}}h remaining",
+    "myOutsiderLikes": "Likes",
+    "myOutsiderDislikes": "Dislikes",
+    "myOutsiderScore": "Score",
+    "withdrawButton": "Remove my Outsider",
+    "withdrawModalTitle": "⚠️ Permanently remove your Outsider",
+    "withdrawModalBody": "This action is irreversible. You will:\n• Immediately disappear from the Outsiders list\n• Lose the remaining time of your Booster (no refund)\n• No longer be able to boost yourself with this name\n\nAre you sure?",
+    "withdrawConfirm": "Remove permanently",
+    "withdrawSuccess": "Your Outsider has been successfully removed.",
+    "withdrawError": "Failed to remove. Please try again later."
   },
   "helpCenter": {
     "title": "Help Center",
