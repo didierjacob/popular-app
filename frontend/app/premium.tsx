@@ -22,7 +22,7 @@ import type { Product, ProductPurchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://popular-app.onrender.com';
 
 /**
  * Returns the public URL for legal pages on popularoo.com
