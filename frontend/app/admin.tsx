@@ -66,8 +66,31 @@ interface Stats {
   total_people: number;
   total_votes: number;
   active_users_24h: number;
+  active_users_7d?: number;
+  active_users_30d?: number;
   revenue_24h: string;
+  revenue_total_lifetime?: string;
   new_people_24h: number;
+}
+
+// Vague 4 sous-tache 6 — Stats enrichie (GET /admin/dashboard-stats)
+interface DashboardStats {
+  total_celebrities: number;
+  category_breakdown: Record<string, number>;
+  alpha: number;
+  queues: {
+    pending_candidates: number;
+    pending_deceased: number;
+    pending_category_reviews: number;
+  };
+  last_jobs: {
+    external_scores: string | null;
+    candidate_detection: string | null;
+    deceased_check_top50: string | null;
+    deceased_check_all: string | null;
+    category_review: string | null;
+  };
+  top5: Array<{ name: string; category: string | null; popularoo_index: number }>;
 }
 
 interface Person {
@@ -169,6 +192,8 @@ export default function Admin() {
   // Stats
   const [stats, setStats] = useState<Stats | null>(null);
   const [topPeople, setTopPeople] = useState<Person[]>([]);
+  // Vague 4 sous-tache 6 — Stats enrichie (dashboard-stats, parallele a stats legacy)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   
   // Boost
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -284,11 +309,28 @@ export default function Admin() {
         ? { 'X-Admin-Token': adminToken }
         : {};
 
-      // Load stats
-      const statsRes = await fetch(API('/admin/stats'), { headers: authHeaders });
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
+      // Load stats (legacy business: revenus, users actifs, votes)
+      // + dashboard-stats (operationnel: queues, last_jobs, top5, alpha, category_breakdown)
+      // En parallele, degradent gracieusement si l'un echoue.
+      const [statsResult, dashboardResult] = await Promise.allSettled([
+        fetch(API('/admin/stats'), { headers: authHeaders }),
+        fetch(API('/admin/dashboard-stats'), { headers: authHeaders }),
+      ]);
+
+      if (statsResult.status === 'fulfilled' && statsResult.value.ok) {
+        try {
+          setStats(await statsResult.value.json());
+        } catch { setStats(null); }
+      } else {
+        setStats(null);
+      }
+
+      if (dashboardResult.status === 'fulfilled' && dashboardResult.value.ok) {
+        try {
+          setDashboardStats(await dashboardResult.value.json());
+        } catch { setDashboardStats(null); }
+      } else {
+        setDashboardStats(null);
       }
 
       // Load top people
@@ -871,6 +913,7 @@ export default function Admin() {
             {currentTab === 'stats' && (
               <DashboardTab
                 stats={stats}
+                dashboardStats={dashboardStats}
                 topPeople={topPeople}
                 selectedPerson={selectedPerson}
                 onSelectPerson={setSelectedPerson}
@@ -943,34 +986,176 @@ export default function Admin() {
   );
 }
 
-// Dashboard Tab Component
-function DashboardTab({ stats, topPeople, selectedPerson, onSelectPerson, onBoost, onRefreshTrends }: any) {
+// Dashboard Tab Component — Vague 4 sous-tache 6 : enrichi avec /admin/dashboard-stats
+function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSelectPerson, onBoost, onRefreshTrends }: any) {
+  const ds: DashboardStats | null = dashboardStats;
+  const noStats = !stats && !ds;
   return (
     <View>
+      {noStats && (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.statLabel}>Statistiques indisponibles</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 1 — KPI business (legacy /admin/stats) ============ */}
       {stats && (
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
             <Ionicons name="people" size={32} color={PALETTE.gold} />
             <Text style={styles.statNumber}>{stats.total_people}</Text>
-            <Text style={styles.statLabel}>Personalitys</Text>
+            <Text style={styles.statLabel}>Total profils</Text>
           </View>
 
           <View style={[styles.statCard, { borderColor: PALETTE.green }]}>
             <Ionicons name="bar-chart" size={32} color={PALETTE.green} />
             <Text style={styles.statNumber}>{stats.total_votes}</Text>
-            <Text style={styles.statLabel}>Votes Totaux</Text>
+            <Text style={styles.statLabel}>Votes totaux</Text>
           </View>
 
           <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
             <Ionicons name="person" size={32} color="#00D8FF" />
             <Text style={styles.statNumber}>{stats.active_users_24h}</Text>
-            <Text style={styles.statLabel}>Users 24h</Text>
+            <Text style={styles.statLabel}>Actifs 24h</Text>
           </View>
 
           <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
             <Ionicons name="cash" size={32} color="#FF4757" />
             <Text style={styles.statNumber}>{stats.revenue_24h}€</Text>
             <Text style={styles.statLabel}>Revenus 24h</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 2 — Engagement & revenus (champs etendus /admin/stats) ============ */}
+      {stats && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📈 Engagement & revenus</Text>
+          <View style={[styles.statsGrid, { padding: 0 }]}>
+            <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
+              <Ionicons name="people-outline" size={28} color="#00D8FF" />
+              <Text style={styles.statNumber}>{stats.active_users_7d ?? '—'}</Text>
+              <Text style={styles.statLabel}>Actifs 7 jours</Text>
+            </View>
+
+            <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
+              <Ionicons name="calendar-outline" size={28} color="#00D8FF" />
+              <Text style={styles.statNumber}>{stats.active_users_30d ?? '—'}</Text>
+              <Text style={styles.statLabel}>Actifs 30 jours</Text>
+            </View>
+
+            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
+              <Ionicons name="add-circle-outline" size={28} color={PALETTE.gold} />
+              <Text style={styles.statNumber}>{stats.new_people_24h}</Text>
+              <Text style={styles.statLabel}>Nouveaux profils 24h</Text>
+            </View>
+
+            <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
+              <Ionicons name="wallet-outline" size={28} color="#FF4757" />
+              <Text style={styles.statNumber}>{stats.revenue_total_lifetime ?? '—'}€</Text>
+              <Text style={styles.statLabel}>Revenus a vie</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 3 — Files d'attente admin (dashboard-stats.queues) ============ */}
+      {ds && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>⏳ Files d'attente admin</Text>
+          <View style={[styles.statsGrid, { padding: 0 }]}>
+            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
+              <Ionicons name="people-circle-outline" size={28} color={PALETTE.gold} />
+              <Text style={styles.statNumber}>{ds.queues.pending_candidates}</Text>
+              <Text style={styles.statLabel}>Candidats en attente</Text>
+            </View>
+
+            <View style={[styles.statCard, { borderColor: PALETTE.accent }]}>
+              <Ionicons name="skull-outline" size={28} color={PALETTE.accent} />
+              <Text style={styles.statNumber}>{ds.queues.pending_deceased}</Text>
+              <Text style={styles.statLabel}>Deces a verifier</Text>
+            </View>
+
+            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
+              <Ionicons name="pricetags-outline" size={28} color={PALETTE.gold} />
+              <Text style={styles.statNumber}>{ds.queues.pending_category_reviews}</Text>
+              <Text style={styles.statLabel}>Revues categorie</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 4 — Top 5 popularite (dashboard-stats.top5) ============ */}
+      {ds && ds.top5 && ds.top5.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🏆 Top 5 popularite</Text>
+          <View style={styles.card}>
+            {ds.top5.map((p, idx) => (
+              <View key={`${idx}-${p.name}`} style={styles.dashTopRow}>
+                <Text style={styles.dashTopRank}>{idx + 1}.</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dashTopName}>{p.name}</Text>
+                  <Text style={styles.dashTopMeta}>{categoryFR(p.category)}</Text>
+                </View>
+                <Text style={styles.dashTopScore}>{p.popularoo_index.toFixed(1)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 5 — Repartition par categorie (dashboard-stats.category_breakdown) ============ */}
+      {ds && ds.category_breakdown && Object.keys(ds.category_breakdown).length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🎯 Repartition par categorie</Text>
+          <View style={styles.card}>
+            <View style={styles.dashCategoryGrid}>
+              {Object.entries(ds.category_breakdown).map(([cat, count]) => (
+                <View key={cat} style={styles.dashCategoryChip}>
+                  <Text style={styles.dashCategoryCount}>{count}</Text>
+                  <Text style={styles.dashCategoryLabel}>{categoryFR(cat)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ============ Section 6 — Sante pipeline (dashboard-stats: total_celebrities + alpha + last_jobs) ============ */}
+      {ds && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔧 Sante pipeline</Text>
+          <View style={styles.card}>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Celebrites validees (hors outsiders)</Text>
+              <Text style={styles.dashPipelineValue}>{ds.total_celebrities}</Text>
+            </View>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Alpha (popularoo_index)</Text>
+              <Text style={styles.dashPipelineValue}>{ds.alpha?.toFixed(3) ?? '—'}</Text>
+            </View>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Scores externes</Text>
+              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.external_scores)}</Text>
+            </View>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Detection candidats</Text>
+              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.candidate_detection)}</Text>
+            </View>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Verif deces (top 50)</Text>
+              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.deceased_check_top50)}</Text>
+            </View>
+            <View style={styles.dashPipelineRow}>
+              <Text style={styles.dashPipelineLabel}>Verif deces (complet)</Text>
+              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.deceased_check_all)}</Text>
+            </View>
+            <View style={[styles.dashPipelineRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.dashPipelineLabel}>Revue categories</Text>
+              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.category_review)}</Text>
+            </View>
           </View>
         </View>
       )}
@@ -1442,6 +1627,35 @@ function formatRelativeShort(iso: string | null): string {
   return future ? `dans ${days}j` : `il y a ${days}j`;
 }
 
+// Vague 4 sous-tache 6 — Format date FR : relatif si < 24h, absolu sinon ("14 mai a 21h30").
+const FR_MONTHS = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin',
+  'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
+function formatDateFR(iso: string | null): string {
+  if (!iso) return 'Jamais execute';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return 'Date inconnue';
+  const diffMs = Date.now() - ts;
+  if (diffMs >= 0 && diffMs < 24 * 3600 * 1000) {
+    return formatRelativeShort(iso);
+  }
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} ${FR_MONTHS[d.getMonth()]} a ${hh}h${mm}`;
+}
+
+function categoryFR(cat: string | null | undefined): string {
+  switch (cat) {
+    case 'politics': return 'Politique';
+    case 'culture': return 'Culture';
+    case 'sport': return 'Sport';
+    case 'business': return 'Business';
+    case 'influencer': return 'Influenceur';
+    case 'other': return 'Autre';
+    default: return cat ? cat.charAt(0).toUpperCase() + cat.slice(1) : 'Autre';
+  }
+}
+
 interface CandidatesSectionProps {
   // Zone 1 — file en attente (24h)
   pendingQueue: PendingQueueEntry[];
@@ -1751,7 +1965,44 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   statNumber: { color: PALETTE.text, fontSize: 28, fontWeight: '700', marginTop: 8 },
-  statLabel: { color: PALETTE.subtext, fontSize: 12, marginTop: 4 },
+  statLabel: { color: PALETTE.subtext, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  // Vague 4 sous-tache 6 — Stats enrichie
+  dashTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+    gap: 12,
+  },
+  dashTopRank: { color: PALETTE.gold, fontSize: 16, fontWeight: '700', width: 28 },
+  dashTopName: { color: PALETTE.text, fontSize: 15, fontWeight: '600' },
+  dashTopMeta: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
+  dashTopScore: { color: PALETTE.gold, fontSize: 16, fontWeight: '700' },
+  dashCategoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dashCategoryChip: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    minWidth: 88,
+    alignItems: 'center',
+  },
+  dashCategoryCount: { color: PALETTE.gold, fontSize: 20, fontWeight: '700' },
+  dashCategoryLabel: { color: PALETTE.subtext, fontSize: 11, marginTop: 2 },
+  dashPipelineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+    gap: 12,
+  },
+  dashPipelineLabel: { color: PALETTE.subtext, fontSize: 13, flex: 1 },
+  dashPipelineValue: { color: PALETTE.text, fontSize: 13, fontWeight: '600', textAlign: 'right' },
   section: { padding: 16 },
   sectionTitle: { color: PALETTE.text, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   card: {
