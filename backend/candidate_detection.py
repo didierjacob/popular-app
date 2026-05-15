@@ -584,7 +584,8 @@ USER_SUBMISSION_PENDING_VOTE_VALUE = 1
 
 def slugify_name(name: str) -> str:
     """Slug for dedup. Mirrors server.slugify so persons-collection lookups match."""
-    s = name.strip().lower()
+    # Normalize accented chars first so "Léa" → "lea" instead of being stripped to "la"
+    s = unidecode(name).strip().lower()
     s = re.sub(r"[^a-z0-9\s-]", "", s)
     s = re.sub(r"[\s-]+", "-", s)
     return s.strip("-")

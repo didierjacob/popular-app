@@ -382,7 +382,7 @@
     "booster_7d_desc": "Top priority placement"
   },
   "search": {
-    "queued_message": "✨ Your request will be processed within 24 hours.",
+    "queued_message": "Thanks for your vote! It will appear within 24 hours. See you soon!",
     "already_exists": "This personality already exists on Popularoo.",
     "already_pending": "This personality is already pending validation.",
     "queue_error": "An error occurred. Please try again in a moment."

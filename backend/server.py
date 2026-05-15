@@ -134,7 +134,8 @@ class PyObjectId(ObjectId):
 
 
 def slugify(name: str) -> str:
-    s = name.strip().lower()
+    # Normalize accented chars first so "Léa" → "lea" instead of being stripped to "la"
+    s = unidecode(name).strip().lower()
     s = re.sub(r"[^a-z0-9\s-]", "", s)
     s = re.sub(r"[\s-]+", "-", s)
     s = s.strip('-')

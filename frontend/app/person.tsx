@@ -22,7 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import ConfettiCannon from "react-native-confetti-cannon";
-import { fetchWithCache } from "../services/cacheService";
+import { fetchWithCache, CacheService } from "../services/cacheService";
 import { CreditsService } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
@@ -591,6 +591,9 @@ export default function Person() {
         setTimeout(() => setShowConfetti(false), 3000);
       }
 
+      // Cache TTL (2 min) would otherwise return the pre-vote snapshot and
+      // clobber the optimistic setPerson() above. Invalidate first, then refetch.
+      await CacheService.remove(`person_${id}`);
       await fetchData(true);
     } catch (error) {
       console.error("Vote error:", error);

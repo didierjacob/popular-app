@@ -528,9 +528,13 @@ export default function HomeScreen() {
     }, 3000);
   };
 
-  const handleSearch = async () => {
-    if (!searchName.trim()) return;
-    const query = searchName.trim().toLowerCase();
+  const handleSearch = async (overrideText?: string) => {
+    // iOS predictive-text commits the final character together with the Go event,
+    // so reading `searchName` from state can miss the last char on the first tap.
+    // Prefer the synchronous nativeEvent.text when available; fall back to state.
+    const rawText = (overrideText ?? searchName).trim();
+    if (!rawText) return;
+    const query = rawText.toLowerCase();
     setSearchMessage(null);
 
     // FAST PATH: Check locally loaded people first for instant navigation
@@ -547,7 +551,7 @@ export default function HomeScreen() {
 
     // SLOW PATH: Query backend search (Wikipedia fallback etc.)
     try {
-      const response = await fetch(API(`/search?query=${encodeURIComponent(searchName.trim())}`));
+      const response = await fetch(API(`/search?query=${encodeURIComponent(rawText)}`));
       if (response.ok) {
         const results = await response.json();
         if (results.length > 0) {
@@ -572,7 +576,7 @@ export default function HomeScreen() {
       const response = await fetch(API("/submit-celebrity-request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: searchName.trim(), device_id: did }),
+        body: JSON.stringify({ name: rawText, device_id: did }),
       });
 
       if (!response.ok) {
@@ -644,9 +648,9 @@ export default function HomeScreen() {
                   setSearchSuggestions([]);
                 }
               }}
-              onSubmitEditing={handleSearch}
+              onSubmitEditing={(e) => handleSearch(e.nativeEvent?.text)}
             />
-            <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+            <TouchableOpacity style={styles.searchButton} onPress={() => handleSearch()}>
               <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
             </TouchableOpacity>
           </View>
@@ -845,18 +849,19 @@ const styles = StyleSheet.create({
   },
   // Vague 4: celebrity-request feedback banner
   searchBanner: {
-    marginTop: 8,
-    backgroundColor: PALETTE.bg,
-    borderRadius: 8,
+    marginTop: 12,
+    backgroundColor: PALETTE.accent,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: PALETTE.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: PALETTE.accent2,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   searchBannerText: {
     color: PALETTE.text,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "600",
     textAlign: "center",
   },
   searchInput: {
