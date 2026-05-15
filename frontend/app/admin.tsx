@@ -151,6 +151,32 @@ interface Candidate {
 const CANDIDATE_CATEGORIES = ['culture', 'sport', 'politics', 'business', 'influencer', 'other'] as const;
 type CandidateCategory = typeof CANDIDATE_CATEGORIES[number];
 
+// Vague 4 sous-tache 2 — Signalements Outsiders
+// La reponse backend est groupee par outsider_person_id (1 ligne = 1 Outsider, signalements imbriques).
+type OutsiderReportStatus = 'pending' | 'ignored' | 'warned' | 'deleted';
+
+interface OutsiderReportItem {
+  report_id: string;
+  reason: string;
+  comment: string;
+  device_id: string;
+  status: OutsiderReportStatus;
+  created_at: string;
+}
+
+interface OutsiderReportGroup {
+  outsider_person_id: string;
+  outsider_name: string;
+  report_count: number;
+  reasons_summary: Record<string, number>;
+  person_exists: boolean;
+  person_source: string | null;
+  person_email: string | null;
+  reports: OutsiderReportItem[];
+}
+
+type OutsiderReportsFilter = 'pending' | 'all';
+
 type Tab =
   | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
   | 'activity'        // existant
@@ -220,6 +246,12 @@ export default function Admin() {
   const [pendingQueue, setPendingQueue] = useState<PendingQueueEntry[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState<string | null>(null);
+
+  // Vague 4 sous-tache 2 — Signalements Outsiders
+  const [outsiderReports, setOutsiderReports] = useState<OutsiderReportGroup[]>([]);
+  const [outsiderReportsLoading, setOutsiderReportsLoading] = useState(false);
+  const [outsiderReportsError, setOutsiderReportsError] = useState<string | null>(null);
+  const [outsiderReportsFilter, setOutsiderReportsFilter] = useState<OutsiderReportsFilter>('pending');
 
   const [adminToken, setAdminToken] = useState<string>('');
 
@@ -604,6 +636,155 @@ export default function Admin() {
     }
   }, [authenticated, currentTab, loadCandidatesAll]);
 
+  // ---------- Vague 4 sous-tache 2 — Signalements Outsiders ----------
+  const loadOutsiderReports = useCallback(async (filter: OutsiderReportsFilter = outsiderReportsFilter) => {
+    setOutsiderReportsLoading(true);
+    setOutsiderReportsError(null);
+    try {
+      const res = await adminFetch(API(`/admin/outsider-reports?status=${filter === 'all' ? 'all' : 'pending'}`));
+      if (res.ok) {
+        const data = await res.json();
+        setOutsiderReports(Array.isArray(data?.reports) ? data.reports : []);
+      } else if (res.status !== 403) {
+        setOutsiderReportsError('Impossible de charger les signalements');
+      }
+    } catch {
+      setOutsiderReportsError('Erreur reseau');
+    } finally {
+      setOutsiderReportsLoading(false);
+    }
+  }, [adminFetch, outsiderReportsFilter]);
+
+  useEffect(() => {
+    if (authenticated && currentTab === 'outsider_reports') {
+      loadOutsiderReports(outsiderReportsFilter);
+    }
+  }, [authenticated, currentTab, outsiderReportsFilter, loadOutsiderReports]);
+
+  // Backend resout en bulk tous les pending pour l'outsider, donc on passe report_id de reports[0].
+  const firstReportId = (g: OutsiderReportGroup): string | null =>
+    g.reports && g.reports.length > 0 ? g.reports[0].report_id : null;
+
+  const outsiderIgnore = useCallback((g: OutsiderReportGroup) => {
+    const rid = firstReportId(g);
+    if (!rid) return;
+    Alert.alert(
+      'Classer sans suite',
+      `Aucune violation detectee pour ${g.outsider_name} ?\n\nLes ${g.report_count} signalement${g.report_count > 1 ? 's' : ''} en attente seront marques comme ignores.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Ignorer',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/outsider-reports/${rid}/ignore`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setOutsiderReports((prev) => prev.filter((x) => x.outsider_person_id !== g.outsider_person_id));
+                Alert.alert('Classe sans suite', `Signalements de ${g.outsider_name} classes sans suite.`);
+              } else {
+                let msg = 'Echec';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const outsiderWarn = useCallback((g: OutsiderReportGroup) => {
+    const rid = firstReportId(g);
+    if (!rid) return;
+    const emailLabel = g.person_email ? ` (${g.person_email})` : '';
+    Alert.alert(
+      'Avertir l\'Outsider',
+      `Envoyer un email d'avertissement a ${g.outsider_name}${emailLabel} ?\n\nL'email bilingue FR+EN rappelle les conditions d'utilisation.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Envoyer',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/outsider-reports/${rid}/warn`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                // Maj optimiste: marque tous les reports pending du groupe comme warned (la carte reste mais change de statut)
+                setOutsiderReports((prev) =>
+                  prev.map((x) =>
+                    x.outsider_person_id === g.outsider_person_id
+                      ? {
+                          ...x,
+                          reports: x.reports.map((r) =>
+                            r.status === 'pending' ? { ...r, status: 'warned' as OutsiderReportStatus } : r
+                          ),
+                        }
+                      : x
+                  )
+                );
+                Alert.alert('Avertissement envoye', `Email envoye a ${g.outsider_name}.`);
+              } else if (res.status === 422) {
+                Alert.alert(
+                  'Email indisponible',
+                  `Aucun email connu pour ${g.outsider_name} — impossible d'envoyer l'avertissement.`
+                );
+              } else {
+                let msg = 'Echec de l\'avertissement';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const outsiderDelete = useCallback((g: OutsiderReportGroup) => {
+    const rid = firstReportId(g);
+    if (!rid) return;
+    Alert.alert(
+      '⚠️ Retirer l\'Outsider',
+      `Action irreversible. Retirer ${g.outsider_name} entraine :\n\n` +
+        `• Suppression definitive du profil Outsider\n` +
+        `• Expiration immediate de ses Boosters (sans remboursement)\n` +
+        `• Blocage de l'utilisateur (slug + device) — il ne pourra plus creer d'Outsider\n` +
+        `• Envoi d'un email de notification\n\n` +
+        `Confirmer le retrait ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Retirer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/outsider-reports/${rid}/delete`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setOutsiderReports((prev) => prev.filter((x) => x.outsider_person_id !== g.outsider_person_id));
+                Alert.alert('Outsider retire', `🚫 ${g.outsider_name} retire de la liste des Outsiders.`);
+              } else {
+                let msg = 'Echec du retrait';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
   // ---------- Actions zone 1 (pending queue) ----------
   const pendingForceValidate = useCallback((entry: PendingQueueEntry) => {
     Alert.alert(
@@ -947,7 +1128,17 @@ export default function Admin() {
             )}
 
             {currentTab === 'outsider_reports' && (
-              <PlaceholderSection tab="outsider_reports" />
+              <OutsiderReportsSection
+                reports={outsiderReports}
+                loading={outsiderReportsLoading}
+                error={outsiderReportsError}
+                filter={outsiderReportsFilter}
+                onFilterChange={setOutsiderReportsFilter}
+                onRefresh={() => loadOutsiderReports(outsiderReportsFilter)}
+                onIgnore={outsiderIgnore}
+                onWarn={outsiderWarn}
+                onDelete={outsiderDelete}
+              />
             )}
 
             {currentTab === 'manual_add' && (
@@ -1893,6 +2084,220 @@ function CandidatesSection({
   );
 }
 
+// ---------- Vague 4 sous-tache 2 — Section Outsiders signales ----------
+
+const REASON_FR: Record<string, string> = {
+  spam: 'spam',
+  inappropriate: 'inapproprie',
+  fake: 'faux profil',
+  offensive: 'offensant',
+  other: 'autre',
+};
+
+function formatReasonsSummary(summary: Record<string, number>): string {
+  const entries = Object.entries(summary || {});
+  if (entries.length === 0) return '';
+  return entries
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${REASON_FR[k] || k} (${v})`)
+    .join(' • ');
+}
+
+function statusBadgeStyle(status: OutsiderReportStatus) {
+  switch (status) {
+    case 'warned':  return { color: '#FFB44C' };
+    case 'ignored': return { color: PALETTE.subtext };
+    case 'deleted': return { color: PALETTE.accent };
+    case 'pending':
+    default:        return { color: PALETTE.gold };
+  }
+}
+
+function statusLabel(status: OutsiderReportStatus): string {
+  switch (status) {
+    case 'warned':  return 'Averti';
+    case 'ignored': return 'Classe sans suite';
+    case 'deleted': return 'Retire';
+    case 'pending':
+    default:        return 'En attente';
+  }
+}
+
+interface OutsiderReportsSectionProps {
+  reports: OutsiderReportGroup[];
+  loading: boolean;
+  error: string | null;
+  filter: OutsiderReportsFilter;
+  onFilterChange: (f: OutsiderReportsFilter) => void;
+  onRefresh: () => void;
+  onIgnore: (g: OutsiderReportGroup) => void;
+  onWarn: (g: OutsiderReportGroup) => void;
+  onDelete: (g: OutsiderReportGroup) => void;
+}
+
+function OutsiderReportsSection({
+  reports,
+  loading,
+  error,
+  filter,
+  onFilterChange,
+  onRefresh,
+  onIgnore,
+  onWarn,
+  onDelete,
+}: OutsiderReportsSectionProps) {
+  const pendingCount = reports.length; // backend filtre deja, donc length = nb d'Outsiders dans le filtre courant
+  return (
+    <View>
+      {/* Header */}
+      <View style={[styles.section, { paddingBottom: 0 }]}>
+        <View style={styles.candidatesHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>🚩 Outsiders signales</Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {pendingCount} Outsider{pendingCount > 1 ? 's' : ''} {filter === 'pending' ? 'en attente' : 'au total'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Toggle filter */}
+        <View style={styles.outsiderFilterRow}>
+          {(['pending', 'all'] as OutsiderReportsFilter[]).map((f) => {
+            const active = filter === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                onPress={() => onFilterChange(f)}
+                style={[styles.outsiderFilterChip, active && styles.outsiderFilterChipActive]}
+              >
+                <Text style={[styles.outsiderFilterChipText, active && styles.outsiderFilterChipTextActive]}>
+                  {f === 'pending' ? 'En attente' : 'Tous'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : error ? (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{error}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <ReviewList<OutsiderReportGroup>
+          data={reports}
+          keyExtractor={(g) => g.outsider_person_id}
+          emptyText={filter === 'pending' ? 'Aucun signalement en attente' : 'Aucun signalement'}
+          renderItem={(g) => {
+            const latest = g.reports && g.reports.length > 0 ? g.reports[0] : null;
+            const currentStatus: OutsiderReportStatus = latest?.status || 'pending';
+            const reasonsLine = formatReasonsSummary(g.reasons_summary);
+            const lastComment = latest?.comment && latest.comment.trim().length > 0
+              ? latest.comment.length > 140
+                ? `« ${latest.comment.slice(0, 137)}... »`
+                : `« ${latest.comment} »`
+              : null;
+            const subline = [reasonsLine, lastComment].filter(Boolean).join(' — ') || undefined;
+            return (
+              <View style={!g.person_exists ? { opacity: 0.7 } : undefined}>
+                <AdminCard
+                  person={{
+                    id: g.outsider_person_id,
+                    name: g.outsider_name || '(sans nom)',
+                  }}
+                  subline={subline}
+                  rightSlot={
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.outsiderReportCount}>
+                        {g.report_count} signalement{g.report_count > 1 ? 's' : ''}
+                      </Text>
+                      {latest?.created_at && (
+                        <Text style={styles.candidatesDateText}>{formatRelativeShort(latest.created_at)}</Text>
+                      )}
+                      <Text style={[styles.outsiderStatusBadge, statusBadgeStyle(currentStatus)]}>
+                        {statusLabel(currentStatus)}
+                      </Text>
+                    </View>
+                  }
+                />
+                {/* Bandeau info: email owner + profil supprime */}
+                <View style={styles.outsiderInfoRow}>
+                  {g.person_email ? (
+                    <Text style={styles.outsiderInfoText} numberOfLines={1}>
+                      ✉ {g.person_email}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.outsiderInfoText, { color: '#FFB44C' }]}>
+                      ✉ Aucun email connu
+                    </Text>
+                  )}
+                  {!g.person_exists && (
+                    <Text style={styles.outsiderDeletedTag}>Outsider supprime</Text>
+                  )}
+                </View>
+              </View>
+            );
+          }}
+          actions={(g) => {
+            const latest = g.reports && g.reports.length > 0 ? g.reports[0] : null;
+            // Actions uniquement si le groupe est encore actionnable (status pending)
+            if (!latest || latest.status !== 'pending') return [];
+            // Si le profil n'existe plus, seul ignore est utile
+            if (!g.person_exists) {
+              return [
+                {
+                  label: 'Classer sans suite',
+                  icon: 'checkmark-outline',
+                  variant: 'neutral',
+                  onPress: () => onIgnore(g),
+                },
+              ];
+            }
+            return [
+              {
+                label: 'Ignorer',
+                icon: 'checkmark-outline',
+                variant: 'neutral',
+                onPress: () => onIgnore(g),
+              },
+              {
+                label: 'Avertir (email)',
+                icon: 'mail-outline',
+                variant: 'primary',
+                onPress: () => onWarn(g),
+                disabled: !g.person_email,
+              },
+              {
+                label: 'Retirer Outsider',
+                icon: 'ban',
+                variant: 'danger',
+                onPress: () => onDelete(g),
+              },
+            ];
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
 // Placeholder rendu pour les 5 sections restantes en construction (sous-taches 2-5 a venir).
 function PlaceholderSection({ tab }: { tab: Tab }) {
   const meta = TAB_LABELS[tab];
@@ -2330,5 +2735,63 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
+  },
+
+  // ---------- Styles Vague 4 sous-tache 2 — Outsiders signales ----------
+  outsiderFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  outsiderFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.card,
+  },
+  outsiderFilterChipActive: {
+    borderColor: PALETTE.gold,
+    backgroundColor: PALETTE.gold + '22',
+  },
+  outsiderFilterChipText: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  outsiderFilterChipTextActive: {
+    color: PALETTE.gold,
+  },
+  outsiderReportCount: {
+    color: PALETTE.gold,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  outsiderStatusBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  outsiderInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: PALETTE.border,
+  },
+  outsiderInfoText: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    flex: 1,
+  },
+  outsiderDeletedTag: {
+    color: PALETTE.accent,
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
