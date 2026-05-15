@@ -15,6 +15,38 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+
+const ADMIN_TOKEN_KEY = 'popularoo_admin_token_v1';
+
+async function loadStoredToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') {
+      try { return window.localStorage.getItem(ADMIN_TOKEN_KEY); } catch { return null; }
+    }
+    return await SecureStore.getItemAsync(ADMIN_TOKEN_KEY);
+  } catch { return null; }
+}
+
+async function saveStoredToken(token: string): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      try { window.localStorage.setItem(ADMIN_TOKEN_KEY, token); } catch {}
+      return;
+    }
+    await SecureStore.setItemAsync(ADMIN_TOKEN_KEY, token);
+  } catch {}
+}
+
+async function clearStoredToken(): Promise<void> {
+  try {
+    if (Platform.OS === 'web') {
+      try { window.localStorage.removeItem(ADMIN_TOKEN_KEY); } catch {}
+      return;
+    }
+    await SecureStore.deleteItemAsync(ADMIN_TOKEN_KEY);
+  } catch {}
+}
 
 const PALETTE = {
   bg: '#0F2F22',
@@ -65,7 +97,33 @@ interface Settings {
   maintenance_mode: boolean;
 }
 
-type Tab = 'dashboard' | 'moderation' | 'activity' | 'settings';
+type Tab =
+  | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
+  | 'activity'        // existant
+  | 'candidates'      // placeholder, sous-tache 1
+  | 'outsider_reports'// placeholder, sous-tache 2
+  | 'manual_add'      // placeholder, sous-tache 3
+  | 'deceased'        // placeholder, sous-tache 4
+  | 'categories'      // placeholder, sous-tache 5
+  | 'moderation'      // existant
+  | 'settings';       // existant
+
+const TAB_LABELS: Record<Tab, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  stats:            { label: 'Stats',      icon: 'stats-chart' },
+  activity:         { label: 'Activite',   icon: 'pulse' },
+  candidates:       { label: 'Candidats',  icon: 'people-circle' },
+  outsider_reports: { label: 'Outsiders',  icon: 'flag' },
+  manual_add:       { label: 'Ajout',      icon: 'add-circle' },
+  deceased:         { label: 'Decedes',    icon: 'skull' },
+  categories:       { label: 'Categories', icon: 'pricetags' },
+  moderation:       { label: 'Moderation', icon: 'shield-checkmark' },
+  settings:         { label: 'Settings',   icon: 'settings' },
+};
+
+const TAB_ORDER: Tab[] = [
+  'stats', 'activity', 'candidates', 'outsider_reports',
+  'manual_add', 'deceased', 'categories', 'moderation', 'settings',
+];
 
 export default function Admin() {
   const router = useRouter();
@@ -73,7 +131,9 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentTab, setCurrentTab] = useState<Tab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<Tab>('stats');
+  // Tentative d'auto-auth via token stocke (verify-token au mount). Tant que c'est en cours, on affiche un loader plutot que le login.
+  const [bootstrapping, setBootstrapping] = useState(true);
   
   // Stats
   const [stats, setStats] = useState<Stats | null>(null);
@@ -103,11 +163,11 @@ export default function Admin() {
       'X-Admin-Token': adminToken,
     };
     const response = await fetch(url, { ...options, headers });
-    
+
     if (response.status === 403 && authenticated) {
-      // Token expired — force re-login
       setAuthenticated(false);
       setAdminToken('');
+      await clearStoredToken();
       Alert.alert(
         'Session expirée',
         'Votre session admin a expiré. Veuillez vous reconnecter.',
@@ -116,6 +176,42 @@ export default function Admin() {
     }
     return response;
   }, [adminToken, authenticated]);
+
+  // Auto-auth au mount: si un token est stocke et toujours valide cote serveur, on saute le login.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await loadStoredToken();
+      if (!stored) {
+        if (!cancelled) setBootstrapping(false);
+        return;
+      }
+      try {
+        const res = await fetch(API('/admin/verify-token'), {
+          headers: { 'X-Admin-Token': stored },
+        });
+        if (cancelled) return;
+        if (res.ok) {
+          setAdminToken(stored);
+          setAuthenticated(true);
+        } else {
+          await clearStoredToken();
+        }
+      } catch {
+        // Pas de reseau: on reste sur le login, le token survit en stockage.
+      } finally {
+        if (!cancelled) setBootstrapping(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await clearStoredToken();
+    setAdminToken('');
+    setAuthenticated(false);
+    setPassword('');
+  }, []);
 
   const handleLogin = async () => {
     try {
@@ -129,6 +225,7 @@ export default function Admin() {
         const data = await response.json();
         setAdminToken(data.token);
         setAuthenticated(true);
+        await saveStoredToken(data.token);
         loadData();
       } else {
         Alert.alert('Error', 'Mot de passe incorrect');
@@ -203,6 +300,13 @@ export default function Admin() {
       handleSearch();
     }
   }, [searchQuery, filterCategory, filterSource, authenticated, handleSearch]);
+
+  // Charge le contenu du panel apres auto-auth via SecureStore (handleLogin appelle deja loadData en direct).
+  useEffect(() => {
+    if (authenticated) {
+      loadData();
+    }
+  }, [authenticated, loadData]);
 
   const handleBoostDialog = (type: 'likes' | 'dislikes') => {
     if (!selectedPerson) {
@@ -403,6 +507,17 @@ export default function Admin() {
     );
   };
 
+  if (bootstrapping) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loginContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+          <Text style={[styles.loginSubtitle, { marginTop: 16 }]}>Reprise de session...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!authenticated) {
     return (
       <SafeAreaView style={styles.container}>
@@ -444,44 +559,30 @@ export default function Admin() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>🔧 Admin</Text>
         </View>
-        <TouchableOpacity onPress={loadData}>
+        <TouchableOpacity onPress={loadData} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginRight: 16 }}>
           <Ionicons name="refresh" size={24} color={PALETTE.gold} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogout} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons name="log-out-outline" size={24} color={PALETTE.subtext} />
         </TouchableOpacity>
       </View>
 
       {/* Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tab, currentTab === 'dashboard' && styles.tabActive]}
-          onPress={() => setCurrentTab('dashboard')}
-        >
-          <Ionicons name="stats-chart" size={20} color={currentTab === 'dashboard' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'dashboard' && styles.tabTextActive]}>Dashboard</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, currentTab === 'moderation' && styles.tabActive]}
-          onPress={() => setCurrentTab('moderation')}
-        >
-          <Ionicons name="shield-checkmark" size={20} color={currentTab === 'moderation' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'moderation' && styles.tabTextActive]}>Moderation</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, currentTab === 'activity' && styles.tabActive]}
-          onPress={() => setCurrentTab('activity')}
-        >
-          <Ionicons name="pulse" size={20} color={currentTab === 'activity' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'activity' && styles.tabTextActive]}>Activity</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, currentTab === 'settings' && styles.tabActive]}
-          onPress={() => setCurrentTab('settings')}
-        >
-          <Ionicons name="settings" size={20} color={currentTab === 'settings' ? '#000' : PALETTE.text} />
-          <Text style={[styles.tabText, currentTab === 'settings' && styles.tabTextActive]}>Settings</Text>
-        </TouchableOpacity>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ paddingRight: 16 }}>
+        {TAB_ORDER.map((t) => {
+          const meta = TAB_LABELS[t];
+          const active = currentTab === t;
+          return (
+            <TouchableOpacity
+              key={t}
+              style={[styles.tab, active && styles.tabActive]}
+              onPress={() => setCurrentTab(t)}
+            >
+              <Ionicons name={meta.icon} size={20} color={active ? '#000' : PALETTE.text} />
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{meta.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       <ScrollView
@@ -495,7 +596,7 @@ export default function Admin() {
           </View>
         ) : (
           <>
-            {currentTab === 'dashboard' && (
+            {currentTab === 'stats' && (
               <DashboardTab
                 stats={stats}
                 topPeople={topPeople}
@@ -504,6 +605,30 @@ export default function Admin() {
                 onBoost={handleBoostDialog}
                 onRefreshTrends={handleRefreshTrends}
               />
+            )}
+
+            {currentTab === 'activity' && activityData && (
+              <ActivityTab activityData={activityData} />
+            )}
+
+            {currentTab === 'candidates' && (
+              <PlaceholderSection tab="candidates" />
+            )}
+
+            {currentTab === 'outsider_reports' && (
+              <PlaceholderSection tab="outsider_reports" />
+            )}
+
+            {currentTab === 'manual_add' && (
+              <PlaceholderSection tab="manual_add" />
+            )}
+
+            {currentTab === 'deceased' && (
+              <PlaceholderSection tab="deceased" />
+            )}
+
+            {currentTab === 'categories' && (
+              <PlaceholderSection tab="categories" />
             )}
 
             {currentTab === 'moderation' && (
@@ -518,10 +643,6 @@ export default function Admin() {
                 onDelete={handleDeletePerson}
                 onReset={handleResetPerson}
               />
-            )}
-
-            {currentTab === 'activity' && activityData && (
-              <ActivityTab activityData={activityData} />
             )}
 
             {currentTab === 'settings' && settings && (
@@ -864,6 +985,172 @@ function SettingsTab({ settings, onSettingsChange, onSave }: any) {
   );
 }
 
+// ---------- Composants partages (factorises pour Lot 4) ----------
+
+type ReviewVariant = 'primary' | 'danger' | 'neutral';
+
+export interface ReviewListAction {
+  label: string;
+  onPress: () => void;
+  variant?: ReviewVariant;
+  icon?: keyof typeof Ionicons.glyphMap;
+  disabled?: boolean;
+}
+
+export interface ReviewListProps<T> {
+  title?: string;
+  data: T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  actions?: (item: T, index: number) => ReviewListAction[];
+  keyExtractor?: (item: T, index: number) => string;
+  emptyText?: string;
+  headerAction?: ReviewListAction;
+}
+
+export function ReviewList<T>({
+  title,
+  data,
+  renderItem,
+  actions,
+  keyExtractor,
+  emptyText = 'Aucun element',
+  headerAction,
+}: ReviewListProps<T>) {
+  return (
+    <View style={styles.section}>
+      {(title || headerAction) && (
+        <View style={styles.reviewListHeader}>
+          {title ? <Text style={styles.sectionTitle}>{title}</Text> : <View />}
+          {headerAction && (
+            <TouchableOpacity
+              style={[styles.reviewActionBtn, reviewVariantStyle(headerAction.variant)]}
+              onPress={headerAction.onPress}
+              disabled={headerAction.disabled}
+            >
+              {headerAction.icon && (
+                <Ionicons name={headerAction.icon} size={16} color={reviewVariantTextColor(headerAction.variant)} />
+              )}
+              <Text style={[styles.reviewActionBtnText, { color: reviewVariantTextColor(headerAction.variant) }]}>
+                {headerAction.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {data.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.reviewEmpty}>{emptyText}</Text>
+        </View>
+      ) : (
+        data.map((item, index) => {
+          const key = keyExtractor ? keyExtractor(item, index) : String(index);
+          const itemActions = actions ? actions(item, index) : [];
+          return (
+            <View key={key} style={[styles.card, { marginBottom: 12 }]}>
+              {renderItem(item, index)}
+              {itemActions.length > 0 && (
+                <View style={styles.reviewActionsRow}>
+                  {itemActions.map((a, ai) => (
+                    <TouchableOpacity
+                      key={`${key}-${ai}`}
+                      style={[styles.reviewActionBtn, reviewVariantStyle(a.variant), a.disabled && { opacity: 0.5 }]}
+                      onPress={a.onPress}
+                      disabled={a.disabled}
+                    >
+                      {a.icon && (
+                        <Ionicons name={a.icon} size={16} color={reviewVariantTextColor(a.variant)} />
+                      )}
+                      <Text style={[styles.reviewActionBtnText, { color: reviewVariantTextColor(a.variant) }]}>
+                        {a.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+function reviewVariantStyle(v?: ReviewVariant) {
+  switch (v) {
+    case 'danger':  return { backgroundColor: PALETTE.accent, borderColor: PALETTE.accent };
+    case 'neutral': return { backgroundColor: PALETTE.bg, borderColor: PALETTE.border };
+    case 'primary':
+    default:        return { backgroundColor: PALETTE.gold, borderColor: PALETTE.gold };
+  }
+}
+
+function reviewVariantTextColor(v?: ReviewVariant) {
+  if (v === 'danger') return '#FFF';
+  if (v === 'neutral') return PALETTE.text;
+  return '#000';
+}
+
+export interface AdminCardPerson {
+  id?: string;
+  name: string;
+  score?: number;
+  likes?: number;
+  dislikes?: number;
+  total_votes?: number;
+  source?: string;
+  category?: string;
+  avatar_initials?: string;
+  avatar_color?: string;
+  created_at?: string;
+}
+
+export function AdminCard({
+  person,
+  rightSlot,
+  subline,
+}: {
+  person: AdminCardPerson;
+  rightSlot?: React.ReactNode;
+  subline?: string;
+}) {
+  const initials = person.avatar_initials || (person.name || '?').slice(0, 2).toUpperCase();
+  const color = person.avatar_color || PALETTE.border;
+  return (
+    <View style={styles.adminCardRow}>
+      <View style={[styles.adminCardAvatar, { backgroundColor: color }]}>
+        <Text style={styles.adminCardAvatarText}>{initials}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.adminCardName} numberOfLines={1}>{person.name}</Text>
+        <Text style={styles.adminCardMeta} numberOfLines={1}>
+          {typeof person.score === 'number' ? `PI ${Math.round(person.score)}` : null}
+          {typeof person.total_votes === 'number' ? `${typeof person.score === 'number' ? ' • ' : ''}${person.total_votes} votes` : null}
+          {person.source ? ` • ${person.source}` : null}
+          {person.category ? ` • ${person.category}` : null}
+        </Text>
+        {subline ? <Text style={styles.adminCardSubline} numberOfLines={2}>{subline}</Text> : null}
+      </View>
+      {rightSlot}
+    </View>
+  );
+}
+
+// Placeholder rendu pour les 6 sections en construction (sous-taches 1-5 a venir).
+function PlaceholderSection({ tab }: { tab: Tab }) {
+  const meta = TAB_LABELS[tab];
+  return (
+    <View style={styles.section}>
+      <View style={styles.placeholderCard}>
+        <Ionicons name={meta.icon} size={48} color={PALETTE.gold} />
+        <Text style={styles.placeholderTitle}>{meta.label}</Text>
+        <Text style={styles.placeholderText}>Section en construction</Text>
+        <Text style={styles.placeholderHint}>Le contenu arrive dans une sous-tache dediee.</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PALETTE.bg },
   loginContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
@@ -1068,4 +1355,97 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   refreshTrendsButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
+
+  // ---------- Styles partages Lot 4 (ReviewList / AdminCard / Placeholder) ----------
+  reviewListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reviewActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  reviewActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  reviewActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reviewEmpty: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 24,
+  },
+  adminCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  adminCardAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminCardAvatarText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  adminCardName: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  adminCardMeta: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  adminCardSubline: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  placeholderCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    borderStyle: 'dashed',
+  },
+  placeholderTitle: {
+    color: PALETTE.text,
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  placeholderText: {
+    color: PALETTE.gold,
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  placeholderHint: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
 });
