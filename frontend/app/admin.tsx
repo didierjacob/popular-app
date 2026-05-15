@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -229,6 +229,22 @@ interface DeceasedItem {
   status: string;
 }
 
+// Vague 4 sous-tache 4 — Categories (category_reviews + 4 endpoints /admin/category-review*)
+// Source = Wikipedia REST description; confidence est une chaine ("high"/"medium"/"low").
+// Limitation V1 connue: reject ne pose pas de flag definitif sur la personne — l'audit suivant
+// peut recreer une review pour la meme divergence current vs suggested. A fixer en V2 (cf memoire).
+interface CategoryReviewItem {
+  id: string;
+  person_id: string;
+  name: string;
+  current_category: string;
+  suggested_category: string;
+  confidence: string; // "high" | "medium" | "low"
+  wiki_description: string;
+  created_at: string | null;
+  status: string;
+}
+
 type Tab =
   | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
   | 'activity'        // existant
@@ -313,6 +329,13 @@ export default function Admin() {
   const [deceasedRunChecking, setDeceasedRunChecking] = useState(false);
   // Loading dedie pour le bouton "Confirmer tout" (boucle backend sur N profils).
   const [deceasedBulkConfirming, setDeceasedBulkConfirming] = useState(false);
+
+  // Vague 4 sous-tache 4 — Categories
+  const [categoryReviews, setCategoryReviews] = useState<CategoryReviewItem[]>([]);
+  const [categoryReviewsLoading, setCategoryReviewsLoading] = useState(false);
+  const [categoryReviewsError, setCategoryReviewsError] = useState<string | null>(null);
+  // Loading dedie pour le bouton "Lancer l'audit" (job lourd, rate-limit 2/60min).
+  const [categoryRunning, setCategoryRunning] = useState(false);
 
   // Vague 4 sous-tache 5 — Ajout manuel
   const [manualAddName, setManualAddName] = useState('');
@@ -1033,6 +1056,146 @@ export default function Admin() {
     );
   }, [adminFetch, loadDeceased]);
 
+  // ---------- Vague 4 sous-tache 4 — Categories ----------
+  // Workflow: l'audit compare current_category vs Wikipedia REST description pour chaque profil
+  // non-outsider et non-self_boosted; les divergences atterrissent dans category_reviews (pending).
+  // Apply = update persons.category (pas de recalcul PI). Reject = mark rejected (cf limitation V1
+  // documentee: la review peut etre recreee au prochain audit, pas de flag personne).
+  const loadCategoryReviews = useCallback(async () => {
+    setCategoryReviewsLoading(true);
+    setCategoryReviewsError(null);
+    try {
+      const res = await adminFetch(API('/admin/category-reviews?status=pending'));
+      if (res.ok) {
+        const data: CategoryReviewItem[] = await res.json();
+        setCategoryReviews(Array.isArray(data) ? data : []);
+      } else if (res.status !== 403) {
+        setCategoryReviewsError('Impossible de charger les revisions de categorie');
+      }
+    } catch {
+      setCategoryReviewsError('Erreur reseau');
+    } finally {
+      setCategoryReviewsLoading(false);
+    }
+  }, [adminFetch]);
+
+  useEffect(() => {
+    if (authenticated && currentTab === 'categories') {
+      loadCategoryReviews();
+    }
+  }, [authenticated, currentTab, loadCategoryReviews]);
+
+  const categoryApply = useCallback((item: CategoryReviewItem) => {
+    const fromLabel = categoryFR(item.current_category);
+    const toLabel = categoryFR(item.suggested_category);
+    Alert.alert(
+      'Appliquer la correction',
+      `Modifier la categorie de ${item.name} :\n${fromLabel} → ${toLabel} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Appliquer',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/category-reviews/${item.id}/apply`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setCategoryReviews((prev) => prev.filter((x) => x.id !== item.id));
+                Alert.alert('Categorie modifiee', `${item.name} : ${fromLabel} → ${toLabel}.`);
+              } else {
+                let msg = 'Echec de la modification';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const categoryReject = useCallback((item: CategoryReviewItem) => {
+    const currentLabel = categoryFR(item.current_category);
+    Alert.alert(
+      "Garder l'actuelle",
+      `Conserver la categorie ${currentLabel} pour ${item.name} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Conserver',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/category-reviews/${item.id}/reject`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                setCategoryReviews((prev) => prev.filter((x) => x.id !== item.id));
+                Alert.alert('Categorie conservee', `${currentLabel} maintenue pour ${item.name}.`);
+              } else {
+                let msg = 'Echec';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch]);
+
+  const categoryRunReview = useCallback(() => {
+    Alert.alert(
+      "Lancer l'audit",
+      `Le serveur va comparer chaque profil non-outsider avec sa description Wikipedia ` +
+        `et flagger les divergences de categorie. L'operation peut prendre plusieurs minutes. ` +
+        `La file sera rafraichie automatiquement au retour.\n\nLancer ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Lancer',
+          onPress: async () => {
+            setCategoryRunning(true);
+            try {
+              const res = await adminFetch(API('/admin/run-category-review'), {
+                method: 'POST',
+              });
+              if (res.status === 429) {
+                Alert.alert(
+                  'Audit deja lance recemment',
+                  'Limite atteinte (2 lancements par heure). Reessaie dans environ une heure.'
+                );
+                return;
+              }
+              if (res.ok) {
+                const data = await res.json();
+                const reviewed = Number(data?.reviewed ?? 0);
+                const divergences = Number(data?.divergences ?? 0);
+                Alert.alert(
+                  'Audit termine',
+                  `${reviewed} profil${reviewed > 1 ? 's' : ''} analyse${reviewed > 1 ? 's' : ''}, ${divergences} divergence${divergences > 1 ? 's' : ''} detectee${divergences > 1 ? 's' : ''}.`
+                );
+                loadCategoryReviews();
+              } else {
+                let msg = 'Echec du lancement';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            } finally {
+              setCategoryRunning(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, loadCategoryReviews]);
+
   // ---------- Vague 4 sous-tache 5 — Soumission ajout manuel ----------
   // Cree immediatement une celebrite via /admin/propose-celebrity (visible=true, source=admin_manual).
   // Pipeline backend: validation Wikidata (humain vivant) + confidence ≥ 65 + external score + PI.
@@ -1512,7 +1675,16 @@ export default function Admin() {
             )}
 
             {currentTab === 'categories' && (
-              <PlaceholderSection tab="categories" />
+              <CategoriesSection
+                items={categoryReviews}
+                loading={categoryReviewsLoading}
+                error={categoryReviewsError}
+                running={categoryRunning}
+                onRefresh={loadCategoryReviews}
+                onApply={categoryApply}
+                onReject={categoryReject}
+                onRunReview={categoryRunReview}
+              />
             )}
 
             {currentTab === 'moderation' && (
@@ -3003,6 +3175,210 @@ function DeceasedSection({
   );
 }
 
+// ---------- Vague 4 sous-tache 4 — Categories ----------
+// Confiance: backend renvoie "high"/"medium"/"low" -> label FR + code-couleur valide par Didier
+// (vert/orange/gris neutre). Pas de pourcentage (cf reconnaissance).
+function confidenceFR(c: string | null | undefined): string {
+  switch ((c || '').toLowerCase()) {
+    case 'high': return 'Confiance elevee';
+    case 'medium': return 'Confiance moyenne';
+    case 'low': return 'Confiance faible';
+    default: return 'Confiance inconnue';
+  }
+}
+
+function confidenceRank(c: string | null | undefined): number {
+  switch ((c || '').toLowerCase()) {
+    case 'high': return 3;
+    case 'medium': return 2;
+    case 'low': return 1;
+    default: return 0;
+  }
+}
+
+function confidenceBadgeStyle(c: string | null | undefined) {
+  switch ((c || '').toLowerCase()) {
+    case 'high': return { bg: '#1F4D2E', fg: '#7FD99B', border: '#2F6D43' };
+    case 'medium': return { bg: '#4A3416', fg: '#E8B26A', border: '#6A4E26' };
+    case 'low': return { bg: '#2A2A30', fg: '#A0A0A8', border: '#3A3A42' };
+    default: return { bg: '#2A2A30', fg: '#A0A0A8', border: '#3A3A42' };
+  }
+}
+
+interface CategoriesSectionProps {
+  items: CategoryReviewItem[];
+  loading: boolean;
+  error: string | null;
+  running: boolean;
+  onRefresh: () => void;
+  onApply: (item: CategoryReviewItem) => void;
+  onReject: (item: CategoryReviewItem) => void;
+  onRunReview: () => void;
+}
+
+function CategoriesSection({
+  items,
+  loading,
+  error,
+  running,
+  onRefresh,
+  onApply,
+  onReject,
+  onRunReview,
+}: CategoriesSectionProps) {
+  // Tri client confiance DESC puis created_at DESC (le backend trie deja created_at desc).
+  const sorted = useMemo(() => {
+    return [...items].sort((a, b) => {
+      const rankDiff = confidenceRank(b.confidence) - confidenceRank(a.confidence);
+      if (rankDiff !== 0) return rankDiff;
+      const ta = a.created_at ? Date.parse(a.created_at) : 0;
+      const tb = b.created_at ? Date.parse(b.created_at) : 0;
+      return tb - ta;
+    });
+  }, [items]);
+  const count = sorted.length;
+  const runDisabled = running;
+
+  return (
+    <View>
+      <View style={[styles.section, { paddingBottom: 0 }]}>
+        <View style={styles.candidatesHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Categories a reviser</Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {count} revision{count > 1 ? 's' : ''} en attente
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.deceasedHeaderActions}>
+          <TouchableOpacity
+            onPress={onRunReview}
+            disabled={runDisabled}
+            style={[styles.deceasedHeaderBtn, runDisabled && { opacity: 0.5 }]}
+            activeOpacity={0.8}
+          >
+            {running ? (
+              <ActivityIndicator color={PALETTE.text} size="small" />
+            ) : (
+              <Ionicons name="search-outline" size={16} color={PALETTE.text} />
+            )}
+            <Text style={styles.deceasedHeaderBtnText}>
+              {running ? 'Audit en cours...' : "Lancer l'audit"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : error ? (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{error}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <ReviewList<CategoryReviewItem>
+          data={sorted}
+          keyExtractor={(it) => it.id}
+          emptyText="Aucune revision de categorie en attente"
+          renderItem={(it) => {
+            const currentFr = categoryFR(it.current_category);
+            const suggestedFr = categoryFR(it.suggested_category);
+            const detectedRel = formatDateFR(it.created_at);
+            const badge = confidenceBadgeStyle(it.confidence);
+            const wikiTitle = encodeURIComponent((it.name || '').replace(/ /g, '_'));
+            const wikiHref = wikiTitle ? `https://en.wikipedia.org/wiki/${wikiTitle}` : null;
+            return (
+              <View>
+                <AdminCard
+                  person={{
+                    id: it.id,
+                    name: it.name,
+                    category: it.current_category,
+                  }}
+                  rightSlot={
+                    <View
+                      style={[
+                        styles.categoryConfidenceBadge,
+                        { backgroundColor: badge.bg, borderColor: badge.border },
+                      ]}
+                    >
+                      <Text style={[styles.categoryConfidenceBadgeText, { color: badge.fg }]}>
+                        {confidenceFR(it.confidence)}
+                      </Text>
+                    </View>
+                  }
+                />
+
+                <View style={styles.categoryTransitionRow}>
+                  <View style={[styles.categoryBadge, styles.categoryBadgeCurrent]}>
+                    <Text style={styles.categoryBadgeCurrentText}>{currentFr}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={14} color={PALETTE.gold} />
+                  <View style={[styles.categoryBadge, styles.categoryBadgeSuggested]}>
+                    <Text style={styles.categoryBadgeSuggestedText}>{suggestedFr}</Text>
+                  </View>
+                </View>
+
+                {!!it.wiki_description && (
+                  <Text style={styles.categoryWikiDescription} numberOfLines={2}>
+                    « {it.wiki_description} »
+                  </Text>
+                )}
+
+                <View style={styles.deceasedSourceRow}>
+                  <View style={styles.categorySourceRowInner}>
+                    {!!detectedRel && (
+                      <Text style={styles.candidatesDateText}>Detecte {detectedRel}</Text>
+                    )}
+                    {wikiHref ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(wikiHref).catch(() => {})}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={styles.deceasedSourceLink}>Voir sur Wikipedia ↗</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+          actions={(it) => [
+            {
+              label: 'Appliquer la correction',
+              icon: 'checkmark-circle-outline',
+              variant: 'primary',
+              onPress: () => onApply(it),
+            },
+            {
+              label: "Garder l'actuelle",
+              icon: 'close-circle-outline',
+              variant: 'neutral',
+              onPress: () => onReject(it),
+            },
+          ]}
+        />
+      )}
+    </View>
+  );
+}
+
 // Placeholder rendu pour les 5 sections restantes en construction (sous-taches 2-5 a venir).
 function PlaceholderSection({ tab }: { tab: Tab }) {
   const meta = TAB_LABELS[tab];
@@ -3557,6 +3933,62 @@ const styles = StyleSheet.create({
   deceasedSourceText: {
     color: PALETTE.subtext,
     fontSize: 11,
+  },
+
+  // ---------- Styles Vague 4 sous-tache 4 — Categories ----------
+  categoryConfidenceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  categoryConfidenceBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  categoryTransitionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  categoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  categoryBadgeCurrent: {
+    backgroundColor: PALETTE.bg,
+    borderColor: PALETTE.border,
+  },
+  categoryBadgeCurrentText: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryBadgeSuggested: {
+    backgroundColor: PALETTE.gold + '22',
+    borderColor: PALETTE.gold,
+  },
+  categoryBadgeSuggestedText: {
+    color: PALETTE.gold,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  categoryWikiDescription: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    marginTop: 10,
+    fontStyle: 'italic',
+    lineHeight: 17,
+  },
+  categorySourceRowInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
   },
 
   // ---------- Styles Vague 4 sous-tache 5 — Ajout manuel ----------
