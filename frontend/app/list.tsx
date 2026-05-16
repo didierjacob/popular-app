@@ -154,13 +154,7 @@ export default function List() {
           </Text>
         </View>
         <View style={styles.arrowBox}>
-          <RankDeltaBadge
-            delta={item.rank_delta_24h}
-            hideZero
-            fallbackToFake
-            name={item.name}
-            score={item.score}
-          />
+          <RankDeltaBadge delta={item.rank_delta_24h} hideZero />
         </View>
       </TouchableOpacity>
     );

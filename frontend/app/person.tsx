@@ -75,6 +75,20 @@ interface LiveVoteEntry {
 
 const USER_COUNTRY_KEY = "popular_user_country";
 
+// Sujet F: persist the user's own vote so it survives navigation away/back.
+// Cache TTL is wider than the visible window — the visible window mirrors the
+// backend cooldown so we never restore an entry past the moment the user can
+// vote again on this profile.
+const USER_VOTE_CACHE_KEY = (profileId: string) => `user_vote_${profileId}`;
+const USER_VOTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const USER_VOTE_VISIBLE_MS = 24 * 60 * 60 * 1000;
+
+interface PersistedUserVote {
+  action: "liked" | "disliked";
+  country: string;
+  timestamp: number;
+}
+
 // Virtual vote configuration from backend
 interface VirtualVoteConfig {
   tier: "cas1" | "cas2" | "cas3";
@@ -498,8 +512,39 @@ export default function Person() {
     }
     setLiveVotes(initial);
 
-    // Schedule next vote with randomized interval from config
     let active = true;
+
+    // Sujet F: restore the user's own vote from cache if still within the
+    // visible 24h window. Merged chronologically with the freshly seeded
+    // fakes, so an old vote naturally lands further down the visible feed.
+    void (async () => {
+      try {
+        const persisted = await CacheService.get<PersistedUserVote>(USER_VOTE_CACHE_KEY(id));
+        if (!persisted || !active) return;
+        if (Date.now() - persisted.timestamp >= USER_VOTE_VISIBLE_MS) return;
+        voteIdCounter.current++;
+        const restored: LiveVoteEntry = {
+          id: voteIdCounter.current,
+          firstName: "__USER__",
+          action: persisted.action,
+          country: persisted.country,
+          timestamp: persisted.timestamp,
+          isUser: true,
+        };
+        setLiveVotes((prev) => {
+          // A fresh like() during the same mount already injected the user
+          // entry — don't duplicate it.
+          if (prev.some((e) => e.isUser)) return prev;
+          return [restored, ...prev]
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 30);
+        });
+      } catch {
+        // Cache read errors are non-fatal — fall back to no restored entry.
+      }
+    })();
+
+    // Schedule next vote with randomized interval from config
     const scheduleNextVote = () => {
       if (!active) return;
       const delay = cfg.interval_min_ms + Math.random() * (cfg.interval_max_ms - cfg.interval_min_ms);
@@ -640,17 +685,26 @@ export default function Person() {
 
       // Sujet 4: inject user's own vote into the live feed
       voteIdCounter.current++;
+      const action: "liked" | "disliked" = value === 1 ? "liked" : "disliked";
+      const voteTimestamp = Date.now();
       const userEntry: LiveVoteEntry = {
         id: voteIdCounter.current,
         firstName: "__USER__",
-        action: value === 1 ? "liked" : "disliked",
+        action,
         country: userCountryRef.current,
-        timestamp: Date.now(),
+        timestamp: voteTimestamp,
         isUser: true,
       };
       // Sujet 4 (V2): no TTL — the user entry stays until pushed out of the
       // visible window by newer entries (same lifecycle as fake votes).
       setLiveVotes((prev) => [userEntry, ...prev].slice(0, 30));
+
+      // Sujet F: persist so the entry survives navigation away/back (< 24h).
+      void CacheService.set<PersistedUserVote>(
+        USER_VOTE_CACHE_KEY(id),
+        { action, country: userCountryRef.current, timestamp: voteTimestamp },
+        USER_VOTE_CACHE_TTL_MS,
+      );
 
       // Cache TTL (2 min) would otherwise return the pre-vote snapshot and
       // clobber the optimistic setPerson() above. Invalidate first, then refetch.
@@ -715,12 +769,20 @@ export default function Person() {
             {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={() => {
+                  // Sujet G: an Outsider profile should always lead back to
+                  // the Outsiders list, not Home (which is where router.back()
+                  // would otherwise land via the default tab stack).
+                  if (isOutsider) router.push("/outsiders");
+                  else router.back();
+                }}
                 style={styles.homeBtn}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Text style={styles.backArrow}>{"<"}</Text>
-                <Text style={styles.homeText}>{t("person.home")}</Text>
+                <Text style={styles.homeText}>
+                  {isOutsider ? t("outsiders.title") : t("person.home")}
+                </Text>
               </TouchableOpacity>
               <View style={styles.titleRow}>
                 <Text style={styles.title} numberOfLines={2}>

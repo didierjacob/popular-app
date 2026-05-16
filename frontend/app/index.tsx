@@ -707,13 +707,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
-                    <RankDeltaBadge
-                      delta={person.rank_delta_24h}
-                      hideZero
-                      fallbackToFake
-                      name={person.name}
-                      score={person.score}
-                    />
+                    <RankDeltaBadge delta={person.rank_delta_24h} hideZero />
                   </View>
                 </TouchableOpacity>
               ))}
