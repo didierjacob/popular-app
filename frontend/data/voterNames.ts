@@ -75,28 +75,20 @@ export const NAMES_BY_LANG: Record<SupportedLang | "international", string[]> = 
 };
 
 // ── Country pools by language ──
+// Sujet 3 (i18n pays): on stocke des codes ISO 3166-1 alpha-2.
+// Le rendu côté UI traduit via i18n (countries.XX) dans la langue
+// de l'app du user, avec fallback sur le code si absent.
 
 export const COUNTRIES_BY_LANG: Record<SupportedLang | "international", string[]> = {
-  fr: [
-    "France", "Belgique", "Suisse", "Canada", "Maroc", "Sénégal",
-    "Tunisie", "Algérie",
-  ],
-  en: [
-    "USA", "UK", "Canada", "Australia", "New Zealand", "Ireland",
-    "South Africa",
-  ],
-  es: [
-    "España", "México", "Argentina", "Colombia", "Chile", "Perú",
-    "Venezuela",
-  ],
-  de: ["Deutschland", "Österreich", "Schweiz"],
-  it: ["Italia", "Svizzera", "San Marino"],
-  pt: ["Portugal", "Brasil", "Angola", "Moçambique"],
+  fr: ["FR", "BE", "CH", "CA", "MA", "SN", "TN", "DZ"],
+  en: ["US", "GB", "CA", "AU", "NZ", "IE", "ZA"],
+  es: ["ES", "MX", "AR", "CO", "CL", "PE", "VE"],
+  de: ["DE", "AT", "CH"],
+  it: ["IT", "CH", "SM"],
+  pt: ["PT", "BR", "AO", "MZ"],
   international: [
-    "USA", "UK", "France", "Japan", "Germany", "Spain", "Italy",
-    "Canada", "Australia", "Brazil", "Mexico", "India", "South Korea",
-    "Netherlands", "Sweden", "Portugal", "Argentina", "Colombia",
-    "Belgium", "Switzerland",
+    "US", "GB", "FR", "JP", "DE", "ES", "IT", "CA", "AU", "BR",
+    "MX", "IN", "KR", "NL", "SE", "PT", "AR", "CO", "BE", "CH",
   ],
 };
 
@@ -128,7 +120,9 @@ export function pickVoterName(
 }
 
 /**
- * Returns a random country adapted to the geo coefficient and dominant language.
+ * Returns a random country ISO 3166-1 alpha-2 code (e.g. "FR", "BE", "JP")
+ * adapted to the geo coefficient and dominant language.
+ * Le code est ensuite traduit côté UI via i18n (countries.XX).
  */
 export function pickVoterCountry(
   dominantLang: SupportedLang,

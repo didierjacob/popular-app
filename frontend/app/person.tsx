@@ -266,7 +266,8 @@ function LiveVoteItem({
           </Text>{" "}
           <Text style={{ color: actionColor }}>{actionText}</Text>{" "}
           <Text style={{ color: PALETTE.subtext }}>
-            {t("person.inCountry")} {entry.country}
+            {t("person.inCountry")}{" "}
+            {t(`countries.${entry.country}`, { defaultValue: entry.country })}
           </Text>
         </Text>
       </View>
