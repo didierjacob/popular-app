@@ -295,6 +295,9 @@ class PersonOut(BaseModel):
     wiki_score_norm: Optional[float] = None
     wiki_score_brut: Optional[float] = None
     last_external_update: Optional[datetime] = None
+    # Sujet 2 — Axe 1: signed rank shift over the last 24h.
+    # +N = moved up N positions, -N = moved down, None = no snapshot yet.
+    rank_delta_24h: Optional[int] = None
 
 
 class VoteIn(BaseModel):
@@ -952,6 +955,7 @@ def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
             wiki_score_norm=_safe_float(doc.get("wiki_score_norm")) if doc.get("wiki_score_norm") is not None else None,
             wiki_score_brut=_safe_float(doc.get("wiki_score_brut")) if doc.get("wiki_score_brut") is not None else None,
             last_external_update=doc.get("last_external_update"),
+            rank_delta_24h=(int(doc["rank_delta_24h"]) if isinstance(doc.get("rank_delta_24h"), (int, float)) else None),
         )
     except Exception as e:
         logger.error(f"❌ person_to_out CRASH for id={doc.get('_id')}, name={doc.get('name')!r}: {e}")
@@ -1974,6 +1978,7 @@ async def get_outsiders(
                 "strike_emoji": person.get("strike_emoji"),
                 "strike_label": person.get("strike_label"),
                 "is_seed": bool(boost.get("is_seed", False)),
+                "rank_delta_24h": person.get("rank_delta_24h"),
             }
 
             if boost.get("position") == "top":
@@ -2192,6 +2197,7 @@ async def get_outsiders_paginated(
                 "strike_label": person.get("strike_label"),
                 "is_seed": bool(boost.get("is_seed", False)),
                 "country": boost.get("country") or person.get("primary_country", ""),
+                "rank_delta_24h": person.get("rank_delta_24h"),
             }
             outsider_list.append(outsider_data)
 
@@ -5757,6 +5763,22 @@ async def admin_update_person_category_batch(request: Request):
     
     logger.info(f"🏷️ Admin batch: {results['modified']}/{results['processed']} updated")
     return results
+
+
+@api_router.post("/admin/run-rank-snapshot-now")
+@limiter.limit("5/15minutes")
+async def admin_run_rank_snapshot_now(request: Request):
+    """
+    Sujet 2 — Manual trigger for the daily rank snapshot
+    (rank_24h_ago + immediate delta refresh). Useful for V1 verification
+    before the first 03:30 UTC cron firing.
+    """
+    _require_admin_auth(request)
+    from rank_tracking import snapshot_ranks, update_rank_deltas
+    snap = await snapshot_ranks(db)
+    deltas = await update_rank_deltas(db)
+    logger.info(f"📸 Admin: rank snapshot triggered → snap={snap} deltas={deltas}")
+    return {"snapshot": snap, "deltas": deltas}
 
 
 @api_router.post("/admin/recompute-total-votes")

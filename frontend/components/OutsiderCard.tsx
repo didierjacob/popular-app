@@ -17,6 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import RankDeltaBadge from "./RankDeltaBadge";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -43,6 +44,7 @@ export interface OutsiderData {
   hours_remaining?: number;
   social_links?: { instagram?: string; tiktok?: string; x?: string; twitter?: string; facebook?: string };
   position?: string;
+  rank_delta_24h?: number | null;
 }
 
 interface OutsiderCardProps {
@@ -207,11 +209,12 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
           <Text style={styles.name} numberOfLines={1}>
             {outsider.name}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3, flexWrap: "wrap", gap: 6 }}>
             <View style={[styles.tierBadge, isGolden && { backgroundColor: PALETTE.gold + "22", borderColor: PALETTE.gold + "44" }]}>
               <Ionicons name={isGolden ? "trophy" : "rocket"} size={11} color={isGolden ? PALETTE.gold : PALETTE.green} />
               <Text style={[styles.tierText, isGolden && { color: PALETTE.gold }]}>{outsider.tier_name || "Booster"}</Text>
             </View>
+            <RankDeltaBadge delta={outsider.rank_delta_24h} hideZero />
           </View>
         </View>
       </View>

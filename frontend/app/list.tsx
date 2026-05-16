@@ -1,12 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, TouchableOpacity, View, FlatList, useWindowDimensions, ScrollView } from "react-native";
+import { ActivityIndicator, LayoutAnimation, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, UIManager, View, FlatList, useWindowDimensions, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
-import { getTrendDirection, hasGlowEffect } from "../utils/trendUtils";
+import { hasGlowEffect } from "../utils/trendUtils";
 import { fetchSWR } from "../services/cacheService";
+import RankDeltaBadge from "../components/RankDeltaBadge";
+
+// Enable LayoutAnimation on Android (no-op on iOS).
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -42,6 +47,7 @@ interface Person {
   likes: number;
   dislikes: number;
   total_votes: number;
+  rank_delta_24h?: number | null;
 }
 
 const CATEGORIES = [
@@ -63,7 +69,6 @@ export default function List() {
   const [selectedCategory, setSelectedCategory] = useState(params.category || "all");
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
-  const [rotationKey, setRotationKey] = useState(0);
 
   // Update selected category if params change
   useEffect(() => {
@@ -71,6 +76,10 @@ export default function List() {
       setSelectedCategory(params.category);
     }
   }, [params.category]);
+
+  // Sujet 2 — remember the previous order so we can run a LayoutAnimation
+  // when a refresh actually swaps positions (not on first load).
+  const prevOrderRef = useRef<string[]>([]);
 
   const load = useCallback(async () => {
     const regionCode = Localization.getLocales()?.[0]?.regionCode || '';
@@ -82,6 +91,16 @@ export default function List() {
       const cleaned = (data as Person[]).filter((p) =>
         (p as any).category !== "outsider" && (p as any).source !== "self_boosted"
       );
+      const prevIds = prevOrderRef.current;
+      const newIds = cleaned.map((p) => p.id);
+      const orderChanged = prevIds.length > 0
+        && (prevIds.length !== newIds.length || newIds.some((id, i) => id !== prevIds[i]));
+      if (orderChanged) {
+        LayoutAnimation.configureNext(
+          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+        );
+      }
+      prevOrderRef.current = newIds;
       setPeople(cleaned);
     };
 
@@ -105,8 +124,8 @@ export default function List() {
 
   useEffect(() => {
     load();
-    // Rotation every 6 minutes for "market movement" effect
-    const interval = setInterval(() => load(), 360000);
+    // Sujet 2 — refresh every 60s so rank movements surface near real time.
+    const interval = setInterval(() => load(), 60000);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -121,23 +140,7 @@ export default function List() {
   }, [people, selectedCategory]);
 
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
-    // Use shared trend utility for coherence with person.tsx
-    const direction = getTrendDirection({ name: item.name, score: item.score });
     const isGlowing = hasGlowEffect({ name: item.name, score: item.score });
-    
-    let arrowIcon: string;
-    let arrowColor: string;
-    if (direction === "up") {
-      arrowIcon = "arrow-up";
-      arrowColor = PALETTE.green;
-    } else if (direction === "down") {
-      arrowIcon = "arrow-down";
-      arrowColor = PALETTE.accent;
-    } else {
-      arrowIcon = "swap-horizontal";
-      arrowColor = PALETTE.subtext;
-    }
-    
     return (
       <TouchableOpacity
         style={[styles.row, isGlowing && styles.glowRow]}
@@ -153,7 +156,7 @@ export default function List() {
           </Text>
         </View>
         <View style={styles.arrowBox}>
-          <Ionicons name={arrowIcon as any} size={22} color={arrowColor} />
+          <RankDeltaBadge delta={item.rank_delta_24h} hideZero />
         </View>
       </TouchableOpacity>
     );

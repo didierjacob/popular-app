@@ -33,6 +33,22 @@ async def run_index_recalc_job(db):
         await recalculate_all_indices(db)
     except Exception as e:
         logger.error(f"❌ Index recalculation job error: {e}")
+    # Sujet 2 — refresh rank_delta_24h once ranks have been recomputed.
+    # Runs even if the index recalc raised, so a partial refresh still surfaces.
+    try:
+        from rank_tracking import update_rank_deltas
+        await update_rank_deltas(db)
+    except Exception as e:
+        logger.error(f"❌ Rank delta update error: {e}")
+
+
+async def run_rank_snapshot_job(db):
+    """Daily wrapper: snapshot current ranks into rank_24h_ago (cron 03:30 UTC)."""
+    try:
+        from rank_tracking import snapshot_ranks
+        await snapshot_ranks(db)
+    except Exception as e:
+        logger.error(f"❌ Rank snapshot job error: {e}")
 
 
 async def run_daily_run_check_job(db):
@@ -561,6 +577,18 @@ def init_scheduler(db, trends_service, email_svc=None):
         replace_existing=True
     )
 
+    # ── Sujet 2 (Vague 5): Daily rank snapshot at 03:30 UTC ──
+    # Writes rank_24h_ago for every approved profile (celebrities + outsiders).
+    # rank_delta_24h is then refreshed every 15 min by run_index_recalc_job.
+    scheduler.add_job(
+        run_rank_snapshot_job,
+        CronTrigger(hour=3, minute=30),
+        args=[db],
+        id='rank_snapshot_job',
+        name='Daily Rank Snapshot (rank_24h_ago)',
+        replace_existing=True
+    )
+
     # ── Vague 4 sous-tâche 7: Process user submissions every 30 minutes ──
     # Dépile les soumissions user_search arrivées à échéance (process_after <= now),
     # FIFO, max 100/run, et les passe à approve_user_search_candidate
@@ -590,6 +618,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Daily candidate detection (Wikipedia) scheduled at 5:00 AM UTC")
     logger.info("Monthly category review (Wikipedia) scheduled on 1st of month at 4:00 AM UTC")
     logger.info("Process user submissions (user_search) runs every 30 minutes")
+    logger.info("Daily rank snapshot (rank_24h_ago) scheduled at 3:30 AM UTC")
 
     return scheduler
 

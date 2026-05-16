@@ -1,14 +1,22 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  LayoutAnimation,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  UIManager,
   View,
 } from "react-native";
+
+// Enable LayoutAnimation on Android (no-op on iOS).
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -81,9 +89,23 @@ export default function OutsidersPage() {
     return did;
   }, []);
 
+  // Sujet 2 — track previous order so a refresh that reshuffles ranks
+  // can drive a smooth LayoutAnimation.
+  const prevOrderRef = useRef<string[]>([]);
+
   const loadOutsiders = useCallback(async () => {
     const applyData = (data: any) => {
       const allOutsiders = [...(data?.golden || []), ...(data?.regular || [])];
+      const prevIds = prevOrderRef.current;
+      const newIds = allOutsiders.map((o) => o.id);
+      const orderChanged = prevIds.length > 0
+        && (prevIds.length !== newIds.length || newIds.some((id, i) => id !== prevIds[i]));
+      if (orderChanged) {
+        LayoutAnimation.configureNext(
+          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+        );
+      }
+      prevOrderRef.current = newIds;
       setOutsiders(allOutsiders);
     };
 
@@ -111,7 +133,10 @@ export default function OutsidersPage() {
 
   useEffect(() => {
     loadOutsiders();
-  }, []);
+    // Sujet 2 — refresh every 60s so rank movements surface near real time.
+    const interval = setInterval(() => loadOutsiders(), 60000);
+    return () => clearInterval(interval);
+  }, [loadOutsiders]);
 
   const handleLikeOutsider = useCallback(async (personId: string) => {
     try {

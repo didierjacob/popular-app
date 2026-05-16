@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import OutsiderCard from "../components/OutsiderCard";
+import RankDeltaBadge from "../components/RankDeltaBadge";
 import { fetchSWR } from "../services/cacheService";
 import { cacheKeyPeopleHome, cacheKeyOutsiders } from "./splash";
 
@@ -58,23 +59,12 @@ interface Person {
   score: number;
   total_votes: number;
   source?: string;
+  rank_delta_24h?: number | null;
+  popularoo_index?: number;
 }
 
-// ===== ANIMATION_CONFIG — Algo A: Weighted Random Increments =====
-// All coefficients are grouped here for easy tuning after iPhone testing.
-const ANIMATION_CONFIG = {
-  TOP_LIST_SIZE: 30,                     // Number of items in the animated Top list
-  MAX_DRIFT: 5,                          // Max ±positions drift from original rank
-  TICK_MIN_MS: 1200,                     // Min interval between increments (ms)
-  TICK_MAX_MS: 2800,                     // Max interval between increments (ms)
-  INCREMENT_MIN: 1,                      // Min score bump per tick
-  INCREMENT_MAX: 5,                      // Max score bump per tick
-  PICKS_PER_TICK: 2,                     // How many personalities receive a bump per tick
-  // Probability weight by rank bucket (higher = more likely to be selected)
-  WEIGHT_TOP5: 0.40,                     // Ranks 1-5
-  WEIGHT_MID: 0.35,                      // Ranks 6-15
-  WEIGHT_TAIL: 0.25,                     // Ranks 16-30
-};
+// Sujet 2 — Top list size kept for the Home feed (was 30 under the old Algo A).
+const TOP_LIST_SIZE = 30;
 
 interface Category {
   key: string;
@@ -392,111 +382,21 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // ===== ALGO A: Organic Ranking Movement =====
-  // Each person gets an internal "simulated score" that evolves by small random increments.
-  // When a score crosses another, the list re-sorts with a smooth LayoutAnimation.
-  const simulatedScores = useRef<Map<string, number>>(new Map());
-  const originalRanks = useRef<Map<string, number>>(new Map());
-  const animTickRef = useRef<NodeJS.Timeout | null>(null);
-
+  // Sujet 2 — Real rank movement: mirror `people` into `displayedPeople`
+  // and run a 600ms LayoutAnimation whenever the order actually changes
+  // between two refreshes (replaces the old Algo A simulated drift).
   useEffect(() => {
-    if (people.length <= 1) return;
-
-    // Initialize: take first 30 non-outsider people, assign simulated scores
-    const top = people.slice(0, ANIMATION_CONFIG.TOP_LIST_SIZE);
-    const scoreMap = new Map<string, number>();
-    const rankMap = new Map<string, number>();
-    top.forEach((p, i) => {
-      scoreMap.set(p.id, p.total_votes);
-      rankMap.set(p.id, i);
-    });
-    simulatedScores.current = scoreMap;
-    originalRanks.current = rankMap;
-    setDisplayedPeople(top);
-
-    // Weighted random selection helper
-    const pickRandomPerson = (list: Person[]): number => {
-      const r = Math.random();
-      const { WEIGHT_TOP5, WEIGHT_MID } = ANIMATION_CONFIG;
-      let bucket: [number, number];
-      if (r < WEIGHT_TOP5) {
-        bucket = [0, Math.min(5, list.length)];
-      } else if (r < WEIGHT_TOP5 + WEIGHT_MID) {
-        bucket = [Math.min(5, list.length), Math.min(15, list.length)];
-      } else {
-        bucket = [Math.min(15, list.length), list.length];
+    const top = people.slice(0, TOP_LIST_SIZE);
+    setDisplayedPeople(prev => {
+      const orderChanged = prev.length !== top.length
+        || top.some((p, i) => p.id !== prev[i]?.id);
+      if (orderChanged && prev.length > 0) {
+        LayoutAnimation.configureNext(
+          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+        );
       }
-      if (bucket[0] >= bucket[1]) bucket = [0, list.length];
-      return bucket[0] + Math.floor(Math.random() * (bucket[1] - bucket[0]));
-    };
-
-    // Schedule next organic tick
-    const scheduleTick = () => {
-      const delay = ANIMATION_CONFIG.TICK_MIN_MS +
-        Math.random() * (ANIMATION_CONFIG.TICK_MAX_MS - ANIMATION_CONFIG.TICK_MIN_MS);
-      animTickRef.current = setTimeout(() => {
-        setDisplayedPeople(prev => {
-          const scores = simulatedScores.current;
-          const origRanks = originalRanks.current;
-          const copy = [...prev];
-
-          // Pick N people and add a random increment to their simulated score
-          let bumpedNames: string[] = [];
-          for (let p = 0; p < ANIMATION_CONFIG.PICKS_PER_TICK; p++) {
-            const idx = pickRandomPerson(copy);
-            if (idx < copy.length) {
-              const person = copy[idx];
-              const current = scores.get(person.id) || person.total_votes;
-              const increment = ANIMATION_CONFIG.INCREMENT_MIN +
-                Math.floor(Math.random() * (ANIMATION_CONFIG.INCREMENT_MAX - ANIMATION_CONFIG.INCREMENT_MIN + 1));
-              scores.set(person.id, current + increment);
-              bumpedNames.push(`${person.name}(+${increment})`);
-            }
-          }
-
-          // Re-sort by simulated score
-          copy.sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
-
-          // Enforce ±MAX_DRIFT from original rank
-          const clamped = [...copy];
-          for (let i = 0; i < clamped.length; i++) {
-            const origRank = origRanks.get(clamped[i].id);
-            if (origRank !== undefined) {
-              const drift = i - origRank;
-              if (Math.abs(drift) > ANIMATION_CONFIG.MAX_DRIFT) {
-                // Reset simulated score slightly to pull back toward original rank
-                const baseVotes = clamped[i].total_votes;
-                scores.set(clamped[i].id, baseVotes + Math.floor(Math.random() * 10));
-              }
-            }
-          }
-
-          // Final sort after clamping
-          copy.sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
-
-          // Check if order actually changed
-          const changed = copy.some((p, i) => p.id !== prev[i]?.id);
-          if (changed) {
-            console.log(`[Algo A] SWAP detected — bumped: ${bumpedNames.join(', ')}`);
-            LayoutAnimation.configureNext(
-              LayoutAnimation.create(350, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
-            );
-          } else {
-            console.log(`[Algo A] tick — no swap (bumped: ${bumpedNames.join(', ')})`);
-          }
-
-          return copy;
-        });
-
-        scheduleTick(); // Chain next tick
-      }, delay);
-    };
-
-    scheduleTick();
-
-    return () => {
-      if (animTickRef.current) clearTimeout(animTickRef.current);
-    };
+      return top;
+    });
   }, [people]);
 
   // Pulsing heart animation — infinite loop
@@ -791,36 +691,26 @@ export default function HomeScreen() {
 
           {!loading && !error && (
             <View>
-              {displayedPeople.map((person, index) => {
-                // Determine trend arrow with visual variety (deterministic)
-                const nameHash = person.name.split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
-                const hourFactor = new Date().getHours();
-                const variation = (nameHash + hourFactor) % 10;
-                const isUp = variation < 5;
-                const isDown = variation >= 5 && variation < 8;
-                const arrowIcon = isUp ? "arrow-up" : isDown ? "arrow-down" : "swap-horizontal";
-                const arrowColor = isUp ? "#4CAF50" : isDown ? "#FF5252" : PALETTE.subtext;
-                return (
-                  <TouchableOpacity
-                    key={person.id}
-                    style={styles.personCard}
-                    onPress={() => router.push({ pathname: "/person", params: { id: person.id, name: person.name } })}
-                  >
-                    <View style={styles.rankBadge}>
-                      <Text style={styles.rankText}>{index + 1}</Text>
-                    </View>
-                    <View style={styles.personInfo}>
-                      <Text style={styles.personName}>{person.name}</Text>
-                      <Text style={styles.personMeta}>
-                        {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
-                      </Text>
-                    </View>
-                    <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
-                      <Ionicons name={arrowIcon as any} size={20} color={arrowColor} />
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {displayedPeople.map((person, index) => (
+                <TouchableOpacity
+                  key={person.id}
+                  style={styles.personCard}
+                  onPress={() => router.push({ pathname: "/person", params: { id: person.id, name: person.name } })}
+                >
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.personInfo}>
+                    <Text style={styles.personName}>{person.name}</Text>
+                    <Text style={styles.personMeta}>
+                      {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
+                    </Text>
+                  </View>
+                  <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
+                    <RankDeltaBadge delta={person.rank_delta_24h} hideZero />
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
         </View>
