@@ -17,7 +17,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
-import RankDeltaBadge from "./RankDeltaBadge";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -214,7 +213,6 @@ export default function OutsiderCard({ outsider, onLike, pulsingHeart = false, b
               <Ionicons name={isGolden ? "trophy" : "rocket"} size={11} color={isGolden ? PALETTE.gold : PALETTE.green} />
               <Text style={[styles.tierText, isGolden && { color: PALETTE.gold }]}>{outsider.tier_name || "Booster"}</Text>
             </View>
-            <RankDeltaBadge delta={outsider.rank_delta_24h} hideZero />
           </View>
         </View>
       </View>
