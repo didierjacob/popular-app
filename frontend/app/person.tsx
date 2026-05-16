@@ -21,6 +21,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { fetchWithCache, CacheService } from "../services/cacheService";
 import { CreditsService } from "../services/creditsService";
@@ -670,21 +671,17 @@ export default function Person() {
     votes: formatNumber(displayTotalVotes),
   });
 
-  const shareToFacebook = async () => {
-    const url = `https://www.facebook.com/sharer/sharer.php?quote=${encodeURIComponent(shareMessage)}`;
-    await Linking.openURL(url);
-  };
-
   const shareToTwitter = async () => {
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`;
     await Linking.openURL(url);
   };
 
-  const shareToInstagram = async () => {
+  const copyShareText = async () => {
     try {
-      await Share.share({ message: shareMessage });
+      await Clipboard.setStringAsync(shareMessage);
+      Alert.alert(t("person.copyTitle"), t("person.copyMessage"));
     } catch (error) {
-      Alert.alert(t("person.instagramShareTitle"), shareMessage);
+      Alert.alert(t("person.copyTitle"), shareMessage);
     }
   };
 
@@ -963,15 +960,6 @@ export default function Person() {
                 <Text style={styles.sectionTitle}>{t("person.share")}</Text>
                 <View style={styles.shareGrid}>
                   <TouchableOpacity
-                    style={[styles.shareButton, { backgroundColor: "#1877F2" }]}
-                    onPress={shareToFacebook}
-                  >
-                    <Ionicons name="logo-facebook" size={22} color="white" />
-                    <Text style={styles.shareText}>
-                      {t("person.facebook")}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
                     style={[styles.shareButton, { backgroundColor: "#1DA1F2" }]}
                     onPress={shareToTwitter}
                   >
@@ -981,12 +969,12 @@ export default function Person() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.shareButton, { backgroundColor: "#E4405F" }]}
-                    onPress={shareToInstagram}
+                    style={[styles.shareButton, { backgroundColor: PALETTE.green }]}
+                    onPress={copyShareText}
                   >
-                    <Ionicons name="logo-instagram" size={22} color="white" />
+                    <Ionicons name="copy-outline" size={22} color="white" />
                     <Text style={styles.shareText}>
-                      {t("person.instagram")}
+                      {t("person.copy")}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity

@@ -98,13 +98,14 @@
     "facebook": "Facebook",
     "twitter": "Twitter",
     "instagram": "Instagram",
+    "copy": "Copier",
     "more": "Plus",
-    "shareMessage": "Découvre {{name}} sur Popularoo ! Popularoo Index : {{score}} avec {{votes}} votes !",
+    "shareMessage": "Découvre {{name}} sur Popularoo ! Popularoo Index : {{score}} avec {{votes}} votes ! https://apps.apple.com/app/popularoo/id6761003957",
     "alreadyVotedTitle": "Déjà voté",
     "alreadyVotedMessage": "Tu as déjà voté pour {{name}} aujourd'hui.",
     "alreadyVotedSub": "Tu pourras revoter dans {{time}}.",
-    "instagramShareTitle": "Partager",
-    "instagramShareMessage": "Instagram ne permet pas le partage direct de texte. Le lien a été copié dans ton presse-papiers."
+    "copyTitle": "Copié !",
+    "copyMessage": "Texte copié dans le presse-papiers."
   },
   "myvotes": {
     "title": "Mes votes",
