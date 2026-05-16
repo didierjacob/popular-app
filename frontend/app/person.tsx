@@ -68,7 +68,11 @@ interface LiveVoteEntry {
   action: "liked" | "disliked";
   country: string;
   timestamp: number;
+  isUser?: boolean;
 }
+
+const USER_COUNTRY_KEY = "popular_user_country";
+const USER_VOTE_TTL_MS = 20000;
 
 // Virtual vote configuration from backend
 interface VirtualVoteConfig {
@@ -246,29 +250,54 @@ function LiveVoteItem({
     timeStr = t("person.timeAgo_min", { count: Math.floor(elapsed / 60) });
   }
 
-  const actionText =
-    entry.action === "liked" ? t("person.liked") : t("person.disliked");
   const actionColor = entry.action === "liked" ? "#2ECC71" : "#E74C3C";
-  const actionIcon = entry.action === "liked" ? "heart" : "heart-dislike";
+
+  let actionText: string;
+  if (entry.isUser) {
+    actionText =
+      entry.action === "liked"
+        ? t("person.userLike")
+        : t("person.userDislike");
+  } else {
+    actionText =
+      entry.action === "liked" ? t("person.liked") : t("person.disliked");
+  }
+
+  const hasCountry = !!entry.country;
+  const rowStyle = entry.isUser
+    ? [styles.liveVoteRow, { backgroundColor: "rgba(255,215,0,0.06)" }]
+    : styles.liveVoteRow;
 
   return (
     <Animated.View
       style={[
-        styles.liveVoteRow,
+        rowStyle,
         { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
       ]}
     >
       <View style={[styles.liveVoteDot, { backgroundColor: actionColor }]} />
       <View style={{ flex: 1 }}>
         <Text style={styles.liveVoteText}>
-          <Text style={{ fontWeight: "700", color: PALETTE.text }}>
-            {entry.firstName}
-          </Text>{" "}
-          <Text style={{ color: actionColor }}>{actionText}</Text>{" "}
-          <Text style={{ color: PALETTE.subtext }}>
-            {t("person.inCountry")}{" "}
-            {t(`countries.${entry.country}`, { defaultValue: entry.country })}
+          {!entry.isUser && (
+            <Text style={{ fontWeight: "700", color: PALETTE.text }}>
+              {entry.firstName}{" "}
+            </Text>
+          )}
+          <Text
+            style={{
+              color: actionColor,
+              fontWeight: entry.isUser ? "700" : "400",
+            }}
+          >
+            {actionText}
           </Text>
+          {hasCountry && (
+            <Text style={{ color: PALETTE.subtext }}>
+              {" "}
+              {t("person.inCountry")}{" "}
+              {t(`countries.${entry.country}`, { defaultValue: entry.country })}
+            </Text>
+          )}
         </Text>
       </View>
       <Text style={styles.liveVoteTime}>{timeStr}</Text>
@@ -300,6 +329,16 @@ export default function Person() {
   const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [voteConfig, setVoteConfig] = useState<VirtualVoteConfig | null>(null);
   const recentNamesRef = useRef<string[]>([]);
+  const userCountryRef = useRef<string>("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(USER_COUNTRY_KEY);
+        if (stored) userCountryRef.current = stored;
+      } catch {}
+    })();
+  }, []);
 
   // Report modal state (Lot 5 sub-task B)
   const [reportModalVisible, setReportModalVisible] = useState(false);
@@ -591,6 +630,21 @@ export default function Person() {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
       }
+
+      // Sujet 4: inject user's own vote into the live feed
+      voteIdCounter.current++;
+      const userEntry: LiveVoteEntry = {
+        id: voteIdCounter.current,
+        firstName: "__USER__",
+        action: value === 1 ? "liked" : "disliked",
+        country: userCountryRef.current,
+        timestamp: Date.now(),
+        isUser: true,
+      };
+      setLiveVotes((prev) => [userEntry, ...prev].slice(0, 30));
+      setTimeout(() => {
+        setLiveVotes((prev) => prev.filter((e) => e.id !== userEntry.id));
+      }, USER_VOTE_TTL_MS);
 
       // Cache TTL (2 min) would otherwise return the pre-vote snapshot and
       // clobber the optimistic setPerson() above. Invalidate first, then refetch.
