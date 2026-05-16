@@ -153,7 +153,7 @@ export default function List() {
             {t(`categories.${item.category}`) || capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
           </Text>
         </View>
-        <View style={styles.arrowBox}>
+        <View style={styles.deltaContainer}>
           <RankDeltaBadge delta={item.rank_delta_24h} />
         </View>
       </TouchableOpacity>
@@ -270,16 +270,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
   },
-  arrowBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: PALETTE.card,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  deltaContainer: { marginLeft: 8 },
   // Category filters
   filterRow: {
     flexDirection: "row",
