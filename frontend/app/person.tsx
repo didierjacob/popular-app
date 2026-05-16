@@ -22,6 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
+import * as Localization from "expo-localization";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { fetchWithCache, CacheService } from "../services/cacheService";
 import { CreditsService } from "../services/creditsService";
@@ -73,7 +74,6 @@ interface LiveVoteEntry {
 }
 
 const USER_COUNTRY_KEY = "popular_user_country";
-const USER_VOTE_TTL_MS = 20000;
 
 // Virtual vote configuration from backend
 interface VirtualVoteConfig {
@@ -336,8 +336,14 @@ export default function Person() {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(USER_COUNTRY_KEY);
-        if (stored) userCountryRef.current = stored;
+        if (stored) {
+          userCountryRef.current = stored;
+          return;
+        }
       } catch {}
+      // Fallback: ISO regionCode from device locale (fr-FR → FR, pt-BR → BR…)
+      const region = Localization.getLocales()?.[0]?.regionCode || "";
+      if (region) userCountryRef.current = region.toUpperCase();
     })();
   }, []);
 
@@ -642,10 +648,9 @@ export default function Person() {
         timestamp: Date.now(),
         isUser: true,
       };
+      // Sujet 4 (V2): no TTL — the user entry stays until pushed out of the
+      // visible window by newer entries (same lifecycle as fake votes).
       setLiveVotes((prev) => [userEntry, ...prev].slice(0, 30));
-      setTimeout(() => {
-        setLiveVotes((prev) => prev.filter((e) => e.id !== userEntry.id));
-      }, USER_VOTE_TTL_MS);
 
       // Cache TTL (2 min) would otherwise return the pre-vote snapshot and
       // clobber the optimistic setPerson() above. Invalidate first, then refetch.

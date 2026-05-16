@@ -4,7 +4,6 @@ import { ActivityIndicator, LayoutAnimation, Platform, RefreshControl, StyleShee
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
-import { hasGlowEffect } from "../utils/trendUtils";
 import { fetchSWR } from "../services/cacheService";
 import RankDeltaBadge from "../components/RankDeltaBadge";
 
@@ -140,10 +139,9 @@ export default function List() {
   }, [people, selectedCategory]);
 
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
-    const isGlowing = hasGlowEffect({ name: item.name, score: item.score });
     return (
       <TouchableOpacity
-        style={[styles.row, isGlowing && styles.glowRow]}
+        style={styles.row}
         onPress={() => router.push({ pathname: "/person", params: { id: item.id, name: item.name } })}
       >
         <View style={styles.rank}>
@@ -156,7 +154,13 @@ export default function List() {
           </Text>
         </View>
         <View style={styles.arrowBox}>
-          <RankDeltaBadge delta={item.rank_delta_24h} hideZero />
+          <RankDeltaBadge
+            delta={item.rank_delta_24h}
+            hideZero
+            fallbackToFake
+            name={item.name}
+            score={item.score}
+          />
         </View>
       </TouchableOpacity>
     );
@@ -246,11 +250,6 @@ const styles = StyleSheet.create({
     borderBottomColor: PALETTE.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
-  },
-  glowRow: {
-    backgroundColor: "rgba(76, 175, 80, 0.06)",
-    borderLeftWidth: 2,
-    borderLeftColor: "#4CAF50",
   },
   rank: {
     width: 40,
