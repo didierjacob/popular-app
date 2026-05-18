@@ -46,7 +46,7 @@ interface Person {
   likes: number;
   dislikes: number;
   total_votes: number;
-  rank_delta_24h?: number | null;
+  vote_momentum?: "up" | "down" | null;
 }
 
 const CATEGORIES = [
@@ -154,7 +154,7 @@ export default function List() {
           </Text>
         </View>
         <View style={styles.deltaContainer}>
-          <RankDeltaBadge delta={item.rank_delta_24h} />
+          <RankDeltaBadge momentum={item.vote_momentum} />
         </View>
       </TouchableOpacity>
     );

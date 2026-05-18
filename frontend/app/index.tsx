@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  AppState,
   ScrollView,
   StyleSheet,
   Text,
@@ -59,7 +60,7 @@ interface Person {
   score: number;
   total_votes: number;
   source?: string;
-  rank_delta_24h?: number | null;
+  vote_momentum?: "up" | "down" | null;
   popularoo_index?: number;
 }
 
@@ -290,12 +291,19 @@ export default function HomeScreen() {
       .filter((p: Person) => p.source !== "self_boosted" && p.category !== "outsider")
       .sort((a: Person, b: Person) => b.total_votes - a.total_votes);
     setPeople(sortedByVotes);
-
-    if (data.length > 0) {
-      const sorted = [...data].sort((a: Person, b: Person) => b.score - a.score);
-      setPersonOfTheDay(sorted[0]);
-    }
   };
+
+  // Chantier C — Personality of the Day is now backend-rotated hourly.
+  const loadPersonOfTheDay = useCallback(async () => {
+    try {
+      const res = await fetch(API("/personality-of-the-day"));
+      if (!res.ok) return;
+      const data = (await res.json()) as Person;
+      if (data && data.id) setPersonOfTheDay(data);
+    } catch {
+      // Silent — Home keeps the previous POTD if the fetch fails.
+    }
+  }, []);
 
   const applyOutsiders = (data: any) => {
     setGoldenOutsiders(data?.golden || []);
@@ -350,9 +358,19 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
+    loadPersonOfTheDay();
     const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadPersonOfTheDay]);
+
+  // Chantier C — re-fetch the POTD when the app comes back to foreground,
+  // so users returning after an hour see the freshly rotated profile.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") loadPersonOfTheDay();
+    });
+    return () => sub.remove();
+  }, [loadPersonOfTheDay]);
 
   // BLOC 2.4: Like an outsider directly from the Home card
   // FIX: Send { value: 1 } with X-Device-ID header (matching backend VoteIn schema)
@@ -707,7 +725,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
-                    <RankDeltaBadge delta={person.rank_delta_24h} />
+                    <RankDeltaBadge momentum={person.vote_momentum} />
                   </View>
                 </TouchableOpacity>
               ))}

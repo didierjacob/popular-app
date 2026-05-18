@@ -862,6 +862,8 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         "last_updated": now,
         "last_external_update": now,
         "created_by_device_id": candidate.get("requested_by_device_id"),
+        # User-submitted profile + implicit +1 like (Q3) ⇒ surface an up arrow at creation.
+        "vote_momentum": "up",
     }
     insert_res = await db.persons.insert_one(person_doc)
     person_id = insert_res.inserted_id

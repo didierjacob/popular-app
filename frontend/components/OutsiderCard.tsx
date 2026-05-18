@@ -43,7 +43,7 @@ export interface OutsiderData {
   hours_remaining?: number;
   social_links?: { instagram?: string; tiktok?: string; x?: string; twitter?: string; facebook?: string };
   position?: string;
-  rank_delta_24h?: number | null;
+  vote_momentum?: "up" | "down" | null;
 }
 
 interface OutsiderCardProps {

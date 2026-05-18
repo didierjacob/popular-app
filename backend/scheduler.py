@@ -33,22 +33,6 @@ async def run_index_recalc_job(db):
         await recalculate_all_indices(db)
     except Exception as e:
         logger.error(f"❌ Index recalculation job error: {e}")
-    # Sujet 2 — refresh rank_delta_24h once ranks have been recomputed.
-    # Runs even if the index recalc raised, so a partial refresh still surfaces.
-    try:
-        from rank_tracking import update_rank_deltas
-        await update_rank_deltas(db)
-    except Exception as e:
-        logger.error(f"❌ Rank delta update error: {e}")
-
-
-async def run_rank_snapshot_job(db):
-    """Daily wrapper: snapshot current ranks into rank_24h_ago (cron 03:30 UTC)."""
-    try:
-        from rank_tracking import snapshot_ranks
-        await snapshot_ranks(db)
-    except Exception as e:
-        logger.error(f"❌ Rank snapshot job error: {e}")
 
 
 async def run_daily_run_check_job(db):
@@ -94,6 +78,56 @@ async def run_tag_evolution_job(db):
         await evolve_country_tags(db, min_votes=50)
     except Exception as e:
         logger.error(f"❌ Tag evolution job error: {e}")
+
+
+# ── Chantier C: hourly Personality of the Day rotation ────────────────────
+POTD_TOP_POOL_SIZE = 100
+
+
+async def run_potd_rotation_job(db):
+    """
+    Hourly job (XX:00 UTC): pick a random profile from the top
+    POTD_TOP_POOL_SIZE celebrities (approved, not suspended, not outsider,
+    not self_boosted) ordered by popularoo_index DESC, and write it to
+    app_settings.potd_current. Frontend reads via /api/personality-of-the-day.
+    """
+    import random
+    from datetime import datetime, timezone
+
+    try:
+        cursor = db.persons.find(
+            {
+                "approved": True,
+                "suspended": {"$ne": True},
+                "category": {"$ne": "outsider"},
+                "source": {"$ne": "self_boosted"},
+            },
+            {"_id": 1, "name": 1, "popularoo_index": 1},
+        ).sort([("popularoo_index", -1), ("total_votes", -1)]).limit(POTD_TOP_POOL_SIZE)
+
+        pool = [doc async for doc in cursor]
+        if not pool:
+            logger.warning("🌟 [POTD] Rotation skipped — no eligible profile found")
+            return
+
+        picked = random.choice(pool)
+        now = datetime.now(timezone.utc)
+        await db.app_settings.update_one(
+            {"_id": "potd_current"},
+            {"$set": {
+                "potd_person_id": picked["_id"],
+                "potd_person_name": picked.get("name", ""),
+                "selected_at": now,
+            }},
+            upsert=True,
+        )
+        rank_in_pool = next((i + 1 for i, d in enumerate(pool) if d["_id"] == picked["_id"]), -1)
+        logger.info(
+            f"🌟 [POTD] Rotated to {picked.get('name', '?')} "
+            f"(rank {rank_in_pool}/{len(pool)}) at {now.isoformat()}"
+        )
+    except Exception as e:
+        logger.error(f"❌ POTD rotation job error: {e}")
 
 
 # ── Session 2: Daily External Scores Job ───────────────────────────────────
@@ -577,15 +611,16 @@ def init_scheduler(db, trends_service, email_svc=None):
         replace_existing=True
     )
 
-    # ── Sujet 2 (Vague 5): Daily rank snapshot at 03:30 UTC ──
-    # Writes rank_24h_ago for every approved profile (celebrities + outsiders).
-    # rank_delta_24h is then refreshed every 15 min by run_index_recalc_job.
+    # ── Chantier C: hourly POTD rotation at XX:00 UTC ──
+    # Picks a random profile from top 100 by popularoo_index,
+    # writes app_settings.potd_current. Boot-time priming is triggered
+    # from the FastAPI startup hook (server.py) to avoid blocking init.
     scheduler.add_job(
-        run_rank_snapshot_job,
-        CronTrigger(hour=3, minute=30),
+        run_potd_rotation_job,
+        CronTrigger(minute=0),
         args=[db],
-        id='rank_snapshot_job',
-        name='Daily Rank Snapshot (rank_24h_ago)',
+        id='potd_rotation_job',
+        name='Hourly Personality of the Day Rotation',
         replace_existing=True
     )
 
@@ -618,7 +653,7 @@ def init_scheduler(db, trends_service, email_svc=None):
     logger.info("Daily candidate detection (Wikipedia) scheduled at 5:00 AM UTC")
     logger.info("Monthly category review (Wikipedia) scheduled on 1st of month at 4:00 AM UTC")
     logger.info("Process user submissions (user_search) runs every 30 minutes")
-    logger.info("Daily rank snapshot (rank_24h_ago) scheduled at 3:30 AM UTC")
+    logger.info("Personality of the Day rotation runs hourly at XX:00 UTC")
 
     return scheduler
 

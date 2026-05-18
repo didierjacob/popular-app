@@ -23,7 +23,7 @@ from collections import Counter
 import asyncio
 from unidecode import unidecode
 from trends_service import trends_service
-from scheduler import init_scheduler, start_scheduler, shutdown_scheduler
+from scheduler import init_scheduler, start_scheduler, shutdown_scheduler, run_potd_rotation_job
 from bull_run import bull_run_router, init_bull_run, bull_run_background_job
 from share_system import (
     share_router, create_short_link, resolve_short_link,
@@ -105,7 +105,12 @@ async def startup_event():
     # Initialize and start the scheduler
     init_scheduler(db, trends_service, email_service)
     start_scheduler()
-    
+
+    # Chantier C — prime the POTD immediately so the Home page doesn't wait
+    # until the next XX:00 UTC tick to surface a featured profile. Fire-and-
+    # forget: any failure logs internally and never blocks boot.
+    asyncio.create_task(run_potd_rotation_job(db))
+
     logger.info("✅ Scheduler initialized and started")
     logger.info("📅 Daily Google Trends auto-ingestion DISABLED (Session 2 audit)")
     logger.info("📊 Popularoo Index recalculation scheduled every 15 minutes")
@@ -295,9 +300,9 @@ class PersonOut(BaseModel):
     wiki_score_norm: Optional[float] = None
     wiki_score_brut: Optional[float] = None
     last_external_update: Optional[datetime] = None
-    # Sujet 2 — Axe 1: signed rank shift over the last 24h.
-    # +N = moved up N positions, -N = moved down, None = no snapshot yet.
-    rank_delta_24h: Optional[int] = None
+    # Direction of the last vote received: "up" (like / superlike) or "down" (dislike).
+    # None when no real vote has ever been recorded for this profile.
+    vote_momentum: Optional[str] = None
 
 
 class VoteIn(BaseModel):
@@ -955,11 +960,52 @@ def person_to_out(doc: Dict[str, Any]) -> Optional[PersonOut]:
             wiki_score_norm=_safe_float(doc.get("wiki_score_norm")) if doc.get("wiki_score_norm") is not None else None,
             wiki_score_brut=_safe_float(doc.get("wiki_score_brut")) if doc.get("wiki_score_brut") is not None else None,
             last_external_update=doc.get("last_external_update"),
-            rank_delta_24h=(int(doc["rank_delta_24h"]) if isinstance(doc.get("rank_delta_24h"), (int, float)) else None),
+            vote_momentum=(doc.get("vote_momentum") if doc.get("vote_momentum") in ("up", "down") else None),
         )
     except Exception as e:
         logger.error(f"❌ person_to_out CRASH for id={doc.get('_id')}, name={doc.get('name')!r}: {e}")
         return None
+
+
+@api_router.get("/personality-of-the-day", response_model=PersonOut)
+async def get_personality_of_the_day():
+    """
+    Chantier C — Returns the current Personality of the Day.
+
+    Read from app_settings.potd_current (updated hourly by run_potd_rotation_job).
+    Fallback: if no rotation has ever run, return the profile with the highest
+    popularoo_index among approved non-outsider celebrities. 404 only if even
+    the fallback is empty (DB has no eligible profile at all).
+    """
+    settings = await db.app_settings.find_one({"_id": "potd_current"})
+    person_oid = settings.get("potd_person_id") if settings else None
+
+    person = None
+    if person_oid is not None:
+        try:
+            person = await db.persons.find_one({"_id": person_oid})
+        except Exception:
+            person = None
+
+    if not person:
+        # Fallback: pick current top-1 by popularoo_index.
+        person = await db.persons.find_one(
+            {
+                "approved": True,
+                "suspended": {"$ne": True},
+                "category": {"$ne": "outsider"},
+                "source": {"$ne": "self_boosted"},
+            },
+            sort=[("popularoo_index", -1), ("total_votes", -1)],
+        )
+
+    if not person:
+        raise HTTPException(status_code=404, detail="No eligible Personality of the Day available")
+
+    out = person_to_out(person)
+    if out is None:
+        raise HTTPException(status_code=500, detail="POTD profile failed serialization")
+    return out
 
 
 @api_router.get("/people", response_model=List[PersonOut])
@@ -1189,9 +1235,14 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
 
         # Increment superlikes counter + total_votes
         inc_doc = {"superlikes": 1, "total_votes": 1}
+        _now = now_utc()
         await db.persons.update_one(
             {"_id": oid},
-            {"$inc": inc_doc, "$set": {"updated_at": now_utc()}}
+            {"$inc": inc_doc, "$set": {
+                "updated_at": _now,
+                "vote_momentum": "up",  # superlike is a positive signal
+                "last_vote_at": _now,
+            }}
         )
 
         # Write vote event (delta=5 for superlike weight)
@@ -1316,9 +1367,15 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
         new_score = 0
     
     # Update person aggregates (do NOT overwrite score here — quick_recalc_index handles it)
+    _now = now_utc()
     await db.persons.update_one(
         {"_id": oid},
-        {"$inc": inc_doc, "$set": {"raw_score": raw_score, "updated_at": now_utc()}}
+        {"$inc": inc_doc, "$set": {
+            "raw_score": raw_score,
+            "updated_at": _now,
+            "vote_momentum": "up" if new_val == 1 else "down",
+            "last_vote_at": _now,
+        }}
     )
     
     # Write vote event
@@ -1978,7 +2035,7 @@ async def get_outsiders(
                 "strike_emoji": person.get("strike_emoji"),
                 "strike_label": person.get("strike_label"),
                 "is_seed": bool(boost.get("is_seed", False)),
-                "rank_delta_24h": person.get("rank_delta_24h"),
+                "vote_momentum": person.get("vote_momentum") if person.get("vote_momentum") in ("up", "down") else None,
             }
 
             if boost.get("position") == "top":
@@ -2197,7 +2254,7 @@ async def get_outsiders_paginated(
                 "strike_label": person.get("strike_label"),
                 "is_seed": bool(boost.get("is_seed", False)),
                 "country": boost.get("country") or person.get("primary_country", ""),
-                "rank_delta_24h": person.get("rank_delta_24h"),
+                "vote_momentum": person.get("vote_momentum") if person.get("vote_momentum") in ("up", "down") else None,
             }
             outsider_list.append(outsider_data)
 
@@ -2488,6 +2545,8 @@ async def boost_myself(request: BoostMyselfRequest):
                 "source": "self_boosted",
                 "social_links": social,
                 "email": request.email or "",
+                # Auto-boost counts as a positive signal — surface an up arrow at creation.
+                "vote_momentum": "up",
             }
 
             result = await db.persons.insert_one(person_doc)
@@ -3174,12 +3233,13 @@ async def admin_grant_booster(req: Request, request: GrantBoosterRequest):
             "popularoo_index": 15,
             "created_at": now,
             "updated_at": now,
+            "vote_momentum": "up",
         }
         result = await db.persons.insert_one(person_doc)
         person_id = result.inserted_id
     else:
         person_id = person["_id"]
-    
+
     # Create the active boost
     boost_doc = {
         "person_id": person_id,
@@ -4002,6 +4062,7 @@ async def admin_create_demo_outsider(request: Request):
             "dislikes": 0,
             "total_votes": 0,
             "source": "self_boosted",  # This makes it an "outsider"
+            "vote_momentum": "up",
         }
         
         result = await db.persons.insert_one(doc)
@@ -5765,20 +5826,47 @@ async def admin_update_person_category_batch(request: Request):
     return results
 
 
-@api_router.post("/admin/run-rank-snapshot-now")
-@limiter.limit("5/15minutes")
-async def admin_run_rank_snapshot_now(request: Request):
+@api_router.post("/admin/init-vote-momentum")
+@limiter.limit("1/hour")
+async def admin_init_vote_momentum(request: Request):
     """
-    Sujet 2 — Manual trigger for the daily rank snapshot
-    (rank_24h_ago + immediate delta refresh). Useful for V1 verification
-    before the first 03:30 UTC cron firing.
+    One-shot migration for the vote_momentum field (Chantier B).
+
+    - Vague 4 profiles (source=user_search OR created_via=deferred_v4)
+      → set vote_momentum="up" if not already set (implicit +1 like at creation).
+    - Self-boosted outsiders (source=self_boosted)
+      → set vote_momentum="up" if not already set (boost counts as positive).
+    - Historical seeds with no real vote yet → left as-is (None).
+    Idempotent: only writes when the field is missing.
     """
     _require_admin_auth(request)
-    from rank_tracking import snapshot_ranks, update_rank_deltas
-    snap = await snapshot_ranks(db)
-    deltas = await update_rank_deltas(db)
-    logger.info(f"📸 Admin: rank snapshot triggered → snap={snap} deltas={deltas}")
-    return {"snapshot": snap, "deltas": deltas}
+
+    v4_filter = {
+        "$and": [
+            {"$or": [{"source": "user_search"}, {"created_via": "deferred_v4"}]},
+            {"$or": [{"vote_momentum": {"$exists": False}}, {"vote_momentum": None}]},
+        ]
+    }
+    v4_res = await db.persons.update_many(v4_filter, {"$set": {"vote_momentum": "up"}})
+
+    outsider_filter = {
+        "$and": [
+            {"source": "self_boosted"},
+            {"$or": [{"vote_momentum": {"$exists": False}}, {"vote_momentum": None}]},
+        ]
+    }
+    outsider_res = await db.persons.update_many(outsider_filter, {"$set": {"vote_momentum": "up"}})
+
+    summary = {
+        "v4_updated": int(v4_res.modified_count),
+        "outsiders_updated": int(outsider_res.modified_count),
+        "seeds_skipped": "left as-is (vote_momentum stays None until first real vote)",
+    }
+    logger.info(
+        f"🟢 [vote_momentum init] V4 updated={summary['v4_updated']} "
+        f"outsiders updated={summary['outsiders_updated']}"
+    )
+    return summary
 
 
 @api_router.post("/admin/recompute-total-votes")
