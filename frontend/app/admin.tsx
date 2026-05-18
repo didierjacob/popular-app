@@ -17,6 +17,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const ADMIN_TOKEN_KEY = 'popularoo_admin_token_v1';
 
@@ -418,26 +419,22 @@ export default function Admin() {
         await saveStoredToken(data.token);
         loadData();
       } else {
-        Alert.alert('Error', 'Mot de passe incorrect');
+        Alert.alert('Erreur', 'Mot de passe incorrect');
       }
     } catch (error) {
-      Alert.alert('Error', 'Impossible de se connecter au serveur');
+      Alert.alert('Erreur', 'Impossible de se connecter au serveur');
     }
   };
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const authHeaders: Record<string, string> = adminToken
-        ? { 'X-Admin-Token': adminToken }
-        : {};
-
       // Load stats (legacy business: revenus, users actifs, votes)
       // + dashboard-stats (operationnel: queues, last_jobs, top5, alpha, category_breakdown)
       // En parallele, degradent gracieusement si l'un echoue.
       const [statsResult, dashboardResult] = await Promise.allSettled([
-        fetch(API('/admin/stats'), { headers: authHeaders }),
-        fetch(API('/admin/dashboard-stats'), { headers: authHeaders }),
+        adminFetch(API('/admin/stats')),
+        adminFetch(API('/admin/dashboard-stats')),
       ]);
 
       if (statsResult.status === 'fulfilled' && statsResult.value.ok) {
@@ -456,8 +453,9 @@ export default function Admin() {
         setDashboardStats(null);
       }
 
-      // Load top people
-      const peopleRes = await fetch(API('/people?limit=50'));
+      // Load top people (public endpoint, pas besoin d'auth)
+      // limit=300 pour alimenter le selecteur du Booster (recherche client-side).
+      const peopleRes = await fetch(API('/people?limit=300'));
       if (peopleRes.ok) {
         const peopleData = await peopleRes.json();
         setTopPeople(peopleData);
@@ -465,14 +463,14 @@ export default function Admin() {
       }
 
       // Load activity
-      const activityRes = await fetch(API('/admin/activity/recent'), { headers: authHeaders });
+      const activityRes = await adminFetch(API('/admin/activity/recent'));
       if (activityRes.ok) {
         const actData = await activityRes.json();
         setActivityData(actData);
       }
 
       // Load settings
-      const settingsRes = await fetch(API('/admin/settings'), { headers: authHeaders });
+      const settingsRes = await adminFetch(API('/admin/settings'));
       if (settingsRes.ok) {
         const settData = await settingsRes.json();
         setSettings(settData);
@@ -483,7 +481,7 @@ export default function Admin() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [adminFetch]);
 
   const handleSearch = useCallback(async () => {
     try {
@@ -492,7 +490,7 @@ export default function Admin() {
       if (filterCategory) url += `&category=${filterCategory}`;
       if (filterSource) url += `&source=${filterSource}`;
 
-      const res = await fetch(API(url));
+      const res = await adminFetch(API(url));
       if (res.ok) {
         const results = await res.json();
         setSearchResults(results);
@@ -500,7 +498,7 @@ export default function Admin() {
     } catch (error) {
       console.error('Search error:', error);
     }
-  }, [searchQuery, filterCategory, filterSource]);
+  }, [adminFetch, searchQuery, filterCategory, filterSource]);
 
   useEffect(() => {
     if (authenticated) {
@@ -517,7 +515,7 @@ export default function Admin() {
 
   const handleBoostDialog = (type: 'likes' | 'dislikes') => {
     if (!selectedPerson) {
-      Alert.alert('Error', 'Please select a personality first');
+      Alert.alert('Erreur', 'Sélectionnez d\'abord une personnalité');
       return;
     }
 
@@ -526,16 +524,16 @@ export default function Admin() {
 
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        `${emoji} Add ${typeLabel}`,
-        `Personality : ${selectedPerson.name}\n\nHow many ${typeLabel.toLowerCase()} ? (1-5000)`,
+        `${emoji} Ajouter ${typeLabel}`,
+        `Personnalité : ${selectedPerson.name}\n\nCombien de ${typeLabel.toLowerCase()} ? (1-5000)`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Annuler', style: 'cancel' },
           {
-            text: 'Add',
-            onPress: async (value) => {
+            text: 'Ajouter',
+            onPress: async (value?: string) => {
               const amount = parseInt(value || '0');
               if (isNaN(amount) || amount < 1 || amount > 5000) {
-                Alert.alert('Error', 'Entrez un nombre entre 1 et 5000');
+                Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
                 return;
               }
               await executeBoost(selectedPerson.id, amount, type);
@@ -548,27 +546,27 @@ export default function Admin() {
       );
     } else {
       Alert.alert(
-        `${emoji} Add ${typeLabel}`,
-        `Personality : ${selectedPerson.name}\n\nNumber of ${typeLabel.toLowerCase()} (1-5000) :`,
+        `${emoji} Ajouter ${typeLabel}`,
+        `Personnalité : ${selectedPerson.name}\n\nNombre de ${typeLabel.toLowerCase()} (1-5000) :`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Annuler', style: 'cancel' },
           { text: '100', onPress: () => executeBoost(selectedPerson.id, 100, type) },
           { text: '500', onPress: () => executeBoost(selectedPerson.id, 500, type) },
           { text: '1000', onPress: () => executeBoost(selectedPerson.id, 1000, type) },
           {
-            text: 'Custom',
+            text: 'Personnalisé',
             onPress: () => {
               Alert.prompt(
-                'Custom amount',
+                'Montant personnalisé',
                 'Entrez le nombre (1-5000) :',
                 [
-                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Annuler', style: 'cancel' },
                   {
-                    text: 'Add',
-                    onPress: async (value) => {
+                    text: 'Ajouter',
+                    onPress: async (value?: string) => {
                       const amount = parseInt(value || '0');
                       if (isNaN(amount) || amount < 1 || amount > 5000) {
-                        Alert.alert('Error', 'Entrez un nombre entre 1 et 5000');
+                        Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
                         return;
                       }
                       await executeBoost(selectedPerson.id, amount, type);
@@ -586,45 +584,44 @@ export default function Admin() {
 
   const executeBoost = async (personId: string, amount: number, type: 'likes' | 'dislikes') => {
     try {
-      const res = await fetch(API('/admin/boost-votes'), {
+      const res = await adminFetch(API('/admin/boost-votes'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ person_id: personId, amount, type }),
       });
 
       if (res.ok) {
-        const result = await res.json();
-        Alert.alert('✅ Success !', `${amount} ${type} added !`, [{ text: 'OK' }]);
+        Alert.alert('✅ Succès', `${amount} ${type === 'likes' ? 'likes' : 'dislikes'} ajoutés`, [{ text: 'OK' }]);
         loadData();
         setSelectedPerson(null);
       } else {
-        Alert.alert('Error', 'Boost failed');
+        Alert.alert('Erreur', 'Boost échoué');
       }
     } catch (error) {
-      Alert.alert('Error', 'Network error');
+      Alert.alert('Erreur', 'Erreur réseau');
     }
   };
 
   const handleDeletePerson = (person: Person) => {
     Alert.alert(
-      '⚠️ Delete',
-      `Are you sure you want to delete "${person.name}" ?\n\nThis action cannot be undone.`,
+      '⚠️ Supprimer',
+      `Supprimer "${person.name}" ?\n\nCette action est irréversible.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
             try {
-              const res = await fetch(API(`/admin/person/${person.id}`), { method: 'DELETE' });
+              const res = await adminFetch(API(`/admin/person/${person.id}`), { method: 'DELETE' });
               if (res.ok) {
-                Alert.alert('✅ Deleted', `"${person.name}" has been deleted`);
+                Alert.alert('✅ Supprimé', `"${person.name}" a été supprimé`);
                 loadData();
               } else {
-                Alert.alert('Error', 'Deletion failed');
+                Alert.alert('Erreur', 'Suppression échouée');
               }
             } catch (error) {
-              Alert.alert('Error', 'Network error');
+              Alert.alert('Erreur', 'Erreur réseau');
             }
           },
         },
@@ -634,23 +631,23 @@ export default function Admin() {
 
   const handleResetPerson = (person: Person) => {
     Alert.alert(
-      '🔄 Reset',
-      `Reset "${person.name}" to a neutral score of 50 ?`,
+      '🔄 Réinitialiser',
+      `Réinitialiser "${person.name}" à un score neutre de 50 ?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Reset',
+          text: 'Réinitialiser',
           onPress: async () => {
             try {
-              const res = await fetch(API(`/admin/person/${person.id}/reset`), { method: 'POST' });
+              const res = await adminFetch(API(`/admin/person/${person.id}/reset`), { method: 'POST' });
               if (res.ok) {
-                Alert.alert('✅ Reset', `"${person.name}" has been reset`);
+                Alert.alert('✅ Réinitialisé', `"${person.name}" a été réinitialisé`);
                 loadData();
               } else {
-                Alert.alert('Error', 'Reset failed');
+                Alert.alert('Erreur', 'Réinitialisation échouée');
               }
             } catch (error) {
-              Alert.alert('Error', 'Network error');
+              Alert.alert('Erreur', 'Erreur réseau');
             }
           },
         },
@@ -662,19 +659,19 @@ export default function Admin() {
     if (!settings) return;
 
     try {
-      const res = await fetch(API('/admin/settings'), {
+      const res = await adminFetch(API('/admin/settings'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
 
       if (res.ok) {
-        Alert.alert('✅ Saved', 'Settings updated successfully');
+        Alert.alert('✅ Enregistré', 'Réglages mis à jour');
       } else {
-        Alert.alert('Error', 'Save failed');
+        Alert.alert('Erreur', 'Enregistrement échoué');
       }
     } catch (error) {
-      Alert.alert('Error', 'Network error');
+      Alert.alert('Erreur', 'Erreur réseau');
     }
   };
 
@@ -1476,37 +1473,6 @@ export default function Admin() {
     loadData();
   }, [loadData]);
 
-  const handleRefreshTrends = async () => {
-    Alert.alert(
-      '🔥 Refresh Google Trends',
-      'This will fetch trending personalities from Google Trends. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Refresh',
-          onPress: async () => {
-            try {
-              const res = await fetch(API('/admin/refresh-trends'), { method: 'POST' });
-              if (res.ok) {
-                const result = await res.json();
-                Alert.alert(
-                  '✅ Trends Refreshed !',
-                  `${result.added} new personalities added\n${result.updated} updated as trending`,
-                  [{ text: 'OK' }]
-                );
-                loadData();
-              } else {
-                Alert.alert('Error', 'Refresh failed');
-              }
-            } catch (error) {
-              Alert.alert('Error', 'Network error');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   if (bootstrapping) {
     return (
       <SafeAreaView style={styles.container}>
@@ -1523,8 +1489,8 @@ export default function Admin() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loginContainer}>
           <Ionicons name="lock-closed" size={64} color={PALETTE.gold} />
-          <Text style={styles.loginTitle}>Admin Access</Text>
-          <Text style={styles.loginSubtitle}>Secret gesture detected</Text>
+          <Text style={styles.loginTitle}>Accès admin</Text>
+          <Text style={styles.loginSubtitle}>Geste secret détecté</Text>
           
           <TextInput
             style={styles.passwordInput}
@@ -1567,23 +1533,32 @@ export default function Admin() {
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ paddingRight: 16 }}>
-        {TAB_ORDER.map((t) => {
-          const meta = TAB_LABELS[t];
-          const active = currentTab === t;
-          return (
-            <TouchableOpacity
-              key={t}
-              style={[styles.tab, active && styles.tabActive]}
-              onPress={() => setCurrentTab(t)}
-            >
-              <Ionicons name={meta.icon} size={20} color={active ? '#000' : PALETTE.text} />
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>{meta.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Tabs — fade gradient à droite pour signaler que la liste est scrollable horizontalement */}
+      <View style={styles.tabBarWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ paddingRight: 32 }}>
+          {TAB_ORDER.map((t) => {
+            const meta = TAB_LABELS[t];
+            const active = currentTab === t;
+            return (
+              <TouchableOpacity
+                key={t}
+                style={[styles.tab, active && styles.tabActive]}
+                onPress={() => setCurrentTab(t)}
+              >
+                <Ionicons name={meta.icon} size={20} color={active ? '#000' : PALETTE.text} />
+                <Text style={[styles.tabText, active && styles.tabTextActive]}>{meta.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        <LinearGradient
+          colors={['rgba(15,47,34,0)', PALETTE.bg]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          pointerEvents="none"
+          style={styles.tabBarFade}
+        />
+      </View>
 
       <ScrollView
         refreshControl={
@@ -1604,7 +1579,6 @@ export default function Admin() {
                 selectedPerson={selectedPerson}
                 onSelectPerson={setSelectedPerson}
                 onBoost={handleBoostDialog}
-                onRefreshTrends={handleRefreshTrends}
               />
             )}
 
@@ -1712,9 +1686,20 @@ export default function Admin() {
 }
 
 // Dashboard Tab Component — Vague 4 sous-tache 6 : enrichi avec /admin/dashboard-stats
-function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSelectPerson, onBoost, onRefreshTrends }: any) {
+function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSelectPerson, onBoost }: any) {
   const ds: DashboardStats | null = dashboardStats;
   const noStats = !stats && !ds;
+
+  // Booster — recherche client-side sur topPeople (chargé via /people?limit=300)
+  const [boosterQuery, setBoosterQuery] = useState('');
+  const filteredBoosterPeople = useMemo(() => {
+    const q = boosterQuery.trim().toLowerCase();
+    if (!q) {
+      return (topPeople as Person[]).slice(0, 50);
+    }
+    return (topPeople as Person[]).filter((p) => p.name.toLowerCase().includes(q));
+  }, [topPeople, boosterQuery]);
+
   return (
     <View>
       {noStats && (
@@ -1886,36 +1871,55 @@ function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSele
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🔥 Google Trends</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Refresh trending personalities</Text>
-          <TouchableOpacity style={styles.refreshTrendsButton} onPress={onRefreshTrends}>
-            <Ionicons name="trending-up" size={24} color="#000" />
-            <Text style={styles.refreshTrendsButtonText}>Refresh Google Trends</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>🚀 Booster</Text>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Select a personality</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.personSelector}>
-            {topPeople.slice(0, 10).map((person: Person) => (
-              <TouchableOpacity
-                key={person.id}
-                style={[
-                  styles.personChip,
-                  selectedPerson?.id === person.id && styles.personChipSelected,
-                ]}
-                onPress={() => onSelectPerson(person)}
-              >
-                <Text style={styles.personChipText} numberOfLines={1}>
-                  {person.name}
-                </Text>
-                <Text style={styles.personChipScore}>{person.score}</Text>
-              </TouchableOpacity>
-            ))}
+          <Text style={styles.cardLabel}>Sélectionner une personnalité</Text>
+
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher une personnalité…"
+            placeholderTextColor={PALETTE.subtext}
+            value={boosterQuery}
+            onChangeText={setBoosterQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+
+          <Text style={styles.boosterResultCount}>
+            {boosterQuery.trim()
+              ? `${filteredBoosterPeople.length} résultat${filteredBoosterPeople.length > 1 ? 's' : ''}`
+              : `Top ${filteredBoosterPeople.length} par score`}
+          </Text>
+
+          <ScrollView
+            style={styles.boosterList}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
+            {filteredBoosterPeople.length === 0 ? (
+              <Text style={styles.boosterEmpty}>Aucune personnalité trouvée</Text>
+            ) : (
+              filteredBoosterPeople.map((person: Person) => {
+                const active = selectedPerson?.id === person.id;
+                return (
+                  <TouchableOpacity
+                    key={person.id}
+                    style={[styles.boosterRow, active && styles.boosterRowActive]}
+                    onPress={() => onSelectPerson(person)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.boosterRowName} numberOfLines={1}>{person.name}</Text>
+                      <Text style={styles.boosterRowMeta}>
+                        {person.likes ?? 0} likes • {person.dislikes ?? 0} dislikes
+                      </Text>
+                    </View>
+                    <Text style={[styles.boosterRowScore, active && { color: '#000' }]}>
+                      {person.score}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
 
           {selectedPerson && (
@@ -1928,17 +1932,17 @@ function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSele
               </View>
 
               <Text style={styles.cardLabel}>Actions de boost</Text>
-              
+
               <View style={styles.boostActionsRow}>
                 <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('likes')}>
                   <Ionicons name="thumbs-up" size={24} color={PALETTE.green} />
-                  <Text style={styles.boostActionTitle}>Add Likes</Text>
+                  <Text style={styles.boostActionTitle}>Ajouter Likes</Text>
                   <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('dislikes')}>
                   <Ionicons name="thumbs-down" size={24} color={PALETTE.accent} />
-                  <Text style={styles.boostActionTitle}>Add Dislikes</Text>
+                  <Text style={styles.boostActionTitle}>Ajouter Dislikes</Text>
                   <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
                 </TouchableOpacity>
               </View>
@@ -1964,12 +1968,12 @@ function ModerationTab({
 }: any) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>🔍 Advanced Search</Text>
+      <Text style={styles.sectionTitle}>🔍 Recherche avancée</Text>
       
       <View style={styles.card}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name..."
+          placeholder="Rechercher par nom..."
           placeholderTextColor={PALETTE.subtext}
           value={searchQuery}
           onChangeText={onSearchChange}
@@ -1977,7 +1981,7 @@ function ModerationTab({
 
         <View style={styles.filterRow}>
           <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.filterLabel}>Category</Text>
+            <Text style={styles.filterLabel}>Catégorie</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {['', 'politics', 'culture', 'business', 'sport', 'other'].map((cat) => (
                 <TouchableOpacity
@@ -2011,7 +2015,7 @@ function ModerationTab({
           </View>
         </View>
 
-        <Text style={styles.resultsCount}>{searchResults.length} result(s)</Text>
+        <Text style={styles.resultsCount}>{searchResults.length} résultat(s)</Text>
 
         {searchResults.map((person: Person) => (
           <View key={person.id} style={styles.moderationRow}>
@@ -2041,7 +2045,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
   return (
     <View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👤 Nouvelles Personalitys</Text>
+        <Text style={styles.sectionTitle}>👤 Nouvelles personnalités</Text>
         <View style={styles.card}>
           {activityData.recent_people.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
@@ -2061,7 +2065,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>💰 Recent Purchases</Text>
+        <Text style={styles.sectionTitle}>💰 Achats récents</Text>
         <View style={styles.card}>
           {activityData.recent_purchases.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
@@ -2078,7 +2082,7 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>⚡ Recent Usage</Text>
+        <Text style={styles.sectionTitle}>⚡ Utilisations récentes</Text>
         <View style={styles.card}>
           {activityData.recent_uses.slice(0, 10).map((item: any, index: number) => (
             <View key={index} style={styles.activityRow}>
@@ -2101,13 +2105,13 @@ function ActivityTab({ activityData }: { activityData: ActivityData }) {
 function SettingsTab({ settings, onSettingsChange, onSave }: any) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>⚙️ Settings de l'App</Text>
+      <Text style={styles.sectionTitle}>⚙️ Réglages de l'app</Text>
       
       <View style={styles.card}>
         <View style={styles.settingRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingLabel}>Autoriser ajouts utilisateurs</Text>
-            <Text style={styles.settingDesc}>Users can add personalities</Text>
+            <Text style={styles.settingDesc}>Les utilisateurs peuvent ajouter des personnalités</Text>
           </View>
           <Switch
             value={settings.allow_user_additions}
@@ -2120,7 +2124,7 @@ function SettingsTab({ settings, onSettingsChange, onSave }: any) {
         <View style={styles.settingRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.settingLabel}>Mode maintenance</Text>
-            <Text style={styles.settingDesc}>Disables access to the app</Text>
+            <Text style={styles.settingDesc}>Désactive l'accès à l'app</Text>
           </View>
           <Switch
             value={settings.maintenance_mode}
@@ -3423,7 +3427,15 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   headerBack: { padding: 8 },
   headerTitle: { color: PALETTE.text, fontSize: 24, fontWeight: '700' },
+  tabBarWrapper: { position: 'relative' },
   tabBar: { flexDirection: 'row', padding: 8, paddingHorizontal: 16 },
+  tabBarFade: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 40,
+  },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3499,19 +3511,30 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
   },
   cardLabel: { color: PALETTE.subtext, fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 8 },
-  personSelector: { marginVertical: 8 },
-  personChip: {
-    backgroundColor: PALETTE.bg,
-    borderRadius: 8,
-    padding: 12,
-    marginRight: 8,
-    borderWidth: 2,
+  // Booster — recherche + liste verticale scrollable
+  boosterList: {
+    marginTop: 8,
+    maxHeight: 400,
+    borderWidth: 1,
     borderColor: PALETTE.border,
-    minWidth: 100,
+    borderRadius: 8,
+    backgroundColor: PALETTE.bg,
   },
-  personChipSelected: { borderColor: PALETTE.gold, backgroundColor: PALETTE.gold + '20' },
-  personChipText: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
-  personChipScore: { color: PALETTE.subtext, fontSize: 12, marginTop: 4 },
+  boosterResultCount: { color: PALETTE.subtext, fontSize: 12, marginTop: 8 },
+  boosterEmpty: { color: PALETTE.subtext, fontSize: 14, textAlign: 'center', padding: 20 },
+  boosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: PALETTE.border,
+    gap: 12,
+  },
+  boosterRowActive: { backgroundColor: PALETTE.gold + '20' },
+  boosterRowName: { color: PALETTE.text, fontSize: 15, fontWeight: '600' },
+  boosterRowMeta: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
+  boosterRowScore: { color: PALETTE.gold, fontSize: 16, fontWeight: '700' },
   selectedPerson: {
     backgroundColor: PALETTE.gold + '20',
     borderRadius: 8,
@@ -3624,17 +3647,6 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   saveButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
-  refreshTrendsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: PALETTE.gold,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-  },
-  refreshTrendsButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
 
   // ---------- Styles partages Lot 4 (ReviewList / AdminCard / Placeholder) ----------
   reviewListHeader: {
