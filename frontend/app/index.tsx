@@ -27,7 +27,9 @@ import * as Localization from "expo-localization";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import OutsiderCard from "../components/OutsiderCard";
 import RankDeltaBadge from "../components/RankDeltaBadge";
+import FlashOverlay from "../components/FlashOverlay";
 import { fetchSWR } from "../services/cacheService";
+import { useRankFlash } from "../hooks/useRankFlash";
 import { cacheKeyPeopleHome, cacheKeyOutsiders } from "./splash";
 
 // Enable LayoutAnimation on Android
@@ -410,12 +412,16 @@ export default function HomeScreen() {
         || top.some((p, i) => p.id !== prev[i]?.id);
       if (orderChanged && prev.length > 0) {
         LayoutAnimation.configureNext(
-          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+          LayoutAnimation.create(350, LayoutAnimation.Types.easeOut, LayoutAnimation.Properties.opacity)
         );
       }
       return top;
     });
   }, [people]);
+
+  // Directional flash: highlight cards whose rank moved by ≥3 positions
+  // between two refreshes (cf. "Stock Market of Fame" lite — V1).
+  const flashMap = useRankFlash(displayedPeople, { minDelta: 3, flashDuration: 450 });
 
   // Pulsing heart animation — infinite loop
   useEffect(() => {
@@ -728,6 +734,7 @@ export default function HomeScreen() {
                   <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
                     <RankDeltaBadge momentum={person.vote_momentum} />
                   </View>
+                  <FlashOverlay direction={flashMap.get(person.id)} borderRadius={12} />
                 </TouchableOpacity>
               ))}
             </View>

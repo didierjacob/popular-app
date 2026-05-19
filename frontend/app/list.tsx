@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import * as Localization from "expo-localization";
 import { fetchSWR } from "../services/cacheService";
 import RankDeltaBadge from "../components/RankDeltaBadge";
+import FlashOverlay from "../components/FlashOverlay";
+import { useRankFlash } from "../hooks/useRankFlash";
 
 // Enable LayoutAnimation on Android (no-op on iOS).
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -96,7 +98,7 @@ export default function List() {
         && (prevIds.length !== newIds.length || newIds.some((id, i) => id !== prevIds[i]));
       if (orderChanged) {
         LayoutAnimation.configureNext(
-          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+          LayoutAnimation.create(350, LayoutAnimation.Types.easeOut, LayoutAnimation.Properties.opacity)
         );
       }
       prevOrderRef.current = newIds;
@@ -138,6 +140,15 @@ export default function List() {
     return people.filter(p => (p.category || "other").toLowerCase() === selectedCategory.toLowerCase());
   }, [people, selectedCategory]);
 
+  // Directional flash: trigger on visible-rank shifts ≥3. resetKey clears
+  // state when the user switches category so the new filtered order doesn't
+  // light up every card.
+  const flashMap = useRankFlash(filteredPeople, {
+    minDelta: 3,
+    flashDuration: 450,
+    resetKey: selectedCategory,
+  });
+
   const renderItem = ({ item, index }: { item: Person; index: number }) => {
     return (
       <TouchableOpacity
@@ -156,6 +167,7 @@ export default function List() {
         <View style={styles.deltaContainer}>
           <RankDeltaBadge momentum={item.vote_momentum} />
         </View>
+        <FlashOverlay direction={flashMap.get(item.id)} borderRadius={0} />
       </TouchableOpacity>
     );
   };
@@ -199,6 +211,7 @@ export default function List() {
         </View>
         <FlatList
           data={filteredPeople}
+          extraData={flashMap}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           ListHeaderComponent={renderFilters}

@@ -23,7 +23,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import OutsiderCard, { type OutsiderData } from "../components/OutsiderCard";
 import BackHeader from "../components/BackHeader";
+import FlashOverlay from "../components/FlashOverlay";
 import { fetchSWR } from "../services/cacheService";
+import { useRankFlash } from "../hooks/useRankFlash";
 import { cacheKeyOutsiders } from "./splash";
 
 const PALETTE = {
@@ -102,7 +104,7 @@ export default function OutsidersPage() {
         && (prevIds.length !== newIds.length || newIds.some((id, i) => id !== prevIds[i]));
       if (orderChanged) {
         LayoutAnimation.configureNext(
-          LayoutAnimation.create(600, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+          LayoutAnimation.create(350, LayoutAnimation.Types.easeOut, LayoutAnimation.Properties.opacity)
         );
       }
       prevOrderRef.current = newIds;
@@ -137,6 +139,10 @@ export default function OutsidersPage() {
     const interval = setInterval(() => loadOutsiders(), 60000);
     return () => clearInterval(interval);
   }, [loadOutsiders]);
+
+  // Directional flash on rank shifts ≥3 between two refreshes (V1 "Stock
+  // Market of Fame" lite, same hook used by Home and Classement).
+  const flashMap = useRankFlash(outsiders, { minDelta: 3, flashDuration: 450 });
 
   const handleLikeOutsider = useCallback(async (personId: string) => {
     try {
@@ -205,6 +211,7 @@ export default function OutsidersPage() {
                   onLike={handleLikeOutsider}
                   pulsingHeart={false}
                 />
+                <FlashOverlay direction={flashMap.get(outsider.id)} borderRadius={12} />
               </View>
               {/* Inject promo card every 10 items */}
               {(idx + 1) % 10 === 0 && <BoosterPromoCard variant={Math.floor(idx / 10)} />}
