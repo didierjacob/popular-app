@@ -100,7 +100,7 @@
     "instagram": "Instagram",
     "copy": "Copiar",
     "more": "Más",
-    "shareMessage": "Descubre a {{name}} en Popularoo! Popularoo Index: {{score}} con {{votes}} votos! https://apps.apple.com/app/popularoo/id6761003957",
+    "shareMessage": "He votado por {{name}} en Popularoo. Tú también, únete a la comunidad. Descarga Popularoo en el App Store: https://apps.apple.com/app/popularoo/id6761003957",
     "alreadyVotedTitle": "Ya votaste",
     "alreadyVotedMessage": "Ya votaste por {{name}} hoy.",
     "alreadyVotedSub": "Podrás volver a votar en {{time}}.",
