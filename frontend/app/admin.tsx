@@ -1561,6 +1561,7 @@ export default function Admin() {
       </View>
 
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.gold} />
         }
