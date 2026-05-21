@@ -235,24 +235,28 @@ export default function Premium() {
       Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
       return;
     }
-    if (!iapReady) {
-      Alert.alert(
-        t('premium.connectingStore'),
-        t('premium.connectingStoreMsg'),
-        [
-          { text: t('premium.ok') },
-          { text: t('premium.retry'), onPress: () => {
-            // Try to reinitialize IAP
-            iapService.getStoreProducts().then((products) => {
-              if (products && products.length > 0) {
-                setStoreProducts(products);
-                setIapReady(true);
-              }
-            }).catch(() => {});
-          }},
-        ]
-      );
-      return;
+    // B (Chantier 3): instead of a dead-end "Connecting to Store" popup, lazily
+    // ensure products are loaded (getStoreProducts now retries with backoff). On
+    // success we continue the flow; on failure we show a clear, non-looping error.
+    let effectiveProducts = storeProducts;
+    if (!iapReady || effectiveProducts.length === 0) {
+      setIapLoading(true);
+      try {
+        effectiveProducts = await iapService.getStoreProducts();
+      } catch {
+        effectiveProducts = [];
+      }
+      setIapLoading(false);
+      if (effectiveProducts.length > 0) {
+        setStoreProducts(effectiveProducts);
+        setIapReady(true);
+      } else {
+        Alert.alert(
+          t('premium.storeUnavailableTitle'),
+          t('premium.storeUnavailableMsg'),
+        );
+        return;
+      }
     }
 
     const tier = BOOSTER_TIERS.find(t => t.id === selectedTier);
@@ -261,8 +265,8 @@ export default function Premium() {
     const durationLabel = getDurationLabel(tier.duration_hours, t);
     const productId = iapService.getProductIdForTier(selectedTier);
 
-    // Use the real store price
-    const storeProduct = storeProducts.find(p => p.productId === productId);
+    // Use the real store price (from the freshly-ensured product list)
+    const storeProduct = effectiveProducts.find(p => p.productId === productId);
     const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
 
     // B5: Check if user already has an active booster → show replacement warning
@@ -406,7 +410,7 @@ export default function Premium() {
           <View style={styles.paymentNotice}>
             <Ionicons name="shield-checkmark" size={16} color={PALETTE.green} />
             <Text style={styles.paymentNoticeText}>
-              {t("premium.securePayment")}
+              {t("premium.securePayment", { store: Platform.OS === 'ios' ? 'Apple' : 'Google Play' })}
             </Text>
           </View>
 
@@ -674,6 +678,11 @@ export default function Premium() {
                       </>
                     )}
                   </TouchableOpacity>
+
+                  {/* Chantier 2 — Apple "no charge yet" reassurance (iOS only; Android shows it natively via Google Play UX) */}
+                  {Platform.OS === 'ios' && (
+                    <Text style={styles.noChargeYet}>{t("premium.noChargeYet")}</Text>
+                  )}
 
                   {/* Edit social links link */}
                   <TouchableOpacity
@@ -1052,6 +1061,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 10,
+    paddingHorizontal: 16,
+    lineHeight: 16,
+  },
+  noChargeYet: {
+    color: '#9FB5AB',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
     paddingHorizontal: 16,
     lineHeight: 16,
   },

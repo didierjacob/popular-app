@@ -40,25 +40,36 @@ class IAPService {
     }
   }
 
-  async getStoreProducts(): Promise<Product[]> {
+  // Fetches IAP products with retry + backoff. On iOS/iPad, StoreKit can return
+  // 0 products on the first call right after initConnection (the connection isn't
+  // fully ready yet) — a single shot would leave the UI stuck. We retry, re-initing
+  // the connection between attempts, before giving up. (Chantier 3 — Apple 2.1 iPad fix)
+  async getStoreProducts(retries: number = 3, baseDelayMs: number = 1500): Promise<Product[]> {
     if (!this.connected) {
       await this.init();
     }
-    try {
-      const products = await getProducts({ skus: IAP_SKUS });
-      if (products.length === 0) {
-        console.error(
-          '[IAP] StoreKit returned 0 products for SKUs:', IAP_SKUS,
-          '— likely causes: IAP not attached to current build in App Store Connect, sandbox tester not signed in, IAP status not "Ready to Submit", or bundle ID mismatch.'
-        );
-      } else {
-        console.log('[IAP] Products loaded:', products.length);
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const products = await getProducts({ skus: IAP_SKUS });
+        if (products.length > 0) {
+          console.log(`[IAP] Products loaded: ${products.length} (attempt ${attempt}/${retries})`);
+          return products;
+        }
+        console.warn(`[IAP] StoreKit returned 0 products (attempt ${attempt}/${retries}) for SKUs:`, IAP_SKUS);
+      } catch (error) {
+        console.error(`[IAP] Network/exception while fetching products (attempt ${attempt}/${retries}):`, error);
       }
-      return products;
-    } catch (error) {
-      console.error('[IAP] Network/exception while fetching products:', error);
-      return [];
+      if (attempt < retries) {
+        // Connection may not have been ready — re-init, then back off (1.5s, 3s, …)
+        try { await this.init(); } catch { /* keep retrying */ }
+        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * attempt));
+      }
     }
+    console.error(
+      '[IAP] StoreKit returned 0 products after', retries, 'attempts for SKUs:', IAP_SKUS,
+      '— likely causes: IAP not attached to current build in App Store Connect, sandbox tester not signed in, IAP status not "Ready to Submit", or bundle ID mismatch.'
+    );
+    return [];
   }
 
   async purchase(sku: string): Promise<void> {
