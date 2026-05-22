@@ -43,8 +43,12 @@ class IAPService {
   // Fetches IAP products with retry + backoff. On iOS/iPad, StoreKit can return
   // 0 products on the first call right after initConnection (the connection isn't
   // fully ready yet) — a single shot would leave the UI stuck. We retry, re-initing
-  // the connection between attempts, before giving up. (Chantier 3 — Apple 2.1 iPad fix)
-  async getStoreProducts(retries: number = 3, baseDelayMs: number = 1500): Promise<Product[]> {
+  // the connection between attempts, before giving up. iPad in compatibility mode can
+  // need 10-15s for StoreKit to populate, so the backoff escalates over ~30s of
+  // wall-clock before giving up. (Chantier 3 / 7e resubmit — Apple 2.1 iPad fix)
+  async getStoreProducts(retries: number = 5, baseDelayMs: number = 1500): Promise<Product[]> {
+    // Progressive backoff before each retry (ms): 1.5s → 3s → 5s → 8s → 12s.
+    const BACKOFF_MS = [1500, 3000, 5000, 8000, 12000];
     if (!this.connected) {
       await this.init();
     }
@@ -60,9 +64,10 @@ class IAPService {
         console.error(`[IAP] Network/exception while fetching products (attempt ${attempt}/${retries}):`, error);
       }
       if (attempt < retries) {
-        // Connection may not have been ready — re-init, then back off (1.5s, 3s, …)
+        // Connection may not have been ready — re-init, then back off (1.5s, 3s, 5s, 8s, …)
         try { await this.init(); } catch { /* keep retrying */ }
-        await new Promise((resolve) => setTimeout(resolve, baseDelayMs * attempt));
+        const delayMs = BACKOFF_MS[attempt - 1] ?? baseDelayMs * attempt;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
     console.error(
