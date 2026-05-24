@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   UIManager,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 // Enable LayoutAnimation on Android (no-op on iOS).
@@ -78,6 +79,8 @@ function BoosterPromoCard({ variant }: { variant: number }) {
 export default function OutsidersPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth > 768;
   const [outsiders, setOutsiders] = useState<OutsiderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -188,9 +191,13 @@ export default function OutsidersPage() {
       <BackHeader title={t("outsiders.title")} />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 }}
+        contentContainerStyle={[
+          { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
+          isTablet && { alignItems: "center" },
+        ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
       >
+        <View style={isTablet ? { maxWidth: 600, alignSelf: "center", width: "100%" } : {}}>
         {/* Page description */}
         <Text style={styles.pageDesc}>{t("outsiders.subtitle")}</Text>
 
@@ -218,6 +225,7 @@ export default function OutsidersPage() {
             </React.Fragment>
           ))
         )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
