@@ -13,6 +13,7 @@ import {
   Platform,
   Switch,
   Linking,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -105,6 +106,11 @@ interface Person {
   source?: string;
   category?: string;
   created_at?: string;
+  email?: string;
+  boost_active?: boolean;
+  tier?: string | null;
+  tier_name?: string | null;
+  hours_remaining?: number;
 }
 
 interface ActivityData {
@@ -298,7 +304,11 @@ export default function Admin() {
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterSource, setFilterSource] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Person[]>([]);
-  
+  // Rename Outsider (admin manual correction — e.g. user paid without a name)
+  const [renameTarget, setRenameTarget] = useState<Person | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
+
   // Activity
   const [activityData, setActivityData] = useState<ActivityData | null>(null);
   
@@ -653,6 +663,44 @@ export default function Admin() {
         },
       ]
     );
+  };
+
+  const handleRenameOutsider = (person: Person) => {
+    setRenameTarget(person);
+    setRenameValue(person.name === 'Outsider' ? '' : person.name);
+  };
+
+  const submitRenameOutsider = async () => {
+    if (!renameTarget) return;
+    const newName = renameValue.trim();
+    if (newName.length < 2) {
+      Alert.alert('Nom invalide', 'Le nom doit comporter au moins 2 caractères.');
+      return;
+    }
+    setRenameSaving(true);
+    try {
+      const res = await adminFetch(API(`/admin/outsider/${renameTarget.id}/rename`), {
+        method: 'POST',
+        body: JSON.stringify({ new_name: newName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Reflect the new name immediately in the search results
+        setSearchResults((prev) =>
+          prev.map((p) => (p.id === renameTarget.id ? { ...p, name: data.new_name } : p))
+        );
+        setRenameTarget(null);
+        setRenameValue('');
+        Alert.alert('✅ Renommé', `"${data.old_name || 'Outsider'}" → "${data.new_name}"`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Erreur', err.detail || 'Renommage échoué');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Erreur réseau');
+    } finally {
+      setRenameSaving(false);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -1673,6 +1721,7 @@ export default function Admin() {
                 searchResults={searchResults}
                 onDelete={handleDeletePerson}
                 onReset={handleResetPerson}
+                onRename={handleRenameOutsider}
               />
             )}
 
@@ -1682,6 +1731,52 @@ export default function Admin() {
           </>
         )}
       </ScrollView>
+
+      {/* Rename Outsider modal (admin manual name correction) */}
+      <Modal
+        visible={renameTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenameTarget(null)}
+      >
+        <View style={styles.renameOverlay}>
+          <View style={styles.renameCard}>
+            <Text style={styles.renameTitle}>✏️ Renommer l'Outsider</Text>
+            {renameTarget?.email ? (
+              <Text style={styles.renameSub}>{renameTarget.email}</Text>
+            ) : null}
+            <TextInput
+              style={styles.renameInput}
+              placeholder="Nom d'affichage au classement"
+              placeholderTextColor={PALETTE.subtext}
+              value={renameValue}
+              onChangeText={setRenameValue}
+              autoCapitalize="words"
+              autoFocus
+            />
+            <View style={styles.renameActions}>
+              <TouchableOpacity
+                style={[styles.renameBtn, styles.renameBtnCancel]}
+                onPress={() => setRenameTarget(null)}
+                disabled={renameSaving}
+              >
+                <Text style={styles.renameBtnCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.renameBtn, styles.renameBtnConfirm]}
+                onPress={submitRenameOutsider}
+                disabled={renameSaving}
+              >
+                {renameSaving ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.renameBtnConfirmText}>Renommer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1966,6 +2061,7 @@ function ModerationTab({
   searchResults,
   onDelete,
   onReset,
+  onRename,
 }: any) {
   return (
     <View style={styles.section}>
@@ -1974,7 +2070,7 @@ function ModerationTab({
       <View style={styles.card}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Rechercher par nom..."
+          placeholder="Rechercher par nom ou e-mail..."
           placeholderTextColor={PALETTE.subtext}
           value={searchQuery}
           onChangeText={onSearchChange}
@@ -2025,7 +2121,21 @@ function ModerationTab({
               <Text style={styles.moderationStats}>
                 Score {person.score} • {person.total_votes} votes • {person.source}
               </Text>
+              {person.email ? (
+                <Text style={styles.moderationStats}>✉️ {person.email}</Text>
+              ) : null}
+              {person.boost_active ? (
+                <Text style={styles.moderationStats}>
+                  🚀 {person.tier_name || person.tier} • {person.hours_remaining}h restantes
+                </Text>
+              ) : (person.source === 'self_boosted' ? (
+                <Text style={styles.moderationStats}>⏸ boost inactif</Text>
+              ) : null)}
             </View>
+
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onRename(person)}>
+              <Ionicons name="create-outline" size={20} color={PALETTE.green} />
+            </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionBtn} onPress={() => onReset(person)}>
               <Ionicons name="refresh" size={20} color={PALETTE.gold} />
@@ -3598,6 +3708,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Rename Outsider modal
+  renameOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  renameCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    padding: 20,
+  },
+  renameTitle: { color: PALETTE.text, fontSize: 18, fontWeight: '700', marginBottom: 6 },
+  renameSub: { color: PALETTE.subtext, fontSize: 13, marginBottom: 12 },
+  renameInput: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: PALETTE.text,
+    fontSize: 16,
+    marginTop: 4,
+  },
+  renameActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  renameBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  renameBtnCancel: { backgroundColor: PALETTE.bg, borderWidth: 1, borderColor: PALETTE.border },
+  renameBtnCancelText: { color: PALETTE.text, fontSize: 15, fontWeight: '600' },
+  renameBtnConfirm: { backgroundColor: PALETTE.green },
+  renameBtnConfirmText: { color: '#000', fontSize: 15, fontWeight: '700' },
   activityRow: {
     flexDirection: 'row',
     alignItems: 'center',

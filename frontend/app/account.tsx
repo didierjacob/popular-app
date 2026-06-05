@@ -19,6 +19,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, BOOSTER_TIERS, type Transaction } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
+import { CacheService } from "../services/cacheService";
+import { cacheKeyOutsiders } from "./splash";
 import { setLanguage, LANGUAGE_STORAGE_KEY } from "../i18n";
 
 const PALETTE = {
@@ -147,6 +149,10 @@ export default function AccountScreen() {
   // My Outsider (Cas A — withdraw)
   const [myOutsider, setMyOutsider] = useState<MyOutsiderData | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
+  // Edit Outsider display name (typo fix) — reuses /me/outsider/set-name
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     loadSavedPreferences();
@@ -289,6 +295,34 @@ export default function AccountScreen() {
       ]
     );
   }, [t]);
+
+  const openEditName = useCallback(() => {
+    if (!myOutsider) return;
+    setEditNameValue(myOutsider.name === 'Outsider' ? '' : myOutsider.name);
+    setEditNameVisible(true);
+  }, [myOutsider]);
+
+  const submitEditName = useCallback(async () => {
+    if (!myOutsider) return;
+    const newName = editNameValue.trim();
+    if (newName.length < 2) {
+      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
+      return;
+    }
+    setSavingName(true);
+    try {
+      const res = await CreditsService.setMyOutsiderName(myOutsider.person_id, newName);
+      // Update local display + invalidate the ranking cache (immediate refresh)
+      setMyOutsider({ ...myOutsider, name: res.new_name });
+      await CacheService.remove(cacheKeyOutsiders());
+      setEditNameVisible(false);
+      Alert.alert(t('common.success'), t('premium.nameSavedMsg', { name: res.new_name }));
+    } catch (e: any) {
+      Alert.alert(t('common.errorTitle'), e?.message || t('premium.activateError'));
+    } finally {
+      setSavingName(false);
+    }
+  }, [myOutsider, editNameValue, t]);
 
   const handleSaveSocial = async () => {
     if (!activeBoostId) return;
@@ -701,6 +735,13 @@ export default function AccountScreen() {
                 </View>
               </View>
               <TouchableOpacity
+                style={moStyles.editNameBtn}
+                onPress={openEditName}
+              >
+                <Ionicons name="create-outline" size={18} color={PALETTE.gold} />
+                <Text style={moStyles.editNameBtnText}>{t("account.editName")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.dangerBtn, { marginTop: 16 }]}
                 onPress={handleWithdrawOutsider}
                 disabled={withdrawing}
@@ -918,6 +959,49 @@ export default function AccountScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit Outsider display name (typo fix) — reuses /me/outsider/set-name */}
+      <Modal
+        visible={editNameVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditNameVisible(false)}
+      >
+        <View style={moStyles.editOverlay}>
+          <View style={moStyles.editCard}>
+            <Text style={moStyles.editTitle}>{t("account.editNameTitle")}</Text>
+            <TextInput
+              style={moStyles.editInput}
+              placeholder={t("premium.yourName")}
+              placeholderTextColor={PALETTE.subtext}
+              value={editNameValue}
+              onChangeText={setEditNameValue}
+              autoCapitalize="words"
+              autoFocus
+            />
+            <View style={moStyles.editActions}>
+              <TouchableOpacity
+                style={[moStyles.editBtn, moStyles.editBtnCancel]}
+                onPress={() => setEditNameVisible(false)}
+                disabled={savingName}
+              >
+                <Text style={moStyles.editBtnCancelText}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[moStyles.editBtn, moStyles.editBtnSave]}
+                onPress={submitEditName}
+                disabled={savingName}
+              >
+                {savingName ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={moStyles.editBtnSaveText}>{t("account.saveName")}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1032,6 +1116,49 @@ const styles = StyleSheet.create({
 
 // My Outsider styles (Cas A)
 const moStyles = StyleSheet.create({
+  // Edit name button + modal
+  editNameBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: PALETTE.gold,
+  },
+  editNameBtnText: { color: PALETTE.gold, fontSize: 15, fontWeight: "700" },
+  editOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  editCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    padding: 20,
+  },
+  editTitle: { color: PALETTE.text, fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  editInput: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: PALETTE.text,
+    fontSize: 16,
+  },
+  editActions: { flexDirection: "row", gap: 12, marginTop: 16 },
+  editBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  editBtnCancel: { backgroundColor: PALETTE.bg, borderWidth: 1, borderColor: PALETTE.border },
+  editBtnCancelText: { color: PALETTE.text, fontSize: 15, fontWeight: "600" },
+  editBtnSave: { backgroundColor: PALETTE.gold },
+  editBtnSaveText: { color: "#000", fontSize: 15, fontWeight: "700" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   name: { flex: 1, color: PALETTE.text, fontSize: 18, fontWeight: "700", marginRight: 10 },
   tierBadge: { backgroundColor: PALETTE.gold + "22", borderColor: PALETTE.gold, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },

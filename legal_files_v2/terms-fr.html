@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conditions Générales d'Utilisation — Popularoo</title>
+<meta name="description" content="Conditions Générales d'Utilisation de l'application Popularoo, éditée par EN HAUT DES MARCHES SARL.">
+<style>
+  :root {
+    --bg: #0F2F22;
+    --bg-soft: #143A2A;
+    --green: #009B4D;
+    --green-light: #2ECC71;
+    --gold: #FFD700;
+    --red: #E04F5F;
+    --text: #F4F4F2;
+    --text-soft: #C8D5CE;
+    --rule: #1F4A36;
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 17px;
+    padding: 0;
+  }
+  .wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 60px 32px 100px;
+  }
+  header {
+    border-bottom: 2px solid var(--green);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .brand {
+    display: inline-block;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+  .meta {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text-soft);
+    letter-spacing: 0.02em;
+  }
+  .meta strong { color: var(--gold); font-weight: 600; }
+
+  nav.toc {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--gold);
+    padding: 24px 28px;
+    margin: 40px 0 48px;
+    border-radius: 4px;
+  }
+  nav.toc h2 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+  nav.toc ol {
+    list-style: none;
+    counter-reset: toc;
+    column-count: 2;
+    column-gap: 32px;
+  }
+  nav.toc ol li {
+    counter-increment: toc;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+    break-inside: avoid;
+  }
+  nav.toc ol li::before {
+    content: counter(toc) ". ";
+    color: var(--gold);
+    font-weight: 600;
+  }
+  nav.toc a {
+    color: var(--text-soft);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  nav.toc a:hover { color: var(--green-light); }
+
+  h2.article {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-top: 56px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.3;
+    scroll-margin-top: 24px;
+  }
+  h2.article .num {
+    color: var(--green-light);
+    font-weight: 800;
+    margin-right: 10px;
+  }
+  h3 {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 28px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin: 16px 0 20px 24px; }
+  li { margin-bottom: 8px; }
+  strong { color: var(--gold); font-weight: 700; }
+  em { color: var(--text-soft); font-style: italic; }
+  a { color: var(--green-light); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--gold); }
+
+  .callout {
+    background: var(--bg-soft);
+    border-left: 3px solid var(--green);
+    padding: 18px 22px;
+    margin: 24px 0;
+    font-size: 15px;
+    border-radius: 4px;
+  }
+  .callout.warning {
+    border-left-color: var(--red);
+  }
+  .callout.info {
+    border-left-color: var(--gold);
+  }
+
+  .contact-block {
+    background: var(--bg-soft);
+    border: 1px solid var(--rule);
+    padding: 24px;
+    margin: 24px 0;
+    border-radius: 4px;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+  }
+  .contact-block .label {
+    color: var(--gold);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .contact-block p { margin-bottom: 14px; }
+  .contact-block p:last-child { margin-bottom: 0; }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--rule);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    color: var(--text-soft);
+    text-align: center;
+  }
+  footer a { color: var(--green-light); }
+
+  @media (max-width: 640px) {
+    .wrapper { padding: 40px 20px 80px; }
+    h1 { font-size: 28px; }
+    h2.article { font-size: 19px; margin-top: 44px; }
+    nav.toc ol { column-count: 1; }
+    body { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<header>
+  <span class="brand">Popularoo · Document légal</span>
+  <h1>Conditions Générales d'Utilisation</h1>
+  <p class="meta">Version <strong>2.0</strong> · En vigueur à compter du <strong>5 mai 2026</strong></p>
+</header>
+
+<nav class="toc" aria-label="Sommaire">
+  <h2>Sommaire</h2>
+  <ol>
+    <li><a href="#a1">Préambule et acceptation</a></li>
+    <li><a href="#a2">Définitions</a></li>
+    <li><a href="#a3">Accès au Service et âge minimum</a></li>
+    <li><a href="#a4">Compte utilisateur et identifiant d'appareil</a></li>
+    <li><a href="#a5">Description du Service</a></li>
+    <li><a href="#a6">Statut d'hébergeur et régime LCEN / DSA</a></li>
+    <li><a href="#a7">Droits des personnalités figurant sur Popularoo</a></li>
+    <li><a href="#a8">Achats in-app et Boosters</a></li>
+    <li><a href="#a9">Droit de rétractation et remboursements</a></li>
+    <li><a href="#a10">Propriété intellectuelle</a></li>
+    <li><a href="#a11">Modération et signalement</a></li>
+    <li><a href="#a12">Données personnelles</a></li>
+    <li><a href="#a13">Responsabilités</a></li>
+    <li><a href="#a14">Suspension et résiliation</a></li>
+    <li><a href="#a15">Médiation de la consommation</a></li>
+    <li><a href="#a16">Modifications des CGU</a></li>
+    <li><a href="#a17">Droit applicable et juridictions</a></li>
+    <li><a href="#a18">Système de votes</a></li>
+    <li><a href="#a19">Popularoo Index</a></li>
+    <li><a href="#a20">Daily Runs et Strikes</a></li>
+    <li><a href="#a21">Outsiders et profils Boosters</a></li>
+    <li><a href="#a22">Profils de démonstration</a></li>
+  </ol>
+</nav>
+
+<h2 class="article" id="a1"><span class="num">Article 1.</span>Préambule et acceptation</h2>
+
+<p>Les présentes Conditions Générales d'Utilisation (ci-après les « <strong>CGU</strong> ») régissent l'utilisation de l'application mobile et du site internet <strong>Popularoo</strong> (ci-après le « <strong>Service</strong> »), édités par la société <strong>EN HAUT DES MARCHES</strong>, SARL au capital social fixé statutairement, immatriculée au RCS de Paris sous le numéro 504 747 932, dont le siège social est situé 147 rue Léon-Maurice Nordmann, 75013 Paris, représentée par son gérant en exercice (ci-après l'« <strong>Éditeur</strong> »).</p>
+
+<p>L'utilisation du Service implique l'acceptation pleine, entière et sans réserve des présentes CGU par l'utilisateur (ci-après l'« <strong>Utilisateur</strong> »). Si l'Utilisateur n'accepte pas tout ou partie des présentes CGU, il doit s'abstenir d'utiliser le Service.</p>
+
+<p>L'Utilisateur reconnaît avoir pris connaissance des présentes CGU avant toute utilisation du Service. L'acceptation des CGU est matérialisée par la première utilisation effective du Service.</p>
+
+<h2 class="article" id="a2"><span class="num">Article 2.</span>Définitions</h2>
+
+<p>Pour les besoins des présentes CGU, les termes suivants ont la signification ci-après :</p>
+
+<ul>
+  <li><strong>Personnalité</strong> : personnalité publique référencée dans le Service (artiste, sportif, responsable politique, personnalité médiatique ou tout individu ayant une notoriété publique vérifiable).</li>
+  <li><strong>Outsider</strong> : Utilisateur ayant activé un Booster afin d'apparaître dans le classement des Outsiders.</li>
+  <li><strong>Booster</strong> : produit payant permettant à un Utilisateur d'apparaître dans le classement des Outsiders pour une durée déterminée.</li>
+  <li><strong>Vote</strong> : action de Like, Dislike ou Superlike effectuée par un Utilisateur à l'égard d'une Personnalité ou d'un Outsider, dans les conditions de l'Article 18.</li>
+  <li><strong>Popularoo Index</strong> : indicateur synthétique de popularité calculé par le Service, dans les conditions de l'Article 19.</li>
+  <li><strong>Daily Run</strong> : défi de 24 heures permettant à un Outsider de tenter de dépasser le momentum d'une Personnalité, dans les conditions de l'Article 20.</li>
+  <li><strong>Strike</strong> : événement d'amplification déclenché lors d'une mobilisation soutenue, dans les conditions de l'Article 20.</li>
+  <li><strong>Identifiant d'appareil</strong> : identifiant technique unique attribué à l'appareil de l'Utilisateur, utilisé pour la prévention des abus et le suivi des votes.</li>
+</ul>
+
+<h2 class="article" id="a3"><span class="num">Article 3.</span>Accès au Service et âge minimum</h2>
+
+<p>L'accès au Service est réservé aux personnes physiques âgées de <strong>16 ans révolus</strong> au minimum. Cet âge correspond au seuil européen prévu par le Règlement Général sur la Protection des Données (RGPD) pour l'utilisation des services numériques sans consentement parental.</p>
+
+<p>L'Utilisateur déclare avoir la capacité juridique d'accepter les présentes CGU. En cas d'utilisation du Service par un mineur, la responsabilité des titulaires de l'autorité parentale est engagée.</p>
+
+<p>L'Éditeur se réserve le droit de demander la justification de l'âge en cas de doute, et de suspendre ou résilier sans préavis tout compte ne respectant pas cette condition.</p>
+
+<h2 class="article" id="a4"><span class="num">Article 4.</span>Compte utilisateur et identifiant d'appareil</h2>
+
+<p>L'utilisation du Service ne nécessite pas la création d'un compte au sens classique du terme : l'Utilisateur est identifié par un <strong>identifiant d'appareil</strong> généré automatiquement lors du premier lancement de l'application.</p>
+
+<p>L'Utilisateur peut, de manière facultative, enrichir son identifiant en :</p>
+<ul>
+  <li>Choisissant un pseudonyme public lors de l'activation d'un Booster ;</li>
+  <li>Renseignant un email pour la réception des notifications relatives à ses achats (justificatifs, alertes d'expiration de Booster) ;</li>
+  <li>Renseignant ses comptes sur les réseaux sociaux (Instagram, TikTok, X), affichés publiquement sur sa page Outsider, dans les conditions de l'Article 21 ;</li>
+  <li>Modifiant son pays de référence et sa langue d'affichage dans les paramètres.</li>
+</ul>
+
+<p>L'Utilisateur s'engage à ne pas utiliser plusieurs appareils ou techniques de contournement (changement d'identifiant d'appareil, utilisation de VPN, multi-comptes) dans le but d'influencer artificiellement les votes ou le classement. Tout contournement constaté entraîne la suspension immédiate des comptes concernés et l'invalidation des votes frauduleux.</p>
+
+<h2 class="article" id="a5"><span class="num">Article 5.</span>Description du Service</h2>
+
+<p>Popularoo est une plateforme de notation de la popularité des Personnalités publiques, présentée sous la forme métaphorique d'un « marché de la popularité ». Le Service permet :</p>
+
+<ul>
+  <li>De voter en faveur ou contre des Personnalités référencées ;</li>
+  <li>De consulter les classements en temps réel ;</li>
+  <li>D'apparaître soi-même dans le classement des Outsiders moyennant l'achat d'un Booster ;</li>
+  <li>De participer à des défis hebdomadaires (Daily Runs) lorsque le palier de Booster acquis le permet ;</li>
+  <li>De suggérer l'ajout de nouvelles Personnalités à la base, sous réserve de validation et de conformité.</li>
+</ul>
+
+<p>Le Service est fourni gratuitement, à l'exception des fonctionnalités payantes décrites à l'Article 8 (Boosters). L'Éditeur se réserve le droit de faire évoluer les fonctionnalités du Service à tout moment.</p>
+
+<p>Le Service emploie un vocabulaire métaphorique inspiré du langage boursier (« marché », « hausse », « baisse », « index »). Cette terminologie est <strong>exclusivement éditoriale et ludique</strong> et ne saurait être interprétée comme l'exercice d'une activité de marché financier régulée. Popularoo n'est en aucun cas un produit financier, n'est pas régulé par l'Autorité des Marchés Financiers (AMF) et ne fournit aucun conseil en investissement.</p>
+
+<h2 class="article" id="a6"><span class="num">Article 6.</span>Statut d'hébergeur et régime LCEN / DSA</h2>
+
+<p>L'Éditeur agit en qualité d'<strong>hébergeur de contenus</strong> au sens de l'article 6.I.2 de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN) et du Règlement (UE) 2022/2065 du 19 octobre 2022 sur les services numériques (Digital Services Act ou « DSA »).</p>
+
+<p>À ce titre :</p>
+<ul>
+  <li>L'Éditeur ne procède à aucun contrôle <em>a priori</em> exhaustif des contenus mis en ligne par les Utilisateurs (suggestions de Personnalités, pseudonymes, comptes sociaux renseignés, contributions diverses) ;</li>
+  <li>L'Éditeur n'est tenu d'agir qu'<em>a posteriori</em>, après notification d'un contenu manifestement illicite, dans les conditions des articles 11 et 15 ;</li>
+  <li>L'Éditeur dispose d'un mécanisme de signalement accessible à toute personne, conformément à l'article 16 du DSA.</li>
+</ul>
+
+<p>L'Éditeur n'est pas l'auteur des contenus ajoutés par les Utilisateurs et n'en assume pas la responsabilité éditoriale, sous réserve de son obligation de retrait après notification.</p>
+
+<h2 class="article" id="a7"><span class="num">Article 7.</span>Droits des personnalités figurant sur Popularoo</h2>
+
+<p>Toute Personnalité publique figurant sur Popularoo, ou son représentant légal dûment mandaté, dispose d'un droit absolu de demander le <strong>retrait</strong> de sa fiche du Service, sans avoir à motiver sa demande.</p>
+
+<p>Toute demande de retrait doit être adressée par email à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, accompagnée d'une pièce justifiant l'identité du demandeur et, le cas échéant, son mandat de représentation.</p>
+
+<p>L'Éditeur s'engage à traiter toute demande de retrait régulièrement formulée dans un délai maximal de <strong>72 heures ouvrées</strong> à compter de sa réception. Pour les demandes manifestement fondées (personnalité aisément identifiable demandant son propre retrait), le retrait peut être effectué à titre conservatoire dès la réception de la demande, dans l'attente de l'examen approfondi.</p>
+
+<p>L'inscription d'une Personnalité dans Popularoo est strictement réservée aux personnalités publiques au sens de la jurisprudence française et européenne, c'est-à-dire des personnes ayant volontairement exposé leur image et leur action au public (artistes, sportifs, responsables politiques, dirigeants, personnalités médiatiques). <strong>Toute inscription d'une personne privée, d'un mineur ou d'une personne ayant manifesté son opposition à figurer sur le Service est strictement interdite</strong> et fait l'objet d'un retrait immédiat dès signalement.</p>
+
+<h2 class="article" id="a8"><span class="num">Article 8.</span>Achats in-app et Boosters</h2>
+
+<p>Le Service propose plusieurs paliers de Boosters payants permettant à un Utilisateur d'apparaître dans le classement des Outsiders :</p>
+
+<ul>
+  <li><strong>Booster</strong> : visibilité d'1 heure dans le classement Outsiders ;</li>
+  <li><strong>Super Booster</strong> : visibilité de 24 heures dans le classement Outsiders avec placement prioritaire et 1 Daily Run inclus ;</li>
+  <li><strong>Golden Booster</strong> : visibilité de 7 jours en placement prioritaire dans le classement Outsiders et rotation prioritaire sur la page d'accueil, avec 7 Daily Runs inclus (1 par 24 heures glissantes).</li>
+</ul>
+
+<p>Les tarifs en vigueur sont affichés dans l'application, dans la devise locale de l'Utilisateur. Les prix peuvent évoluer à tout moment ; le tarif applicable est celui affiché au moment de la confirmation de l'achat.</p>
+
+<p>Les achats sont traités <strong>exclusivement</strong> par les plateformes Apple App Store et Google Play Store, conformément à leurs conditions générales de vente respectives. L'Éditeur ne collecte ni ne traite directement aucune donnée bancaire de l'Utilisateur.</p>
+
+<p>Les Boosters sont des produits numériques à usage immédiat et personnel, non transférables, non cumulables (un seul Booster actif par Utilisateur à la fois) et non échangeables contre des espèces.</p>
+
+<h2 class="article" id="a9"><span class="num">Article 9.</span>Droit de rétractation et remboursements</h2>
+
+<p>Conformément à l'article L.221-28 13° du Code de la consommation, l'Utilisateur reconnaît que les Boosters constituent <strong>la fourniture d'un contenu numérique non fourni sur un support matériel</strong> dont l'exécution commence dès la confirmation de l'achat, avec son accord exprès préalable et son renoncement exprès au droit de rétractation.</p>
+
+<p>En conséquence, le droit de rétractation de 14 jours prévu par le Code de la consommation ne s'applique pas aux Boosters dont l'exécution a commencé.</p>
+
+<p>Toute demande de remboursement doit être adressée :</p>
+<ul>
+  <li>À Apple via l'App Store (<a href="https://reportaproblem.apple.com" target="_blank" rel="noopener">reportaproblem.apple.com</a>) pour les achats effectués sur iOS ;</li>
+  <li>À Google via le Play Store pour les achats effectués sur Android.</li>
+</ul>
+
+<p>L'Éditeur n'est pas en mesure de procéder directement aux remboursements et invitera systématiquement l'Utilisateur à se rapprocher de la plateforme de paiement compétente.</p>
+
+<h2 class="article" id="a10"><span class="num">Article 10.</span>Propriété intellectuelle</h2>
+
+<p>L'ensemble des éléments composant le Service (nom « Popularoo », logo, charte graphique, code source, architecture, textes éditoriaux, illustrations, animations, algorithmes propriétaires dont le Popularoo Index) sont la propriété exclusive de l'Éditeur ou font l'objet d'une licence d'utilisation à son bénéfice. Ils sont protégés par le droit d'auteur, le droit des marques et tout autre droit de propriété intellectuelle applicable.</p>
+
+<p>Toute reproduction, représentation, modification, adaptation ou exploitation, totale ou partielle, à des fins commerciales ou non, sans autorisation écrite préalable de l'Éditeur, est strictement interdite et constitue une contrefaçon sanctionnée par les articles L.335-2 et suivants du Code de la propriété intellectuelle.</p>
+
+<p>Les images et noms des Personnalités publiques figurant sur le Service sont utilisés à des fins d'information et de commentaire éditorial, dans les limites autorisées par le droit à l'information et le droit de courte citation. Toute Personnalité concernée peut exercer les droits prévus à l'Article 7.</p>
+
+<h2 class="article" id="a11"><span class="num">Article 11.</span>Modération et signalement</h2>
+
+<p>Tout Utilisateur peut signaler à l'Éditeur :</p>
+<ul>
+  <li>Une Personnalité dont la présence est contestée (personne privée, mineur, demande de retrait) ;</li>
+  <li>Un contenu manifestement illicite (haine, discrimination, atteinte à la vie privée, diffamation) ;</li>
+  <li>Un comportement frauduleux (multi-comptes, manipulation de votes) ;</li>
+  <li>Tout autre fait susceptible de relever d'une action de modération.</li>
+</ul>
+
+<p>Les signalements sont à adresser par email à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a> ou via les fonctions de signalement intégrées au Service lorsqu'elles sont disponibles.</p>
+
+<p>Conformément au DSA, l'Éditeur traite les signalements dans un délai raisonnable et peut prendre les mesures suivantes : retrait du contenu signalé, suspension de l'Outsider concerné, invalidation des votes frauduleux, bannissement de l'identifiant d'appareil, signalement aux autorités compétentes en cas de fait pénalement répréhensible.</p>
+
+<p>L'Utilisateur dont un contenu a été retiré ou dont le compte a été suspendu peut contester cette décision en s'adressant à la même adresse email.</p>
+
+<h2 class="article" id="a12"><span class="num">Article 12.</span>Données personnelles</h2>
+
+<p>Le traitement des données personnelles dans le cadre du Service est régi par la <a href="/privacy-fr.html">Politique de Confidentialité</a>, qui fait partie intégrante des présentes CGU.</p>
+
+<p>L'Utilisateur dispose des droits prévus par le Règlement Général sur la Protection des Données (RGPD) : droit d'accès, de rectification, d'effacement, d'opposition, de limitation du traitement, de portabilité, et de définition de directives post-mortem. Ces droits s'exercent par email à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>.</p>
+
+<p>L'Utilisateur dispose également du droit d'introduire une réclamation auprès de la Commission Nationale de l'Informatique et des Libertés (CNIL — <a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).</p>
+
+<h2 class="article" id="a13"><span class="num">Article 13.</span>Responsabilités</h2>
+
+<p>L'Éditeur s'efforce d'assurer la disponibilité, la sécurité et la fiabilité du Service. Toutefois, il ne saurait être tenu pour responsable des interruptions dues à des opérations de maintenance, à des cas de force majeure, à des défaillances de réseau ou de tiers (hébergeurs, plateformes de paiement, fournisseurs d'API).</p>
+
+<p>L'Éditeur ne garantit ni l'exactitude des informations relatives aux Personnalités (issues de sources tierces telles que Wikipédia ou contributions utilisateurs), ni le résultat des Daily Runs, ni le caractère pérenne d'un classement, qui par nature évolue en fonction des votes et des comportements des Utilisateurs.</p>
+
+<p>L'Éditeur ne pourra en aucun cas être tenu responsable des préjudices indirects, immatériels ou imprévisibles résultant de l'utilisation du Service. La responsabilité de l'Éditeur, en cas de manquement avéré, est limitée au montant total des sommes effectivement versées par l'Utilisateur au titre des Boosters au cours des douze (12) mois précédant le fait générateur.</p>
+
+<h2 class="article" id="a14"><span class="num">Article 14.</span>Suspension et résiliation</h2>
+
+<p>L'Éditeur se réserve le droit, à tout moment et sans préavis, de suspendre ou de résilier l'accès au Service de tout Utilisateur en cas de manquement aux présentes CGU, de comportement frauduleux, de signalement fondé, ou pour tout motif légitime.</p>
+
+<p>L'Utilisateur peut, à tout moment, cesser d'utiliser le Service et désinstaller l'application. La suppression définitive de ses données peut être obtenue par email à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, dans les conditions prévues par la Politique de Confidentialité.</p>
+
+<p>La résiliation, qu'elle soit du fait de l'Utilisateur ou de l'Éditeur, n'ouvre droit à aucun remboursement des Boosters déjà acquis ni à aucune indemnité.</p>
+
+<h2 class="article" id="a15"><span class="num">Article 15.</span>Médiation de la consommation</h2>
+
+<p>Conformément aux articles L.611-1 et suivants du Code de la consommation, l'Utilisateur consommateur a la possibilité, en cas de litige avec l'Éditeur n'ayant pu être résolu à l'amiable par une réclamation écrite préalable adressée à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>, de recourir gratuitement à un médiateur de la consommation.</p>
+
+<p>L'Éditeur a désigné comme médiateur compétent :</p>
+
+<div class="contact-block">
+  <span class="label">Médiateur de la consommation</span>
+  <p><strong>MÉDIATION CONSOMMATION DÉVELOPPEMENT</strong><br>
+  SAS au capital de 10 000 €<br>
+  RCS Saint-Étienne n° 852 787 472<br>
+  Centre d'Affaires Stéphanois — Immeuble L'Horizon<br>
+  Esplanade de France — 3, rue J. Constant Milleret<br>
+  42000 Saint-Étienne — France</p>
+  <span class="label">Saisine en ligne</span>
+  <p><a href="https://www.medconsodev.eu" target="_blank" rel="noopener">www.medconsodev.eu</a></p>
+  <span class="label">Référence professionnel</span>
+  <p>EN HAUT DES MARCHES — Popularoo · Dossier MED60521</p>
+</div>
+
+<p>La saisine du médiateur n'est recevable que si l'Utilisateur a préalablement adressé une réclamation écrite à l'Éditeur et que celle-ci n'a pas abouti dans un délai raisonnable. La médiation est gratuite pour le consommateur. Les parties demeurent libres d'accepter ou de refuser la solution proposée par le médiateur, et de saisir le juge compétent en cas d'échec de la médiation.</p>
+
+<p>Conformément au Règlement (UE) n° 524/2013, l'Utilisateur peut également recourir à la plateforme européenne de règlement en ligne des litiges (<a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>) pour les litiges transfrontaliers.</p>
+
+<h2 class="article" id="a16"><span class="num">Article 16.</span>Modifications des CGU</h2>
+
+<p>L'Éditeur se réserve le droit de modifier les présentes CGU à tout moment, notamment pour refléter les évolutions du Service, des fonctionnalités, ou de la réglementation applicable.</p>
+
+<p>Toute modification substantielle sera portée à la connaissance des Utilisateurs par notification dans l'application et/ou par email lorsqu'une adresse aura été renseignée, au moins quinze (15) jours avant son entrée en vigueur. La poursuite de l'utilisation du Service après l'entrée en vigueur de la nouvelle version vaut acceptation de celle-ci.</p>
+
+<p>L'Utilisateur qui n'accepte pas une nouvelle version des CGU doit cesser d'utiliser le Service.</p>
+
+<h2 class="article" id="a17"><span class="num">Article 17.</span>Droit applicable et juridictions</h2>
+
+<p>Les présentes CGU sont régies par le <strong>droit français</strong>, à l'exclusion de tout autre droit.</p>
+
+<p>Tout litige relatif à leur interprétation, leur exécution ou leur validité sera soumis aux tribunaux compétents du ressort de la Cour d'appel de Paris, sous réserve, pour les Utilisateurs ayant la qualité de consommateur résidant dans l'Union européenne, de l'application des règles impératives de protection des consommateurs, qui leur permettent notamment de saisir les juridictions de leur lieu de résidence.</p>
+
+<p>Préalablement à toute action judiciaire, les parties s'engagent à tenter de résoudre leur différend par voie amiable, le cas échéant via le recours à la médiation de la consommation prévue à l'Article 15.</p>
+
+<h2 class="article" id="a18"><span class="num">Article 18.</span>Système de votes</h2>
+
+<p>Le Service permet aux Utilisateurs d'exprimer leur opinion à l'égard des Personnalités et des Outsiders selon un système de votes différencié.</p>
+
+<h3>Sur les pages des Personnalités</h3>
+<ul>
+  <li><strong>Like</strong> : vote positif, gratuit, limité à un (1) par Personnalité par appareil par 24 heures glissantes ;</li>
+  <li><strong>Dislike</strong> : vote négatif, gratuit, limité à un (1) par Personnalité par appareil par 24 heures glissantes.</li>
+</ul>
+
+<h3>Sur les pages des Outsiders</h3>
+<ul>
+  <li><strong>Like</strong> : vote positif, gratuit, limité à un (1) par Outsider par appareil par 24 heures glissantes ;</li>
+  <li><strong>Superlike</strong> : vote positif renforcé, gratuit, limité à un (1) par Outsider par utilisateur par jour, dont le poids dans le calcul du Popularoo Index est supérieur à celui d'un Like ;</li>
+  <li><strong>Pas de Dislike</strong> : il n'est pas possible de voter négativement contre un Outsider. Cette asymétrie est volontaire et a pour finalité de protéger les Utilisateurs ayant fait l'effort financier d'apparaître publiquement contre toute campagne organisée de dénigrement.</li>
+</ul>
+
+<h3>Suivi et limites</h3>
+
+<p>Le suivi des limites de vote est effectué par identifiant d'appareil. L'Éditeur se réserve le droit d'invalider tout vote présentant des indices de fraude (multi-appareils, automatisation, contournement des limites) et de bannir l'identifiant d'appareil concerné conformément à l'Article 11.</p>
+
+<h2 class="article" id="a19"><span class="num">Article 19.</span>Popularoo Index</h2>
+
+<p>Le <strong>Popularoo Index</strong> est un indicateur synthétique de popularité, propriétaire et confidentiel, calculé en temps réel par le Service pour chaque Personnalité et chaque Outsider actif. Il est exprimé sous la forme d'un nombre compris entre 0 et 100.</p>
+
+<p>L'algorithme du Popularoo Index combine plusieurs facteurs, parmi lesquels :</p>
+<ul>
+  <li>Le volume total de votes reçus, pondéré logarithmiquement ;</li>
+  <li>Le ratio entre votes positifs (Likes, Superlikes) et votes négatifs (Dislikes) ;</li>
+  <li>Le momentum sur les 24 dernières heures (variation récente de la popularité) ;</li>
+  <li>La régularité des votes sur les 7 derniers jours ;</li>
+  <li>Le cas échéant, des bonus liés aux Strikes (Article 20) pour les Outsiders.</li>
+</ul>
+
+<p>Les coefficients exacts appliqués à chaque facteur sont confidentiels et ne sont pas publiés. L'Éditeur se réserve le droit de les ajuster à tout moment, notamment pour lutter contre toute tentative de manipulation, sans avoir à en informer préalablement les Utilisateurs.</p>
+
+<p>Le Popularoo Index est un instrument éditorial et ludique. Il ne constitue ni une évaluation objective de la qualité d'une Personnalité, ni un sondage d'opinion à valeur statistique, ni une mesure scientifique de notoriété. Aucune décision personnelle, professionnelle, contractuelle ou financière ne saurait être prise sur la seule foi du Popularoo Index.</p>
+
+<h2 class="article" id="a20"><span class="num">Article 20.</span>Daily Runs et Strikes</h2>
+
+<h3>Daily Run</h3>
+
+<p>Un <strong>Daily Run</strong> est un défi de 24 heures glissantes pendant lequel un Outsider tente de dépasser le momentum d'une Personnalité de son choix sur la même période. La condition de victoire est définie par l'algorithme du Service ; l'écart entre le Popularoo Index de l'Outsider et celui de la cible détermine le palier de victoire applicable :</p>
+
+<ul>
+  <li><strong>Standard Win</strong> : écart d'Index inférieur à 20 points ;</li>
+  <li><strong>Underdog Win</strong> : écart d'Index compris entre 20 et 50 points ;</li>
+  <li><strong>Legendary Strike</strong> : écart d'Index supérieur à 50 points.</li>
+</ul>
+
+<p>Le nombre de Daily Runs accessible dépend du palier de Booster acquis :</p>
+<ul>
+  <li><strong>Booster</strong> : aucun Daily Run inclus ;</li>
+  <li><strong>Super Booster</strong> : 1 Daily Run inclus, activable une seule fois pendant les 24 heures de visibilité ;</li>
+  <li><strong>Golden Booster</strong> : 7 Daily Runs inclus, à raison d'un maximum par 24 heures glissantes ; les Daily Runs non utilisés sont perdus à l'expiration du Booster.</li>
+</ul>
+
+<p>Si le Booster expire pendant un Daily Run actif, le Daily Run se poursuit jusqu'à son terme de 24 heures, mais la visibilité de l'Outsider dans le classement cesse à l'expiration du Booster.</p>
+
+<h3>Strikes</h3>
+
+<p>Les <strong>Strikes</strong> sont des événements d'amplification déclenchés automatiquement lors d'une mobilisation soutenue des supporters d'un Outsider. Trois types de Strikes peuvent être déclenchés :</p>
+<ul>
+  <li><strong>Strike Flash</strong> : 5 Superlikes reçus en moins de 30 minutes ;</li>
+  <li><strong>Strike Diversité</strong> : 10 Superlikes reçus de 10 Utilisateurs différents en 24 heures ;</li>
+  <li><strong>Strike Série</strong> : 3 Superlikes consécutifs sur la même heure.</li>
+</ul>
+
+<p>Le nombre de Strikes actifs détermine le niveau d'amplification, exprimé sous la forme d'un label visuel (Heating Up, On Fire, Trending, Going Viral, Legend Mode). Chaque Strike actif contribue au Popularoo Index de l'Outsider concerné selon des coefficients confidentiels.</p>
+
+<h2 class="article" id="a21"><span class="num">Article 21.</span>Outsiders et profils Boosters</h2>
+
+<p>Tout Utilisateur ayant acquis un Booster devient <strong>Outsider</strong> pour la durée de validité de son Booster.</p>
+
+<h3>Visibilité géographique</h3>
+
+<p>Les Outsiders sont visibles uniquement par les Utilisateurs identifiés comme résidant dans le même pays que celui associé au Booster acquis. Ce périmètre est déterminé à partir du pays du compte App Store ou Google Play de l'Outsider au moment de l'achat, avec possibilité pour les Utilisateurs de modifier leur pays de référence dans les paramètres du Service.</p>
+
+<h3>Comptes sur les réseaux sociaux</h3>
+
+<p>L'Outsider peut, de manière <strong>strictement facultative</strong>, renseigner ses comptes Instagram, TikTok et X dans son profil. Ces comptes sont alors affichés publiquement sur sa page Outsider et peuvent être consultés par les autres Utilisateurs. L'Outsider conserve la maîtrise totale de cette information et peut la supprimer à tout moment depuis les paramètres de son profil.</p>
+
+<p>L'Éditeur ne contrôle pas la véracité des comptes renseignés et n'effectue aucune vérification d'identité. Toute usurpation d'identité fera l'objet d'un retrait immédiat sur signalement, conformément à l'Article 11.</p>
+
+<h3>Désactivation</h3>
+
+<p>L'Outsider peut, à tout moment, désactiver sa visibilité publique avant l'expiration de son Booster en s'adressant par email à <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a>. Cette désactivation n'ouvre droit à aucun remboursement.</p>
+
+<h2 class="article" id="a22"><span class="num">Article 22.</span>Profils de démonstration</h2>
+
+<p>Afin d'assurer la fluidité et la richesse de l'expérience utilisateur dès le lancement du Service et pendant sa phase de montée en charge, certaines Personnalités peuvent comporter des <strong>données de démonstration</strong> initialement présentes dans la base, indépendantes des votes effectivement émis par les Utilisateurs.</p>
+
+<p>Ces données de démonstration n'ont aucune incidence sur les votes réels exprimés par les Utilisateurs, qui sont enregistrés et comptabilisés de manière indépendante.</p>
+
+<footer>
+  <p>EN HAUT DES MARCHES — SARL · 147 rue Léon-Maurice Nordmann, 75013 Paris · SIRET 504 747 932 00011</p>
+  <p>Pour toute question relative aux présentes CGU : <a href="mailto:popularoo@popularoo.com">popularoo@popularoo.com</a></p>
+  <p>Voir aussi : <a href="/privacy-fr.html">Politique de Confidentialité</a> · <a href="/mentions-legales.html">Mentions légales</a></p>
+</footer>
+
+</div>
+</body>
+</html>

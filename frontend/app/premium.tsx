@@ -13,6 +13,7 @@ import {
   Platform,
   Keyboard,
   Linking,
+  Modal,
 } from 'react-native';
 import * as Localization from 'expo-localization';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,8 @@ import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import type { Product, ProductPurchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
+import { CacheService } from '../services/cacheService';
+import { cacheKeyOutsiders } from './splash';
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://popular-app.onrender.com';
 
@@ -112,6 +115,11 @@ export default function Premium() {
   const [iapLoading, setIapLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
   const [showPurchaseStep, setShowPurchaseStep] = useState(false);
+  // Post-purchase name prompt (only when the user paid without a name)
+  const [namePromptVisible, setNamePromptVisible] = useState(false);
+  const [purchasedPersonId, setPurchasedPersonId] = useState<string | null>(null);
+  const [postPurchaseName, setPostPurchaseName] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     loadHistory();
@@ -185,10 +193,21 @@ export default function Premium() {
           // Finish the transaction (consumable) — required by Apple
           await iapService.finishPurchase(purchase, true);
 
-          Alert.alert(
-            t('premium.boostActivated'),
-            t('premium.boostActivatedMsg', { message: result.message, date: new Date(result.end_time).toLocaleString() }),
-          );
+          // When the user paid WITHOUT a name (backend returned name_provisional=true),
+          // open the success name prompt so they can name themselves and see it in the
+          // ranking right away. When the name was already filled → unchanged Alert (no
+          // friction for the majority).
+          const nameProvisional = !!result?.name_provisional;
+          if (nameProvisional) {
+            setPurchasedPersonId(result.person_id || null);
+            setPostPurchaseName('');
+            setNamePromptVisible(true);
+          } else {
+            Alert.alert(
+              t('premium.boostActivated'),
+              t('premium.boostActivatedMsg', { message: result.message, date: new Date(result.end_time).toLocaleString() }),
+            );
+          }
 
           setName('');
           setEmail('');
@@ -231,10 +250,9 @@ export default function Premium() {
       Alert.alert(t('premium.selectBooster'), t('premium.selectBoosterMsg'));
       return;
     }
-    if (!name.trim()) {
-      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
-      return;
-    }
+    // Name is intentionally NOT required here (Apple 5.1.1(v) / 2.1(b)): the purchase
+    // must always be able to start. A blank name is accepted and the backend assigns a
+    // provisional "Outsider" display name (correctable later).
     // B (Chantier 3): instead of a dead-end "Connecting to Store" popup, lazily
     // ensure products are loaded (getStoreProducts now retries with backoff). On
     // success we continue the flow; on failure we show a clear, non-looping error.
@@ -335,6 +353,40 @@ export default function Premium() {
       }
       setPurchasing(false);
     }
+  };
+
+  // Post-purchase: save the chosen Outsider name, then send the user to the ranking
+  // to see themselves immediately (cache invalidated so it's fresh, not 60s stale).
+  const submitPostPurchaseName = async () => {
+    const newName = postPurchaseName.trim();
+    if (newName.length < 2) {
+      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
+      return;
+    }
+    if (!purchasedPersonId) {
+      setNamePromptVisible(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const res = await CreditsService.setMyOutsiderName(purchasedPersonId, newName);
+      await CacheService.remove(cacheKeyOutsiders());
+      setNamePromptVisible(false);
+      Alert.alert(t('premium.boostActivated'), t('premium.nameSavedMsg', { name: res.new_name }));
+      router.replace('/outsiders');
+    } catch (error: any) {
+      console.error('[Premium] Set name error:', error);
+      Alert.alert(t('common.errorTitle'), error.message || t('premium.activateError'));
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  // User chose to keep the provisional "Outsider" name for now (no easy self-rename
+  // exists yet — admin corrects on request). Confirm the purchase succeeded.
+  const keepOutsiderName = () => {
+    setNamePromptVisible(false);
+    Alert.alert(t('premium.boostActivated'), t('premium.setNameSubtitle'));
   };
 
   const formatDate = (timestamp: string) => {
@@ -634,10 +686,8 @@ export default function Premium() {
                 <TouchableOpacity
                   style={styles.continueButton}
                   onPress={() => {
-                    if (!name.trim()) {
-                      Alert.alert(t('premium.nameRequired'), t('premium.nameRequiredMsg'));
-                      return;
-                    }
+                    // Name is optional — never block here (Apple 5.1.1(v)). A blank name
+                    // is handled by the backend with a provisional "Outsider" name.
                     Keyboard.dismiss();
                     setShowPurchaseStep(true);
                   }}
@@ -774,6 +824,49 @@ export default function Premium() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Post-purchase name prompt — only shown when the user paid without a name */}
+      <Modal
+        visible={namePromptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={keepOutsiderName}
+      >
+        <View style={styles.nameModalOverlay}>
+          <View style={styles.nameModalCard}>
+            <Ionicons name="sparkles" size={32} color={PALETTE.gold} style={{ alignSelf: 'center' }} />
+            <Text style={styles.nameModalTitle}>{t('premium.setNameTitle')}</Text>
+            <Text style={styles.nameModalSubtitle}>{t('premium.setNameSubtitle')}</Text>
+            <TextInput
+              style={styles.nameModalInput}
+              placeholder={t('premium.yourName')}
+              placeholderTextColor={PALETTE.subtext}
+              value={postPurchaseName}
+              onChangeText={setPostPurchaseName}
+              autoCapitalize="words"
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.nameModalConfirm, savingName && { opacity: 0.6 }]}
+              onPress={submitPostPurchaseName}
+              disabled={savingName}
+            >
+              {savingName ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <Text style={styles.nameModalConfirmText}>{t('premium.validateName')}</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.nameModalKeep}
+              onPress={keepOutsiderName}
+              disabled={savingName}
+            >
+              <Text style={styles.nameModalKeepText}>{t('premium.keepOutsider')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1071,6 +1164,68 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 16,
     lineHeight: 16,
+  },
+  // Post-purchase name prompt modal
+  nameModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  nameModalCard: {
+    backgroundColor: PALETTE.card,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: PALETTE.gold,
+    padding: 24,
+  },
+  nameModalTitle: {
+    color: PALETTE.text,
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  nameModalSubtitle: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  nameModalInput: {
+    backgroundColor: PALETTE.bg,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: PALETTE.text,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  nameModalConfirm: {
+    backgroundColor: PALETTE.gold,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  nameModalConfirmText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  nameModalKeep: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  nameModalKeepText: {
+    color: PALETTE.subtext,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   // Social section styles (Chantier 1I)
   socialSection: {

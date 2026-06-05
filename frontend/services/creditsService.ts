@@ -283,6 +283,25 @@ export class CreditsService {
   }
 
   /**
+   * Set the display name of the user's OWN freshly-purchased Outsider profile.
+   * Sends user_id (ownership) + person_id (cross-check → backend 403 on mismatch).
+   * Backend changes only the display name (slug untouched; no score/votes/payment change).
+   */
+  static async setMyOutsiderName(personId: string, newName: string): Promise<any> {
+    const userId = await getUserId();
+    const response = await fetch(API('/me/outsider/set-name'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, person_id: personId, new_name: newName }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to set name');
+    }
+    return await response.json();
+  }
+
+  /**
    * Fetch the current user's outsider profile (if any active boost exists).
    * NOTE: backend endpoint param is named `device_id` but the value it matches against
    * is `active_boosts.user_id`, which the app populates with popular_user_id.

@@ -2480,12 +2480,18 @@ async def boost_myself(request: BoostMyselfRequest):
 
         tier_info = BOOSTER_TIERS[request.tier]
 
-        # Normalize and validate name
-        name = request.name.strip().title()
-        if not name or len(name) < 2:
-            raise HTTPException(status_code=400, detail="Please enter a valid name (at least 2 characters)")
-
-        slug = slugify(name)
+        # Normalize name. Name is OPTIONAL (Apple 5.1.1(v)): an empty or too-short name
+        # must NOT block the purchase. In that case we assign a provisional "Outsider"
+        # display name and a slug derived from user_id, so each nameless buyer keeps a
+        # distinct, stable profile (no merging of different users under one shared slug).
+        raw_name = request.name.strip()
+        name_provisional = len(raw_name) < 2
+        if name_provisional:
+            name = "Outsider"
+            slug = slugify(f"outsider-{request.user_id}")
+        else:
+            name = raw_name.title()
+            slug = slugify(name)
         now = now_utc()
 
         # Check if this person already exists as an outsider
@@ -2534,6 +2540,7 @@ async def boost_myself(request: BoostMyselfRequest):
             person_doc = {
                 "name": name,
                 "slug": slug,
+                "name_provisional": name_provisional,
                 "category": "other",
                 "approved": True,
                 "created_at": now,
@@ -2676,6 +2683,7 @@ async def boost_myself(request: BoostMyselfRequest):
             "person_id": str(person_id),
             "boost_id": active_boost_id,
             "person_name": name,
+            "name_provisional": name_provisional,
             "tier": request.tier,
             "tier_name": tier_info["name"],
             "price": tier_info["price"],
@@ -3132,6 +3140,78 @@ async def admin_unsuspend_outsider(req: Request, person_id: str, request: Suspen
     )
     await _log_admin_action("unsuspend_outsider", person.get("name", ""))
     return {"success": True, "message": f"'{person.get('name')}' unsuspended"}
+
+
+# ── Rename Outsider (shared core for admin + user-facing "set my name") ──
+
+async def _apply_outsider_rename(person_id: str, new_name: str) -> dict:
+    """Single mechanic for renaming an Outsider's DISPLAY NAME.
+
+    Changes ONLY persons.name (+ clears name_provisional) and syncs the boosts'
+    display copy of the name. The slug (technical identity, e.g. outsider-<user_id>)
+    is intentionally NOT regenerated, to avoid duplicate-profile collisions.
+    Never touches score/PI, votes, payment, or boost timing.
+    Returns {old_name, new_name, person_id}. Raises HTTPException on invalid input.
+    """
+    cleaned = new_name.strip().title()
+    if len(cleaned) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    obj_id = ObjectId(person_id)
+    person = await db.persons.find_one({"_id": obj_id})
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    old_name = person.get("name", "")
+    await db.persons.update_one({"_id": obj_id}, {"$set": {
+        "name": cleaned,
+        "name_provisional": False,
+        "updated_at": now_utc(),
+    }})
+    # Display-only copy on boosts (history/admin/email) — not payment/score/timing.
+    await db.active_boosts.update_many({"person_id": obj_id}, {"$set": {"person_name": cleaned}})
+    return {"old_name": old_name, "new_name": cleaned, "person_id": person_id}
+
+
+class RenameOutsiderRequest(BaseModel):
+    new_name: str
+
+@api_router.post("/admin/outsider/{person_id}/rename")
+async def admin_rename_outsider(req: Request, person_id: str, request: RenameOutsiderRequest):
+    """Admin: correct an Outsider's display name (e.g. a user who paid without a name).
+    Slug is left untouched; score/votes/payment are not affected."""
+    _require_admin_auth(req)
+    result = await _apply_outsider_rename(person_id, request.new_name)
+    await _log_admin_action("rename_outsider", result["new_name"],
+                            {"person_id": person_id, "old_name": result["old_name"]})
+    return {"success": True, **result}
+
+
+class SetMyNameRequest(BaseModel):
+    user_id: str
+    person_id: str
+    new_name: str
+
+@api_router.post("/me/outsider/set-name")
+async def set_my_outsider_name(request: SetMyNameRequest):
+    """User-facing: set the display name of one's OWN freshly-purchased Outsider.
+
+    Ownership check (belt + suspenders):
+      1. the caller's user_id must own an Outsider boost (resolves the person_id server-side);
+      2. the client-supplied person_id must match that boost → otherwise 403.
+    Reuses the same _apply_outsider_rename mechanic as admin: slug is NOT regenerated,
+    and score/PI, votes, payment and boost timing are never touched.
+    """
+    now = now_utc()
+    boost = await db.active_boosts.find_one(
+        {"user_id": request.user_id, "end_time": {"$gt": now}}, sort=[("start_time", -1)]
+    ) or await db.active_boosts.find_one(
+        {"user_id": request.user_id}, sort=[("start_time", -1)]
+    )
+    if not boost:
+        raise HTTPException(status_code=404, detail="No outsider profile for this user")
+    if str(boost.get("person_id")) != request.person_id:
+        raise HTTPException(status_code=403, detail="This profile does not belong to you")
+    result = await _apply_outsider_rename(str(boost["person_id"]), request.new_name)
+    return {"success": True, **result}
 
 
 # ── 2. Ban device_id ──
@@ -3687,8 +3767,13 @@ async def admin_search_people(
         query = {}
         
         if q:
-            query["name"] = {"$regex": q, "$options": "i"}  # Case-insensitive search
-        
+            # Match by name OR email — admin needs to find a nameless "Outsider" by the
+            # email entered at purchase. Name search behaviour is preserved (still matches).
+            query["$or"] = [
+                {"name":  {"$regex": q, "$options": "i"}},
+                {"email": {"$regex": q, "$options": "i"}},
+            ]
+
         if category:
             query["category"] = category
         
@@ -3705,11 +3790,25 @@ async def admin_search_people(
         
         # Execute search
         results = await db.persons.find(query).sort(*sort_field).limit(limit).to_list(limit)
-        
-        return [
-            {
+
+        now = now_utc()
+        enriched = []
+        for p in results:
+            # Additive: surface the active boost (tier + time left) so admin sees what
+            # they're renaming and whether the boost is still live. Read-only lookup —
+            # does not affect filtering or sorting.
+            boost = await db.active_boosts.find_one(
+                {"person_id": p["_id"], "end_time": {"$gt": now}},
+                sort=[("start_time", -1)],
+            )
+            tier = boost.get("tier") if boost else None
+            hours_remaining = (
+                round(max(0, (boost["end_time"] - now).total_seconds() / 3600), 1) if boost else 0
+            )
+            enriched.append({
                 "id": str(p["_id"]),
                 "name": p.get("name"),
+                "email": p.get("email", ""),
                 "category": p.get("category", "other"),
                 "source": p.get("source", "seed"),
                 "score": p.get("score", 50),
@@ -3717,9 +3816,12 @@ async def admin_search_people(
                 "dislikes": p.get("dislikes", 0),
                 "total_votes": p.get("total_votes", 0),
                 "created_at": p.get("created_at").isoformat() if p.get("created_at") else None,
-            }
-            for p in results
-        ]
+                "boost_active": bool(boost),
+                "tier": tier,
+                "tier_name": BOOSTER_TIERS.get(tier, {}).get("name") if tier else None,
+                "hours_remaining": hours_remaining,
+            })
+        return enriched
         
     except Exception as e:
         logger.error(f"Admin search error: {e}")
