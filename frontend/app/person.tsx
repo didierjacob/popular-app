@@ -29,8 +29,6 @@ import { CreditsService } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
 import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
 
-import { pickVoterName, pickVoterCountry, type SupportedLang } from "../data/voterNames";
-
 const PALETTE = {
   bg: "#0F2F22",
   card: "#1C3A2C",
@@ -87,47 +85,6 @@ interface PersistedUserVote {
   action: "liked" | "disliked";
   country: string;
   timestamp: number;
-}
-
-// Virtual vote configuration from backend
-interface VirtualVoteConfig {
-  tier: "cas1" | "cas2" | "cas3";
-  interval_min_ms: number;
-  interval_max_ms: number;
-  dominant_language: SupportedLang;
-  geo_coefficient: { local: number; international: number };
-  initial_feed_count: number;
-  grace_period_active?: boolean;
-  grace_period_ends_at?: string | null;
-}
-
-const DEFAULT_VOTE_CONFIG: VirtualVoteConfig = {
-  tier: "cas2",
-  interval_min_ms: 300000,
-  interval_max_ms: 900000,
-  dominant_language: "en",
-  geo_coefficient: { local: 0.8, international: 0.2 },
-  initial_feed_count: 5,
-};
-
-function generateDummyVote(
-  idCounter: number,
-  isOutsider: boolean = false,
-  config: VirtualVoteConfig = DEFAULT_VOTE_CONFIG,
-  recentNames: string[] = [],
-): LiveVoteEntry {
-  const geoLocal = config.geo_coefficient.local;
-  const firstName = pickVoterName(config.dominant_language, geoLocal, recentNames);
-  // BLOC 2.1: Outsiders only receive likes, no dislikes
-  const action = isOutsider ? "liked" : (Math.random() > 0.3 ? "liked" : "disliked");
-  const country = pickVoterCountry(config.dominant_language, geoLocal);
-  return {
-    id: idCounter,
-    firstName,
-    action,
-    country,
-    timestamp: Date.now() - Math.floor(Math.random() * 5000),
-  };
 }
 
 // --- Trend Status Logic (imported from utils/trendUtils) ---
@@ -338,12 +295,9 @@ export default function Person() {
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth > 768;
 
-  // Live feed state
+  // Live feed state — honest activity only (user's own real votes)
   const [liveVotes, setLiveVotes] = useState<LiveVoteEntry[]>([]);
   const voteIdCounter = useRef(0);
-  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [voteConfig, setVoteConfig] = useState<VirtualVoteConfig | null>(null);
-  const recentNamesRef = useRef<string[]>([]);
   const userCountryRef = useRef<string>("");
 
   useEffect(() => {
@@ -414,14 +368,8 @@ export default function Person() {
 
   useEffect(() => {
     fetchData(false);
-    // Note: periodic refetch removed to preserve BLOC 1.7 visual vote counter sync
-    // The live feed is simulated locally, so polling the API would overwrite the
-    // accumulated deltas and cause the counter to jump down every 10s.
   }, [fetchData]);
 
-  // BLOC 1.7: Track accumulated live feed votes for visual sync
-  const liveLikesDelta = useRef(0);
-  const liveDislikesDelta = useRef(0);
   const isOutsider = person?.source === "self_boosted" || person?.category === "outsider";
   // Lot 5 sub-task B: report button shown ONLY for self_boosted profiles (strict),
   // because backend /api/report-outsider rejects category-only outsiders with 400.
@@ -453,70 +401,13 @@ export default function Person() {
     }
   }, [reportReason, reportComment, id, reportSubmitting, t, closeReportModal]);
 
-  // Vague 1: Fetch virtual vote config from backend (once per page load)
+  // Live feed: honest activity only. No fabricated voters are generated.
+  // We only restore the user's OWN real vote from cache (within the 24h
+  // visible window), so "You liked / disliked" survives navigation away/back.
   useEffect(() => {
     if (!id) return;
-    console.log(`[VoteConfig] Fetching config for person_id=${id}`);
-    let cancelled = false;
-    (async () => {
-      try {
-        const cfg = await apiGet<VirtualVoteConfig>(`/virtual-vote-config/${id}`);
-        if (cancelled) return;
-        console.log(`[VoteConfig] OK tier=${cfg.tier} interval=${cfg.interval_min_ms}-${cfg.interval_max_ms} lang=${cfg.dominant_language} geo=${cfg.geo_coefficient?.local}`);
-        setVoteConfig(cfg);
-      } catch (e: any) {
-        if (cancelled) return;
-        console.log(`[VoteConfig] FETCH FAILED: ${e?.message || e}. Using fallback.`);
-        setVoteConfig(isOutsider ? {
-          ...DEFAULT_VOTE_CONFIG,
-          tier: "cas3",
-          interval_min_ms: 7200000,
-          interval_max_ms: 43200000,
-          initial_feed_count: 3,
-          geo_coefficient: { local: 1.0, international: 0.0 },
-        } : DEFAULT_VOTE_CONFIG);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
-
-  // Live feed: generate dummy votes with dynamic config (Vague 1: Sujet B+C)
-  useEffect(() => {
-    if (!voteConfig) return; // Wait for config to load
-
-    const cfg = voteConfig;
-
-    // C2: Grace period — skip ALL virtual votes during first 24h after creation
-    if (cfg.grace_period_active) {
-      console.log(`[LiveFeed] Grace period active until ${cfg.grace_period_ends_at}. No virtual votes.`);
-      setLiveVotes([]);
-      return;
-    }
-
-    const outsiderMode = isOutsider;
-
-    console.log(`[LiveFeed] Starting. tier=${cfg.tier} delay=${cfg.interval_min_ms}-${cfg.interval_max_ms}ms lang=${cfg.dominant_language} seed=${cfg.initial_feed_count}`);
-
-    // Seed initial votes based on tier
-    const initial: LiveVoteEntry[] = [];
-    const seedCount = cfg.initial_feed_count;
-    for (let i = 0; i < seedCount; i++) {
-      voteIdCounter.current++;
-      const entry = generateDummyVote(voteIdCounter.current, outsiderMode, cfg, recentNamesRef.current);
-      // Stagger timestamps: Cas1 = 3s apart, Cas2 = 5min apart, Cas3 = 2h apart
-      const stagger = cfg.tier === "cas1" ? 3000 : cfg.tier === "cas2" ? 300000 : 7200000;
-      entry.timestamp = Date.now() - (seedCount - i) * stagger;
-      initial.push(entry);
-      // Track recent names (keep last 5)
-      recentNamesRef.current = [...recentNamesRef.current, entry.firstName].slice(-5);
-    }
-    setLiveVotes(initial);
-
     let active = true;
-
-    // Sujet F: restore the user's own vote from cache if still within the
-    // visible 24h window. Merged chronologically with the freshly seeded
-    // fakes, so an old vote naturally lands further down the visible feed.
+    setLiveVotes([]);
     void (async () => {
       try {
         const persisted = await CacheService.get<PersistedUserVote>(USER_VOTE_CACHE_KEY(id));
@@ -531,53 +422,15 @@ export default function Person() {
           timestamp: persisted.timestamp,
           isUser: true,
         };
-        setLiveVotes((prev) => {
-          // A fresh like() during the same mount already injected the user
-          // entry — don't duplicate it.
-          if (prev.some((e) => e.isUser)) return prev;
-          return [restored, ...prev]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 30);
-        });
+        // A fresh like() during the same mount already injected the user
+        // entry — don't duplicate it.
+        setLiveVotes((prev) => (prev.some((e) => e.isUser) ? prev : [restored]));
       } catch {
         // Cache read errors are non-fatal — fall back to no restored entry.
       }
     })();
-
-    // Schedule next vote with randomized interval from config
-    const scheduleNextVote = () => {
-      if (!active) return;
-      const delay = cfg.interval_min_ms + Math.random() * (cfg.interval_max_ms - cfg.interval_min_ms);
-      console.log(`[LiveFeed] Next vote in ${Math.round(delay / 1000)}s (tier=${cfg.tier})`);
-      liveTimeoutRef.current = setTimeout(() => {
-        if (!active) return;
-        voteIdCounter.current++;
-        const newEntry = generateDummyVote(voteIdCounter.current, outsiderMode, cfg, recentNamesRef.current);
-        newEntry.timestamp = Date.now();
-        setLiveVotes((prev) => [newEntry, ...prev].slice(0, 30));
-
-        // Track recent names
-        recentNamesRef.current = [...recentNamesRef.current, newEntry.firstName].slice(-5);
-
-        // BLOC 1.7: Accumulate deltas for visual sync
-        if (newEntry.action === "liked") {
-          liveLikesDelta.current += 1;
-        } else {
-          liveDislikesDelta.current += 1;
-        }
-
-        // Schedule the NEXT vote (each interval is independently randomized)
-        scheduleNextVote();
-      }, delay);
-    };
-
-    scheduleNextVote();
-
-    return () => {
-      active = false;
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    };
-  }, [voteConfig, isOutsider]);
+    return () => { active = false; };
+  }, [id]);
 
   // Force re-render every second to update relative times
   const [, setTick] = useState(0);
@@ -695,8 +548,7 @@ export default function Person() {
         timestamp: voteTimestamp,
         isUser: true,
       };
-      // Sujet 4 (V2): no TTL — the user entry stays until pushed out of the
-      // visible window by newer entries (same lifecycle as fake votes).
+      // The user's own real vote is shown at the top of the feed.
       setLiveVotes((prev) => [userEntry, ...prev].slice(0, 30));
 
       // Sujet F: persist so the entry survives navigation away/back (< 24h).
@@ -715,12 +567,10 @@ export default function Person() {
     }
   };
 
-  // BLOC 1.7: Computed display values with live feed deltas
-  // liveLikesDelta.current is updated by addVote and read on each render
-  // The 1-second setTick timer ensures periodic re-renders to pick up new values
-  const displayLikes = (person?.likes || 0) + liveLikesDelta.current;
-  const displayDislikes = (person?.dislikes || 0) + liveDislikesDelta.current;
-  // Bug 5 fix: total ALWAYS = likes + dislikes for visual consistency
+  // Honest display values: the real backend counts, with no fabricated additions.
+  const displayLikes = person?.likes || 0;
+  const displayDislikes = person?.dislikes || 0;
+  // total ALWAYS = likes + dislikes for visual consistency
   const displayTotalVotes = isOutsider ? displayLikes : displayLikes + displayDislikes;
 
   // Share
