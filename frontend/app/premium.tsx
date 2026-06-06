@@ -327,7 +327,9 @@ export default function Premium() {
       Alert.alert(
         t('premium.confirmPurchase'),
         t('premium.confirmBody', { tierName: tier.name, price: displayPrice }) + `\n\n` +
-        `• ${t('premium.confirmAppear', { name: name.trim() })}\n` +
+        `• ${name.trim().length >= 2
+          ? t('premium.confirmAppear', { name: name.trim() })
+          : t('premium.confirmAppearNoName')}\n` +
         `• ${t('premium.confirmDuration', { duration: durationLabel })}\n` +
         (tier.id === 'golden_booster'
           ? `• ${t('premium.confirmGoldenExtra')}\n\n`

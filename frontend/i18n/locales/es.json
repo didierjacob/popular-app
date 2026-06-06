@@ -214,6 +214,7 @@
     "restoreFailedMsg": "No se pudieron restaurar las compras.",
     "confirmBody": "¿Comprar {{tierName}} por {{price}}?",
     "confirmAppear": "\"{{name}}\" aparecerá en el ranking Outsiders",
+    "confirmAppearNoName": "No olvides elegir tu nombre (también puedes hacerlo justo después de la compra)",
     "confirmDuration": "Duración: {{duration}}",
     "confirmGoldenExtra": "Ubicación prioritaria + rotación en portada + funciones premium",
     "confirmPaymentVia": "Pago mediante {{store}}.",

@@ -214,6 +214,7 @@
     "restoreFailedMsg": "Käufe konnten nicht wiederhergestellt werden.",
     "confirmBody": "{{tierName}} für {{price}} kaufen?",
     "confirmAppear": "\"{{name}}\" wird im Outsiders-Ranking erscheinen",
+    "confirmAppearNoName": "Vergiss nicht, deinen Namen zu wählen (geht auch direkt nach dem Kauf)",
     "confirmDuration": "Dauer: {{duration}}",
     "confirmGoldenExtra": "Prioritätsplatzierung + Startseiten-Rotation + Premium-Funktionen",
     "confirmPaymentVia": "Zahlung über {{store}}.",
