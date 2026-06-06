@@ -19,7 +19,8 @@ import * as Localization from 'expo-localization';
 import { Ionicons } from '@expo/vector-icons';
 import { CreditsService, BOOSTER_TIERS, type Transaction, type BoosterTier } from '../services/creditsService';
 import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
-import type { Product, ProductPurchase } from 'react-native-iap';
+import { isUserCancelledError } from 'react-native-iap';
+import type { Product, Purchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { CacheService } from '../services/cacheService';
@@ -156,7 +157,7 @@ export default function Premium() {
 
     // Setup purchase listeners
     iapService.setupListeners(
-      async (purchase: ProductPurchase) => {
+      async (purchase: Purchase) => {
         console.log('[Premium] Purchase success:', purchase.productId);
         try {
           const tierId = iapService.getTierIdForProduct(purchase.productId);
@@ -165,10 +166,12 @@ export default function Premium() {
             return;
           }
 
-          // Get receipt for server-side validation
-          const receipt = Platform.OS === 'ios'
-            ? purchase.transactionReceipt
-            : purchase.purchaseToken;
+          // Get receipt for server-side validation.
+          // react-native-iap v14 unifies the proof of purchase under purchaseToken
+          // (iOS: StoreKit 2 JWS, Android: Play purchase token). transactionReceipt no
+          // longer exists. The backend only requires a non-empty token (len >= 10), so
+          // the JWS passes unchanged — see /boost-myself.
+          const receipt = purchase.purchaseToken;
 
           if (!receipt) {
             Alert.alert(t('common.errorTitle'), t('premium.noReceiptError'));
@@ -225,7 +228,7 @@ export default function Premium() {
       },
       (error: any) => {
         console.error('[Premium] Purchase error:', error);
-        if (error.code !== 'E_USER_CANCELLED') {
+        if (!isUserCancelledError(error)) {
           Alert.alert(t('premium.purchaseFailed'), error.message || t('premium.purchaseErrorMsg'));
         }
         setPurchasing(false);
@@ -283,9 +286,11 @@ export default function Premium() {
     const durationLabel = getDurationLabel(tier.duration_hours, t);
     const productId = iapService.getProductIdForTier(selectedTier);
 
-    // Use the real store price (from the freshly-ensured product list)
-    const storeProduct = effectiveProducts.find(p => p.productId === productId);
-    const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
+    // Use the real store price (from the freshly-ensured product list).
+    // v14 Product exposes `id` (the SKU) and `displayPrice` (formatted); `productId`
+    // and `localizedPrice` no longer exist on Product. Fallback = hardcoded tier price.
+    const storeProduct = effectiveProducts.find(p => p.id === productId);
+    const displayPrice = storeProduct?.displayPrice || `€${tier.price.toFixed(2)}`;
 
     // B5: Check if user already has an active booster → show replacement warning
     const existingBoost = await CreditsService.getExistingActiveBoost();
@@ -348,7 +353,7 @@ export default function Premium() {
       // The purchase listener in initIAP will handle the rest
     } catch (error: any) {
       console.error('[Premium] Purchase initiation error:', error);
-      if (error?.code !== 'E_USER_CANCELLED') {
+      if (!isUserCancelledError(error)) {
         Alert.alert(t('premium.purchaseError'), error.message || t('premium.purchaseErrorMsg'));
       }
       setPurchasing(false);
@@ -478,9 +483,10 @@ export default function Premium() {
             const color = TIER_COLORS[tier.id] || PALETTE.gold;
             const iconName = TIER_ICONS[tier.id] || "flash";
             const productId = iapService.getProductIdForTier(tier.id);
-            const storeProduct = storeProducts.find((p: any) => p.productId === productId);
+            const storeProduct = storeProducts.find((p: any) => p.id === productId);
             // Always show a price - use store price if available, otherwise fallback
-            const displayPrice = storeProduct?.localizedPrice || `€${tier.price.toFixed(2)}`;
+            // v14: Product uses `id` (SKU) and `displayPrice` (formatted price).
+            const displayPrice = storeProduct?.displayPrice || `€${tier.price.toFixed(2)}`;
 
             return (
               <TouchableOpacity
@@ -720,8 +726,8 @@ export default function Premium() {
                             store: Platform.OS === 'ios' ? 'Apple' : 'Google',
                             price: (() => {
                               const productId = iapService.getProductIdForTier(selectedTier);
-                              const storeProduct = storeProducts.find((p: any) => p.productId === productId);
-                              return storeProduct?.localizedPrice || `€${BOOSTER_TIERS.find(bt => bt.id === selectedTier)?.price.toFixed(2)}`;
+                              const storeProduct = storeProducts.find((p: any) => p.id === productId);
+                              return storeProduct?.displayPrice || `€${BOOSTER_TIERS.find(bt => bt.id === selectedTier)?.price.toFixed(2)}`;
                             })()
                           })}
                         </Text>

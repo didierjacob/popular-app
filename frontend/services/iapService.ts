@@ -2,13 +2,14 @@ import { Platform } from 'react-native';
 import {
   initConnection,
   endConnection,
-  getProducts,
+  fetchProducts,
   getAvailablePurchases,
   requestPurchase,
   finishTransaction,
   purchaseUpdatedListener,
   purchaseErrorListener,
-  type ProductPurchase,
+  isUserCancelledError,
+  type Purchase,
   type PurchaseError,
   type Product,
 } from 'react-native-iap';
@@ -54,7 +55,7 @@ class IAPService {
     }
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const products = await getProducts({ skus: IAP_SKUS });
+        const products = (await fetchProducts({ skus: IAP_SKUS, type: 'in-app' })) ?? [];
         if (products.length > 0) {
           console.log(`[IAP] Products loaded: ${products.length} (attempt ${attempt}/${retries})`);
           return products;
@@ -83,13 +84,13 @@ class IAPService {
     }
     try {
       if (Platform.OS === 'android') {
-        await requestPurchase({ skus: [sku] });
+        await requestPurchase({ request: { google: { skus: [sku] } }, type: 'in-app' });
       } else {
-        await requestPurchase({ sku });
+        await requestPurchase({ request: { apple: { sku } }, type: 'in-app' });
       }
     } catch (error: any) {
       // User cancelled is not an error
-      if (error?.code === 'E_USER_CANCELLED') {
+      if (isUserCancelledError(error)) {
         console.log('[IAP] User cancelled purchase');
         return;
       }
@@ -98,7 +99,7 @@ class IAPService {
     }
   }
 
-  async finishPurchase(purchase: ProductPurchase, isConsumable: boolean = true): Promise<void> {
+  async finishPurchase(purchase: Purchase, isConsumable: boolean = true): Promise<void> {
     try {
       await finishTransaction({ purchase, isConsumable });
       console.log('[IAP] Transaction finished:', purchase.productId);
@@ -108,7 +109,7 @@ class IAPService {
   }
 
   setupListeners(
-    onPurchaseSuccess: (purchase: ProductPurchase) => void,
+    onPurchaseSuccess: (purchase: Purchase) => void,
     onPurchaseError: (error: PurchaseError) => void,
   ) {
     this.purchaseUpdateSubscription = purchaseUpdatedListener(onPurchaseSuccess);
@@ -137,7 +138,7 @@ class IAPService {
     }
   }
 
-  async restorePurchases(): Promise<ProductPurchase[]> {
+  async restorePurchases(): Promise<Purchase[]> {
     if (!this.connected) {
       await this.init();
     }
