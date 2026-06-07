@@ -670,11 +670,17 @@ export default function AccountScreen() {
               <Ionicons name="flash" size={24} color={PALETTE.gold} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuItemText}>{t("account.activeBoosters")}</Text>
-                <Text style={styles.menuItemSubtext}>{t("account.noActiveBooster")}</Text>
+                <Text style={styles.menuItemSubtext}>
+                  {myOutsider?.boost_active
+                    ? `${BOOSTER_TIERS.find((b) => b.id === myOutsider.boost_tier)?.name || myOutsider.boost_tier} — ${t("account.myOutsiderHoursLeft", { hours: myOutsider.hours_remaining.toFixed(1) })}`
+                    : t("account.noActiveBooster")}
+                </Text>
               </View>
-              <TouchableOpacity style={styles.activateBtn} onPress={() => router.push("/premium")}>
-                <Text style={styles.activateBtnText}>{t("account.activateBooster")}</Text>
-              </TouchableOpacity>
+              {!myOutsider?.boost_active && (
+                <TouchableOpacity style={styles.activateBtn} onPress={() => router.push("/premium")}>
+                  <Text style={styles.activateBtnText}>{t("account.activateBooster")}</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.divider} />
             <TouchableOpacity style={styles.menuItem} onPress={() => { loadTransactions(); setScreen("billing"); }}>
