@@ -2480,6 +2480,52 @@ async def boost_myself(request: BoostMyselfRequest):
 
         tier_info = BOOSTER_TIERS[request.tier]
 
+        # ── Idempotency (R2) ──
+        # A successful Apple/Google payment can be re-delivered by the store: app killed
+        # mid-flight, a lost 200 response, or the client startup catch-up replaying the
+        # store queue. Each store transaction carries a unique receipt/token, so we dedupe
+        # on it: if this exact receipt already produced a boost, return that SAME boost
+        # (200) without creating or replacing anything — no double boost, no duplicate
+        # transaction record, no duplicate email.
+        #
+        # NON-REGRESSION: boosts created before the "receipt" field existed simply do not
+        # have the key, so this query never matches them (absence of field = no match, not
+        # an error). request.receipt is guaranteed non-empty (len >= 10) by the check
+        # above, and store tokens are unique, so a new payment can never collide with an
+        # old receipt-less boost. The short-circuit runs BEFORE any name/social handling,
+        # so a name-less replay (startup catch-up) never overwrites the original name.
+        existing_by_receipt = await db.active_boosts.find_one(
+            {"receipt": request.receipt},
+            sort=[("created_at", -1)],
+        )
+        if existing_by_receipt:
+            person_doc = await db.persons.find_one({"_id": existing_by_receipt["person_id"]})
+            person_name = (person_doc or {}).get(
+                "name", existing_by_receipt.get("person_name", "Outsider")
+            )
+            name_provisional = bool((person_doc or {}).get("name_provisional", False))
+            stored_tier = existing_by_receipt.get("tier", request.tier)
+            stored_tier_info = BOOSTER_TIERS.get(stored_tier, tier_info)
+            logger.info(
+                f"Idempotent boost-myself: receipt already processed → returning "
+                f"existing boost {existing_by_receipt.get('_id')} for '{person_name}'"
+            )
+            return {
+                "success": True,
+                "person_id": str(existing_by_receipt["person_id"]),
+                "boost_id": str(existing_by_receipt["_id"]),
+                "person_name": person_name,
+                "name_provisional": name_provisional,
+                "tier": stored_tier,
+                "tier_name": stored_tier_info["name"],
+                "price": stored_tier_info["price"],
+                "end_time": existing_by_receipt["end_time"].isoformat(),
+                "duration_hours": stored_tier_info["duration_hours"],
+                "position": existing_by_receipt.get("position", stored_tier_info["position"]),
+                "message": f"🎉 {stored_tier_info['name']} already active! '{person_name}' is in the Outsiders ranking.",
+                "idempotent": True,
+            }
+
         # Normalize name. Name is OPTIONAL (Apple 5.1.1(v)): an empty or too-short name
         # must NOT block the purchase. In that case we assign a provisional "Outsider"
         # display name and a slug derived from user_id, so each nameless buyer keeps a
@@ -2506,12 +2552,10 @@ async def boost_myself(request: BoostMyselfRequest):
                 for platform in ["instagram", "tiktok", "x"]:
                     raw = getattr(request.social_links, platform, None) or ""
                     cleaned = _clean_username(raw)
-                    if cleaned:
-                        if not _validate_social_username(platform, cleaned):
-                            raise HTTPException(
-                                status_code=400,
-                                detail=f"Invalid {platform} username format: {cleaned}"
-                            )
+                    # R1: a malformed social handle must NEVER block a paid boost. Silently
+                    # drop the invalid handle and still create/update the boost; the user can
+                    # add or correct the link later via the account edit screen.
+                    if cleaned and _validate_social_username(platform, cleaned):
                         clean_social[platform] = cleaned
                 update_fields["social_links"] = clean_social
             if request.email:
@@ -2529,12 +2573,10 @@ async def boost_myself(request: BoostMyselfRequest):
                 for platform in ["instagram", "tiktok", "x"]:
                     raw = getattr(request.social_links, platform, None) or ""
                     cleaned = _clean_username(raw)
-                    if cleaned:
-                        if not _validate_social_username(platform, cleaned):
-                            raise HTTPException(
-                                status_code=400,
-                                detail=f"Invalid {platform} username format: {cleaned}"
-                            )
+                    # R1: a malformed social handle must NEVER block a paid boost. Silently
+                    # drop the invalid handle and still create the boost; the user can add or
+                    # correct the link later via the account edit screen.
+                    if cleaned and _validate_social_username(platform, cleaned):
                         social[platform] = cleaned
 
             person_doc = {
@@ -2600,6 +2642,9 @@ async def boost_myself(request: BoostMyselfRequest):
                 "created_at": now,
                 "updated_at": now,
                 "replaces": str(existing_boost["_id"]),
+                # Idempotency key (R2): store the payment receipt so a re-delivery of the
+                # same transaction is detected and short-circuited at the top of the handler.
+                "receipt": request.receipt or "",
             }
             replace_result = await db.active_boosts.insert_one(replace_doc)
             active_boost_id = str(replace_result.inserted_id)
@@ -2619,6 +2664,9 @@ async def boost_myself(request: BoostMyselfRequest):
                 "reminder_sent": False,
                 "created_at": now,
                 "updated_at": now,
+                # Idempotency key (R2): store the payment receipt so a re-delivery of the
+                # same transaction is detected and short-circuited at the top of the handler.
+                "receipt": request.receipt or "",
             }
             insert_result = await db.active_boosts.insert_one(boost_doc)
             active_boost_id = str(insert_result.inserted_id)

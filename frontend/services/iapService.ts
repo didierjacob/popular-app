@@ -138,6 +138,26 @@ class IAPService {
     }
   }
 
+  // Read-only list of unfinished consumable transactions still in the store queue.
+  // Used by the startup catch-up to deliver paid-but-undelivered boosts (G1+G2).
+  // CRITICAL: this must NOT call finishTransaction — finishing here would consume an
+  // undelivered purchase and lose it. Contrast with restorePurchases() below, which DOES
+  // finalize. (The "Restore" button is slated for removal in this same build; until then
+  // they remain distinct so catch-up never consumes a pending delivery.)
+  async getPendingPurchases(): Promise<Purchase[]> {
+    if (!this.connected) {
+      await this.init();
+    }
+    try {
+      const purchases = await getAvailablePurchases();
+      console.log('[IAP] Pending (unfinished) purchases:', purchases.length);
+      return purchases;
+    } catch (error) {
+      console.error('[IAP] Failed to read pending purchases:', error);
+      return [];
+    }
+  }
+
   async restorePurchases(): Promise<Purchase[]> {
     if (!this.connected) {
       await this.init();

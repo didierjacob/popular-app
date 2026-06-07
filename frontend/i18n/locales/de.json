@@ -200,6 +200,8 @@
     "storeUnavailableTitle": "Store reagiert verzögert",
     "storeUnavailableMsg": "Das kann auf manchen Geräten vorkommen. Bitte versuche es in ein paar Sekunden erneut.",
     "boostActivated": "🎉 Boost aktiviert!",
+    "deliveryPendingTitle": "Zahlung erhalten",
+    "deliveryPendingMsg": "Aktivierung läuft — dein Boost wird in Kürze automatisch aktiviert.",
     "viewMyProfile": "Mein Profil ansehen",
     "setNameTitle": "Du bist dabei! Wähle deinen Outsider-Namen",
     "setNameSubtitle": "So erscheinst du in der Rangliste.",

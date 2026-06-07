@@ -131,6 +131,36 @@ export default function Premium() {
     };
   }, []);
 
+  // Deliver a single paid-but-undelivered purchase found in the store queue at startup.
+  // No in-memory name/social is available on a replay (fresh mount), so we deliver under
+  // the backend's provisional "Outsider" name; backend idempotency (R2) preserves the
+  // original name if the boost already exists. Finishes the transaction ONLY on a confirmed
+  // backend delivery — on any failure we leave it queued for the next launch.
+  const deliverPendingBoost = async (purchase: Purchase) => {
+    try {
+      const tierId = iapService.getTierIdForProduct(purchase.productId);
+      if (!tierId) {
+        console.warn('[Premium] Catch-up: unknown product, skipping:', purchase.productId);
+        return;
+      }
+      const receipt = purchase.purchaseToken;
+      if (!receipt) {
+        // No proof of purchase → cannot validate server-side. Leave it queued (unfinished).
+        console.warn('[Premium] Catch-up: missing receipt, leaving transaction queued');
+        return;
+      }
+      await CreditsService.boostMyself('', tierId, undefined, undefined, receipt, Platform.OS);
+      await iapService.finishPurchase(purchase, true);
+      console.log('[Premium] Catch-up delivered pending boost:', purchase.productId);
+      await loadHistory();
+    } catch (e) {
+      // Still failing (offline, transient 5xx, or a residual permanent error such as
+      // celebrity-name/ban — accepted out of scope). Leave the transaction in the store
+      // queue; it will be retried on the next launch.
+      console.warn('[Premium] Catch-up delivery deferred:', e);
+    }
+  };
+
   const initIAP = async () => {
     setIapLoading(true);
     try {
@@ -179,10 +209,14 @@ export default function Premium() {
             return;
           }
 
+          // R1: only send well-formed handles. A malformed handle is dropped here so it can
+          // never make /boost-myself fail and strand a paid purchase; the user can add or
+          // correct the link afterwards via the account edit screen. (The backend also
+          // tolerates bad handles, but we avoid even sending them.)
           const socialLinks: any = {};
-          if (instagram.trim()) socialLinks.instagram = instagram.trim().replace(/^@/, '');
-          if (tiktok.trim()) socialLinks.tiktok = tiktok.trim().replace(/^@/, '');
-          if (xAccount.trim()) socialLinks.x = xAccount.trim().replace(/^@/, '');
+          if (instagram.trim() && isValidUsername('instagram', instagram)) socialLinks.instagram = instagram.trim().replace(/^@/, '');
+          if (tiktok.trim() && isValidUsername('tiktok', tiktok)) socialLinks.tiktok = tiktok.trim().replace(/^@/, '');
+          if (xAccount.trim() && isValidUsername('x', xAccount)) socialLinks.x = xAccount.trim().replace(/^@/, '');
 
           const result = await CreditsService.boostMyself(
             name.trim(),
@@ -221,7 +255,12 @@ export default function Premium() {
           await loadHistory();
         } catch (error: any) {
           console.error('[Premium] Post-purchase error:', error);
-          Alert.alert(t('common.errorTitle'), error.message || t('premium.activateError'));
+          // The Apple/Google payment already succeeded when we reach this listener, so a
+          // failure here means "paid but delivery deferred", NOT "money lost". We did NOT
+          // reach finishPurchase, so the transaction stays in the store queue and the
+          // startup catch-up (getPendingPurchases → deliverPendingBoost) retries delivery
+          // automatically. Show a reassuring message instead of an error.
+          Alert.alert(t('premium.deliveryPendingTitle'), t('premium.deliveryPendingMsg'));
         } finally {
           setPurchasing(false);
         }
@@ -234,6 +273,20 @@ export default function Premium() {
         setPurchasing(false);
       },
     );
+
+    // Catch-up (G1+G2): deliver any paid-but-undelivered transactions left in the store
+    // queue (app killed mid-flight, lost response, or a prior deferred delivery). Backend
+    // idempotency (R2) guarantees this never creates a duplicate boost. getPendingPurchases()
+    // is read-only — it never finishes a transaction; deliverPendingBoost finishes only on a
+    // confirmed delivery, otherwise the transaction stays queued for the next launch.
+    try {
+      const pending = await iapService.getPendingPurchases();
+      for (const p of pending) {
+        await deliverPendingBoost(p);
+      }
+    } catch (e) {
+      console.warn('[Premium] Pending purchases catch-up failed:', e);
+    }
   };
 
   const loadHistory = async () => {
