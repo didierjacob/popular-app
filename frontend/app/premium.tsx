@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -122,6 +122,13 @@ export default function Premium() {
   const [postPurchaseName, setPostPurchaseName] = useState('');
   const [savingName, setSavingName] = useState(false);
 
+  // Miroir des champs du formulaire, toujours à jour, lisible par le listener
+  // d'achat (enregistré une seule fois au montage → sinon closure figée = valeurs vides).
+  const latestForm = useRef({ name: '', email: '', instagram: '', tiktok: '', xAccount: '' });
+  useEffect(() => {
+    latestForm.current = { name, email, instagram, tiktok, xAccount };
+  });   // pas de deps → resynchronisé après chaque commit, avant tout callback async
+
   useEffect(() => {
     loadHistory();
     initIAP();
@@ -206,6 +213,7 @@ export default function Premium() {
       async (purchase: Purchase) => {
         console.log('[Premium] Purchase success:', purchase.productId);
         try {
+          const form = latestForm.current;   // valeurs COURANTES, pas celles du montage
           const tierId = iapService.getTierIdForProduct(purchase.productId);
           if (!tierId) {
             console.error('[Premium] Unknown product:', purchase.productId);
@@ -230,15 +238,15 @@ export default function Premium() {
           // correct the link afterwards via the account edit screen. (The backend also
           // tolerates bad handles, but we avoid even sending them.)
           const socialLinks: any = {};
-          if (instagram.trim() && isValidUsername('instagram', instagram)) socialLinks.instagram = instagram.trim().replace(/^@/, '');
-          if (tiktok.trim() && isValidUsername('tiktok', tiktok)) socialLinks.tiktok = tiktok.trim().replace(/^@/, '');
-          if (xAccount.trim() && isValidUsername('x', xAccount)) socialLinks.x = xAccount.trim().replace(/^@/, '');
+          if (form.instagram.trim() && isValidUsername('instagram', form.instagram)) socialLinks.instagram = form.instagram.trim().replace(/^@/, '');
+          if (form.tiktok.trim() && isValidUsername('tiktok', form.tiktok)) socialLinks.tiktok = form.tiktok.trim().replace(/^@/, '');
+          if (form.xAccount.trim() && isValidUsername('x', form.xAccount)) socialLinks.x = form.xAccount.trim().replace(/^@/, '');
 
           const result = await CreditsService.boostMyself(
-            name.trim(),
+            form.name.trim(),
             tierId,
             Object.keys(socialLinks).length > 0 ? socialLinks : undefined,
-            email.trim() || undefined,
+            form.email.trim() || undefined,
             receipt,
             Platform.OS,
           );
