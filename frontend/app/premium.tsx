@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { CacheService } from '../services/cacheService';
 import { cacheKeyOutsiders } from './splash';
+import { USER_VOTE_CACHE_KEY } from './person';
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://popular-app.onrender.com';
 
@@ -130,6 +131,21 @@ export default function Premium() {
     };
   }, []);
 
+  // Flush des snapshots client d'un Outsider (re)boosté :
+  //  - cacheKeyOutsiders() : la liste (TTL 60s) montre la carte à jour (nom + social)
+  //  - person_${id}        : la fiche (TTL 2min) montre le social tout de suite
+  //  - user_vote_${id}     : repart sur une activité récente VIERGE (Sujet 1) — on
+  //    supprime UNIQUEMENT le vote rattaché à CET Outsider (cet id), jamais ceux
+  //    posés sur d'autres profils. Affichage seulement : le vote réel est déjà chez
+  //    le backend, le cache user_vote ne sert qu'à ré-afficher "Vous avez liké".
+  const invalidateOutsiderCaches = async (personId?: string | null) => {
+    await CacheService.remove(cacheKeyOutsiders());
+    if (personId) {
+      await CacheService.remove(`person_${personId}`);
+      await CacheService.remove(USER_VOTE_CACHE_KEY(personId));
+    }
+  };
+
   // Deliver a single paid-but-undelivered purchase found in the store queue at startup.
   // No in-memory name/social is available on a replay (fresh mount), so we deliver under
   // the backend's provisional "Outsider" name; backend idempotency (R2) preserves the
@@ -148,7 +164,8 @@ export default function Premium() {
         console.warn('[Premium] Catch-up: missing receipt, leaving transaction queued');
         return;
       }
-      await CreditsService.boostMyself('', tierId, undefined, undefined, receipt, Platform.OS);
+      const result = await CreditsService.boostMyself('', tierId, undefined, undefined, receipt, Platform.OS);
+      await invalidateOutsiderCaches(result?.person_id);
       await iapService.finishPurchase(purchase, true);
       console.log('[Premium] Catch-up delivered pending boost:', purchase.productId);
       await loadHistory();
@@ -225,6 +242,11 @@ export default function Premium() {
             receipt,
             Platform.OS,
           );
+
+          // Sujet 2 + Sujet 1 : flush des caches DÈS le boost, pour LES DEUX
+          // branches ci-dessous (nom rempli ET nom provisoire). Le social apparaît
+          // immédiatement et le feed d'activité repart vierge.
+          await invalidateOutsiderCaches(result?.person_id);
 
           // Finish the transaction (consumable) — required by Apple
           await iapService.finishPurchase(purchase, true);
@@ -429,10 +451,9 @@ export default function Premium() {
     setSavingName(true);
     try {
       const res = await CreditsService.setMyOutsiderName(purchasedPersonId, newName);
-      await CacheService.remove(cacheKeyOutsiders());
-      // Also invalidate the person detail cache so the profile page (TTL 2 min)
-      // shows the chosen name immediately instead of the provisional one.
-      await CacheService.remove(`person_${purchasedPersonId}`);
+      // Re-flush APRÈS le renommage : le nom choisi (+ social) remplacent le
+      // snapshot provisoire immédiatement. Même helper que le listener.
+      await invalidateOutsiderCaches(purchasedPersonId);
       setNamePromptVisible(false);
       Alert.alert(t('premium.boostActivated'), t('premium.nameSavedMsg', { name: res.new_name }) + '\n\n' + t('premium.nameDelayNotice'));
       router.replace('/outsiders');

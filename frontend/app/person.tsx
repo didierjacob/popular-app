@@ -77,7 +77,7 @@ const USER_COUNTRY_KEY = "popular_user_country";
 // Cache TTL is wider than the visible window — the visible window mirrors the
 // backend cooldown so we never restore an entry past the moment the user can
 // vote again on this profile.
-const USER_VOTE_CACHE_KEY = (profileId: string) => `user_vote_${profileId}`;
+export const USER_VOTE_CACHE_KEY = (profileId: string) => `user_vote_${profileId}`;
 const USER_VOTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const USER_VOTE_VISIBLE_MS = 24 * 60 * 60 * 1000;
 
