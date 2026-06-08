@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
+  Alert,
   LayoutAnimation,
   Platform,
   RefreshControl,
@@ -158,17 +159,55 @@ export default function OutsidersPage() {
         },
         body: JSON.stringify({ value: 1 }),
       });
+
+      const result = await res.json();
+
+      // The vote endpoint returns 200 even on cooldown (already_voted=true). Without this
+      // guard the heart count would inflate locally while the backend counted nothing.
+      // Aligned with person.tsx: show the same "already voted" feedback, do NOT increment.
+      if (result.already_voted) {
+        const targetName = outsiders.find((o) => o.id === personId)?.name || "";
+        const nextVoteTime = result.next_vote_time ? new Date(result.next_vote_time) : null;
+        let timeMessage = "";
+        if (nextVoteTime) {
+          const now = new Date();
+          const hoursLeft = Math.ceil((nextVoteTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+          const minutesLeft = Math.ceil((nextVoteTime.getTime() - now.getTime()) / (1000 * 60)) % 60;
+          if (hoursLeft > 1) {
+            timeMessage = `${hoursLeft}h`;
+          } else if (hoursLeft === 1) {
+            timeMessage = "~1h";
+          } else {
+            timeMessage = `${minutesLeft}min`;
+          }
+        }
+        Alert.alert(
+          t("person.alreadyVotedTitle"),
+          `${t("person.alreadyVotedMessage", { name: targetName })}\n\n${t("person.alreadyVotedSub", { time: timeMessage })}`,
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
       if (res.ok) {
+        // Use the authoritative backend counts (result.likes / result.total_votes) instead
+        // of an optimistic +1, so the displayed count can never drift from the server.
         setOutsiders((prev) =>
           prev.map((o) =>
-            o.id === personId ? { ...o, likes: (o.likes || 0) + 1 } : o
+            o.id === personId
+              ? {
+                  ...o,
+                  likes: result.likes ?? (o.likes || 0) + 1,
+                  total_votes: result.total_votes ?? o.total_votes,
+                }
+              : o
           )
         );
       }
     } catch (err) {
       console.error("Like outsider error:", err);
     }
-  }, [getDeviceId]);
+  }, [getDeviceId, outsiders, t]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

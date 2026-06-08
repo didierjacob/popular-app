@@ -430,6 +430,9 @@ export default function Premium() {
     try {
       const res = await CreditsService.setMyOutsiderName(purchasedPersonId, newName);
       await CacheService.remove(cacheKeyOutsiders());
+      // Also invalidate the person detail cache so the profile page (TTL 2 min)
+      // shows the chosen name immediately instead of the provisional one.
+      await CacheService.remove(`person_${purchasedPersonId}`);
       setNamePromptVisible(false);
       Alert.alert(t('premium.boostActivated'), t('premium.nameSavedMsg', { name: res.new_name }) + '\n\n' + t('premium.nameDelayNotice'));
       router.replace('/outsiders');

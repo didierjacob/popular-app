@@ -329,6 +329,9 @@ export default function AccountScreen() {
       // Update local display + invalidate the ranking cache (immediate refresh)
       setMyOutsider({ ...myOutsider, name: res.new_name });
       await CacheService.remove(cacheKeyOutsiders());
+      // Also invalidate the person detail cache so the profile page (TTL 2 min)
+      // shows the new name immediately instead of the stale one.
+      await CacheService.remove(`person_${myOutsider.person_id}`);
       setEditNameVisible(false);
       Alert.alert(t('common.success'), t('premium.nameSavedMsg', { name: res.new_name }));
     } catch (e: any) {
@@ -348,6 +351,10 @@ export default function AccountScreen() {
       if (editX.trim()) payload.x = editX.trim().replace(/^@/, "");
       await CreditsService.updateSocialLinks(activeBoostId, payload);
       setCurrentSocial(payload);
+      // Invalidate the caches that carry social links so the person detail page and the
+      // Outsiders list cards reflect the update instead of their stale cached copy.
+      if (myOutsider?.person_id) await CacheService.remove(`person_${myOutsider.person_id}`);
+      await CacheService.remove(cacheKeyOutsiders());
       setSocialModalVisible(false);
       Alert.alert(t("socialConfig.editSocial"), "✓");
     } catch (e: any) {
@@ -703,23 +710,6 @@ export default function AccountScreen() {
               <Ionicons name="receipt-outline" size={24} color={PALETTE.text} />
               <Text style={[styles.menuItemText, { flex: 1 }]}>{t("account.billingHistory")}</Text>
               <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />
-            </TouchableOpacity>
-            <View style={styles.divider} />
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                if (Platform.OS === "ios") {
-                  Linking.openURL("https://apps.apple.com/account/subscriptions");
-                } else {
-                  Linking.openURL("https://play.google.com/store/account/subscriptions");
-                }
-              }}
-            >
-              <Ionicons name={Platform.OS === "ios" ? "logo-apple" : "logo-google-playstore"} size={24} color={PALETTE.text} />
-              <Text style={[styles.menuItemText, { flex: 1 }]}>
-                {Platform.OS === "ios" ? t("account.viewAppStoreHistory") : t("account.viewGooglePlayHistory")}
-              </Text>
-              <Ionicons name="open-outline" size={18} color={PALETTE.subtext} />
             </TouchableOpacity>
           </View>
         </View>
