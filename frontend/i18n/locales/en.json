@@ -231,6 +231,7 @@
     "activateError": "Failed to activate boost",
     "purchaseFailed": "Purchase Failed",
     "boostActivatedMsg": "{{message}}\n\nExpires: {{date}}",
+    "nameDelayNotice": "Your name will appear in the Outsiders list in a few moments.",
     "replaceTitle": "Replace Active Booster?",
     "replaceBody": "You already have an active {{currentTier}} until {{endDate}}. Purchasing a new Booster will replace your current one immediately.",
     "replaceNewBooster": "New Booster: {{tierName}} ({{duration}})",

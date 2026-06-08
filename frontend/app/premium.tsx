@@ -114,7 +114,6 @@ export default function Premium() {
   const [storeProducts, setStoreProducts] = useState<Product[]>([]);
   const [iapReady, setIapReady] = useState(false);
   const [iapLoading, setIapLoading] = useState(true);
-  const [restoring, setRestoring] = useState(false);
   const [showPurchaseStep, setShowPurchaseStep] = useState(false);
   // Post-purchase name prompt (only when the user paid without a name)
   const [namePromptVisible, setNamePromptVisible] = useState(false);
@@ -242,7 +241,7 @@ export default function Premium() {
           } else {
             Alert.alert(
               t('premium.boostActivated'),
-              t('premium.boostActivatedMsg', { message: result.message, date: new Date(result.end_time).toLocaleString() }),
+              t('premium.boostActivatedMsg', { message: result.message, date: new Date(result.end_time).toLocaleString() }) + '\n\n' + t('premium.nameDelayNotice'),
             );
           }
 
@@ -432,7 +431,7 @@ export default function Premium() {
       const res = await CreditsService.setMyOutsiderName(purchasedPersonId, newName);
       await CacheService.remove(cacheKeyOutsiders());
       setNamePromptVisible(false);
-      Alert.alert(t('premium.boostActivated'), t('premium.nameSavedMsg', { name: res.new_name }));
+      Alert.alert(t('premium.boostActivated'), t('premium.nameSavedMsg', { name: res.new_name }) + '\n\n' + t('premium.nameDelayNotice'));
       router.replace('/outsiders');
     } catch (error: any) {
       console.error('[Premium] Set name error:', error);
@@ -446,7 +445,7 @@ export default function Premium() {
   // exists yet — admin corrects on request). Confirm the purchase succeeded.
   const keepOutsiderName = () => {
     setNamePromptVisible(false);
-    Alert.alert(t('premium.boostActivated'), t('premium.setNameSubtitle'));
+    Alert.alert(t('premium.boostActivated'), t('premium.setNameSubtitle') + '\n\n' + t('premium.nameDelayNotice'));
   };
 
   const formatDate = (timestamp: string) => {
@@ -457,30 +456,6 @@ export default function Premium() {
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
-
-  const handleRestorePurchases = async () => {
-    setRestoring(true);
-    try {
-      const restored = await iapService.restorePurchases();
-      if (restored.length > 0) {
-        Alert.alert(
-          t('premium.purchasesRestored'),
-          t('premium.purchasesRestoredMsg', { count: restored.length }),
-        );
-        await loadHistory();
-      } else {
-        Alert.alert(
-          t('premium.noPurchasesFound'),
-          t('premium.noPurchasesFoundMsg'),
-        );
-      }
-    } catch (error: any) {
-      console.error('[Premium] Restore error:', error);
-      Alert.alert(t('premium.restoreFailed'), error.message || t('premium.restoreFailedMsg'));
-    } finally {
-      setRestoring(false);
-    }
   };
 
   return (
@@ -854,22 +829,6 @@ export default function Premium() {
 
           <View style={{ height: 40 }} />
 
-          {/* Restore Purchases Button */}
-          <TouchableOpacity
-            style={styles.restoreButton}
-            onPress={handleRestorePurchases}
-            disabled={restoring}
-          >
-            {restoring ? (
-              <ActivityIndicator size="small" color={PALETTE.accent2} />
-            ) : (
-              <>
-                <Ionicons name="refresh-outline" size={18} color={PALETTE.accent2} />
-                <Text style={styles.restoreButtonText}>{t("premium.restorePurchases")}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
           {/* Legal Links - Required by Apple */}
           <View style={styles.legalSection}>
             <TouchableOpacity onPress={() => Linking.openURL(getLegalUrl('terms'))}>
@@ -1161,22 +1120,6 @@ const styles = StyleSheet.create({
   transactionDesc: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
   transactionDate: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
   transactionAmount: { fontSize: 16, fontWeight: '700' },
-  restoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderRadius: 12,
-  },
-  restoreButtonText: {
-    color: PALETTE.accent2,
-    fontSize: 15,
-    fontWeight: '600',
-  },
   legalSection: {
     flexDirection: 'row',
     alignItems: 'center',

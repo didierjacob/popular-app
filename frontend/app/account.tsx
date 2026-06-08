@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CreditsService, BOOSTER_TIERS, type Transaction } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { CacheService } from "../services/cacheService";
 import { cacheKeyOutsiders } from "./splash";
 import { setLanguage, LANGUAGE_STORAGE_KEY } from "../i18n";
@@ -148,6 +148,7 @@ export default function AccountScreen() {
 
   // My Outsider (Cas A — withdraw)
   const [myOutsider, setMyOutsider] = useState<MyOutsiderData | null>(null);
+  const [outsiderLoading, setOutsiderLoading] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   // Edit Outsider display name (typo fix) — reuses /me/outsider/set-name
   const [editNameVisible, setEditNameVisible] = useState(false);
@@ -256,6 +257,7 @@ export default function AccountScreen() {
   };
 
   const loadMyOutsider = useCallback(async () => {
+    setOutsiderLoading(true);
     try {
       const data = await CreditsService.getMyOutsiderProfile();
       if (data && data.boost_active) {
@@ -265,8 +267,20 @@ export default function AccountScreen() {
       }
     } catch (e) {
       console.error("Failed to load my outsider:", e);
+    } finally {
+      setOutsiderLoading(false);
     }
   }, []);
+
+  // Refresh the Booster/Outsider status whenever the tab regains focus, so a
+  // boost bought on the premium screen shows up on return (the mount effect
+  // above only runs once). Double-call on first focus is harmless (idempotent).
+  useFocusEffect(
+    useCallback(() => {
+      loadMyOutsider();
+      loadActiveBoostSocial();
+    }, [loadMyOutsider])
+  );
 
   const handleWithdrawOutsider = useCallback(() => {
     Alert.alert(
@@ -671,12 +685,14 @@ export default function AccountScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuItemText}>{t("account.activeBoosters")}</Text>
                 <Text style={styles.menuItemSubtext}>
-                  {myOutsider?.boost_active
+                  {outsiderLoading && !myOutsider
+                    ? t("common.loading")
+                    : myOutsider?.boost_active
                     ? `${BOOSTER_TIERS.find((b) => b.id === myOutsider.boost_tier)?.name || myOutsider.boost_tier} — ${t("account.myOutsiderHoursLeft", { hours: myOutsider.hours_remaining.toFixed(1) })}`
                     : t("account.noActiveBooster")}
                 </Text>
               </View>
-              {!myOutsider?.boost_active && (
+              {!outsiderLoading && !myOutsider?.boost_active && (
                 <TouchableOpacity style={styles.activateBtn} onPress={() => router.push("/premium")}>
                   <Text style={styles.activateBtnText}>{t("account.activateBooster")}</Text>
                 </TouchableOpacity>
