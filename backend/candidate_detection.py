@@ -811,6 +811,22 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         logger.info(f"♻️  [UserSearch] '{name}' already exists (slug={slug}) → duplicate")
         return {"status": "duplicate", "name": name, "person_id": str(existing["_id"])}
 
+    # ── Step 2b: anti-ghost blocklist — never re-create a deleted personality ──
+    bl_settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    name_norm = candidate.get("name_normalized") or unidecode(name).lower().strip()
+    wikidata_id = result.get("wikidata_id")
+    if (
+        name_norm in set(bl_settings.get("seed_blocklist_names", []))
+        or slug in set(bl_settings.get("seed_blocklist", []))
+        or (wikidata_id and wikidata_id in set(bl_settings.get("seed_blocklist_wikidata", [])))
+    ):
+        await db.candidate_queue.update_one(
+            {"_id": oid},
+            {"$set": {"status": "blocklisted", "validated_at": now}},
+        )
+        logger.info(f"🚫 [Anti-ghost] UserSearch approve blocked for blocklisted '{name}'")
+        return {"status": "rejected", "name": name, "error_code": "blocklisted"}
+
     # ── Step 3: initial Popularoo Index (Q1) ──
     ext_score = result["popularity_external_score"]
     initial_pi = max(
@@ -1127,12 +1143,21 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
         async for doc in pending_cursor:
             pending_slugs.add(doc.get("name_normalized", ""))
 
+        # ── Step 4b: Load the anti-ghost blocklist (deleted personalities) ──
+        # A deleted celebrity must never re-enter the queue. Primary key =
+        # name_normalized; secondary = wikidata_id; legacy = slug.
+        bl_settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        blocked_slugs = set(bl_settings.get("seed_blocklist", []))
+        blocked_names = set(bl_settings.get("seed_blocklist_names", []))
+        blocked_wikidata = set(bl_settings.get("seed_blocklist_wikidata", []))
+
         # ── Step 5: Apply eligibility filters ──
         eligible = []
         checked_count = 0
         filtered_reasons = {
             "already_in_db": 0,
             "already_in_queue": 0,
+            "blocklisted": 0,
             "name_filter": 0,
             "too_few_views": 0,
             "too_few_langs": 0,
@@ -1154,6 +1179,11 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
 
             if name_norm in pending_slugs:
                 filtered_reasons["already_in_queue"] += 1
+                continue
+
+            # Anti-ghost (pre-API): skip deleted personalities by name/slug.
+            if name_norm in blocked_names or name_slug in blocked_slugs:
+                filtered_reasons["blocklisted"] += 1
                 continue
 
             if not passes_name_filter(name):
@@ -1183,6 +1213,13 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
             if is_deceased:
                 filtered_reasons["deceased"] += 1
                 logger.info(f"🔍 [Candidates] Filtered deceased: {name}")
+                continue
+
+            # Anti-ghost (post-API): a deleted celebrity keeps the same wikidata
+            # QID even under a slightly different name spelling.
+            if wikidata_id and wikidata_id in blocked_wikidata:
+                filtered_reasons["blocklisted"] += 1
+                logger.info(f"🚫 [Anti-ghost] Filtered blocklisted (wikidata={wikidata_id}): {name}")
                 continue
 
             if not passes_description_filter(description or ""):

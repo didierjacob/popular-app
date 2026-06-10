@@ -152,6 +152,57 @@ def now_utc() -> datetime:
     return datetime.utcnow()
 
 
+# ==================== Anti-ghost blocklist (Lot 1) ====================
+# A deleted *personality* (celebrity / auto-detected) must never silently
+# re-appear via the Wikipedia detection job, seeds, imports or approvals.
+# Storage = app_settings doc {"_id": "global"}:
+#   - seed_blocklist           : list[slug]            (legacy, kept for retro-compat)
+#   - seed_blocklist_names     : list[name_normalized] (PRIMARY key — accent-insensitive)
+#   - seed_blocklist_wikidata  : list[wikidata QID]    (secondary key)
+# NOTE: only personality creation paths consult this. Outsider / self-boost
+# paths (boost_myself, admin_grant_booster, admin_create_demo_outsider) must
+# NOT — a paying Outsider consents to their own name, they are not a revived
+# celebrity.
+
+def normalize_person_name(name: str) -> str:
+    """Canonical, accent-insensitive blocklist key for a personality name.
+    'Léa Seydoux' -> 'lea seydoux' (robust against the slugify accent bug)."""
+    return unidecode(name or "").lower().strip()
+
+
+async def is_person_blocklisted(name_normalized: str = "", wikidata_id: str = "", slug: str = "") -> bool:
+    """True if a personality is on the anti-ghost blocklist.
+    Match priority: name_normalized > wikidata_id > slug (legacy)."""
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    if name_normalized and name_normalized in set(settings.get("seed_blocklist_names", [])):
+        return True
+    if wikidata_id and wikidata_id in set(settings.get("seed_blocklist_wikidata", [])):
+        return True
+    if slug and slug in set(settings.get("seed_blocklist", [])):
+        return True
+    return False
+
+
+async def add_person_to_blocklist(name: str = "", slug: str = "", wikidata_id: str = "") -> dict:
+    """Register a deleted personality so it can never silently re-appear.
+    Adds name_normalized (primary), slug (legacy) and wikidata_id (if present)."""
+    name_norm = normalize_person_name(name)
+    add: dict = {}
+    if name_norm:
+        add["seed_blocklist_names"] = name_norm
+    if slug:
+        add["seed_blocklist"] = slug
+    if wikidata_id:
+        add["seed_blocklist_wikidata"] = wikidata_id
+    if add:
+        await db.app_settings.update_one(
+            {"_id": "global"},
+            {"$addToSet": add},
+            upsert=True,
+        )
+    return {"name_normalized": name_norm, "slug": slug, "wikidata_id": wikidata_id}
+
+
 def parse_window(window: str) -> timedelta:
     """Parse window string like '60m' or '24h' into timedelta"""
     m = re.match(r"^(\d+)([mhd])$", window)
@@ -618,12 +669,14 @@ async def seed_missing_people():
     # Load blocklist from app_settings (structural anti-reinsertion mechanism)
     settings = await db.app_settings.find_one({"_id": "global"}) or {}
     blocked_slugs = set(settings.get("seed_blocklist", []))
+    blocked_names = set(settings.get("seed_blocklist_names", []))
 
     for p in SEED_PEOPLE:
         slug = slugify(p["name"])
 
-        # Check blocklist FIRST (covers deceased, manually removed, etc.)
-        if slug in blocked_slugs:
+        # Check blocklist FIRST (covers deceased, manually removed, etc.).
+        # name_normalized is the primary key (robust against the slugify accent bug).
+        if slug in blocked_slugs or normalize_person_name(p["name"]) in blocked_names:
             blocked += 1
             continue
 
@@ -1107,36 +1160,17 @@ async def list_people(
 
 @api_router.post("/people", response_model=PersonOut)
 async def add_person(body: PersonCreate):
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Name is required")
-    
-    # Normalize name to Title Case (e.g., "trump" -> "Trump", "elon musk" -> "Elon Musk")
-    name = name.title()
-    
-    slug = slugify(name)
-    existing = await db.persons.find_one({"slug": slug})
-    if existing:
-        # return existing person to avoid duplicates
-        return person_to_out(existing)
-    now = now_utc()
-    doc = {
-        "name": name,
-        "slug": slug,
-        "category": body.category or "other",
-        "approved": True,  # basic moderation on later
-        "created_at": now,
-        "updated_at": now,
-        "score": 50,  # Neutral starting score
-        "likes": 0,
-        "dislikes": 0,
-        "total_votes": 0,
-        "source": "user_added",  # Mark as user-added personality
-    }
-    res = await db.persons.insert_one(doc)
-    await db.person_ticks.insert_one({"person_id": res.inserted_id, "score": 50, "created_at": now})
-    doc["_id"] = res.inserted_id
-    return person_to_out(doc)
+    # DISABLED (Lot 1, Task 1.2) — anti-backdoor.
+    # This endpoint allowed ANYONE (no auth) to create an immediately-visible
+    # `approved: True` personality, bypassing the candidate-queue moderation and
+    # the anti-ghost blocklist. It is not called anywhere in the app (the client
+    # only ever GETs /people; user additions go through /submit-celebrity-request).
+    # Closed for good: always 403. Legitimate creation paths are the admin
+    # endpoints and the moderated candidate queue.
+    raise HTTPException(
+        status_code=403,
+        detail="This endpoint is disabled. Personalities are added via the moderated candidate queue.",
+    )
 
 
 @api_router.get("/people/{person_id}", response_model=PersonOut)
@@ -3023,17 +3057,27 @@ async def admin_delete_person(request: Request, person_id: str):
             raise HTTPException(status_code=404, detail="Person not found")
         
         person_name = person.get("name")
-        
+
         # Delete the person
         await db.persons.delete_one({"_id": obj_id})
-        
+
         # Delete all their ticks
         await db.person_ticks.delete_many({"person_id": obj_id})
-        
+
+        # Anti-ghost: register in the blocklist so the Wikipedia job / seeds /
+        # imports / approvals can never silently re-create this personality.
+        blocked = await add_person_to_blocklist(
+            name=person_name or "",
+            slug=person.get("slug", ""),
+            wikidata_id=person.get("wikidata_id", ""),
+        )
+        logger.info(f"🚫 [Anti-ghost] Blocklisted on delete: {blocked}")
+
         return {
             "success": True,
             "message": f"'{person_name}' has been deleted permanently",
             "person_name": person_name,
+            "blocklisted": blocked,
         }
         
     except HTTPException:
@@ -4008,6 +4052,10 @@ async def admin_refresh_trends(request: Request):
                 )
                 updated_count += 1
                 logger.info(f"Marked as trending: {name}")
+            elif await is_person_blocklisted(name_normalized=normalize_person_name(name), slug=slug):
+                # Anti-ghost: a deleted personality must not re-appear via trends.
+                logger.info(f"🚫 [Anti-ghost] Trends skipped blocklisted '{name}'")
+                continue
             else:
                 # Auto-add new trending personality
                 person_doc = {
@@ -4245,6 +4293,13 @@ async def admin_add_missing_seeds(request: Request):
                 "name": {"$regex": f"^{re.escape(p['name'])}$", "$options": "i"}
             })
             
+            # Anti-ghost: never re-create a blocklisted (deleted) personality.
+            if not existing and await is_person_blocklisted(
+                name_normalized=normalize_person_name(p["name"]), slug=slugify(p["name"])
+            ):
+                logger.info(f"🚫 [Anti-ghost] add-missing-seeds skipped blocklisted '{p['name']}'")
+                continue
+
             if not existing:
                 # Generate random initial votes between 8000 and 15000
                 initial_votes = random.randint(8000, 15000)
@@ -4974,6 +5029,12 @@ async def admin_bulk_import_personalities(request: Request):
                     }}
                 )
                 updated_tags += 1
+                continue
+
+            # Anti-ghost: never re-create a blocklisted (deleted) personality.
+            if await is_person_blocklisted(name_normalized=normalize_person_name(name), slug=slugify(name)):
+                logger.info(f"🚫 [Anti-ghost] bulk-import skipped blocklisted '{name}'")
+                skipped += 1
                 continue
 
             # Insert new personality
@@ -6092,13 +6153,22 @@ async def admin_delete_person_by_name(request: Request):
     ticks_deleted = await db.person_ticks.delete_many({"person_id": person_id})
     # Delete associated votes
     votes_deleted = await db.votes.delete_many({"person_id": str(person_id)})
-    
-    logger.info(f"🗑️ Admin: Deleted person '{person_name}' (ticks={ticks_deleted.deleted_count}, votes={votes_deleted.deleted_count})")
+
+    # Anti-ghost: register in the blocklist so this personality can never
+    # silently re-appear via detection / seeds / imports / approvals.
+    blocked = await add_person_to_blocklist(
+        name=person_name or "",
+        slug=person.get("slug", ""),
+        wikidata_id=person.get("wikidata_id", ""),
+    )
+
+    logger.info(f"🗑️ Admin: Deleted person '{person_name}' (ticks={ticks_deleted.deleted_count}, votes={votes_deleted.deleted_count}) + blocklisted {blocked}")
     return {
         "success": True,
         "deleted_person": person_name,
         "ticks_deleted": ticks_deleted.deleted_count,
         "votes_deleted": votes_deleted.deleted_count,
+        "blocklisted": blocked,
     }
 
 
@@ -7036,7 +7106,7 @@ async def admin_add_celebrities_batch(request: Request):
     celebrities = body.get("celebrities", [])
 
     now = now_utc()
-    results = {"added": [], "skipped_duplicates": [], "errors": [], "total_added": 0}
+    results = {"added": [], "skipped_duplicates": [], "skipped_blocklisted": [], "errors": [], "total_added": 0}
 
     for celeb in celebrities:
         name = celeb.get("name", "").strip()
@@ -7046,6 +7116,13 @@ async def admin_add_celebrities_batch(request: Request):
             continue
 
         slug = slugify(name)
+
+        # Anti-ghost: never re-create a blocklisted (deleted) personality.
+        if await is_person_blocklisted(name_normalized=normalize_person_name(name), slug=slug):
+            results["skipped_blocklisted"].append(name)
+            logger.info(f"🚫 [Anti-ghost] batch-add skipped blocklisted '{name}'")
+            continue
+
         existing = await db.persons.find_one({"slug": slug})
         if existing:
             results["skipped_duplicates"].append(name)
@@ -7198,6 +7275,16 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
     name_slug = candidate.get("slug") or slugify(name)
     now = now_utc()
 
+    # Anti-ghost: never re-create a deleted personality, even via admin approval.
+    if await is_person_blocklisted(
+        name_normalized=candidate.get("name_normalized") or normalize_person_name(name),
+        wikidata_id=candidate.get("wikidata_id", ""),
+        slug=name_slug,
+    ):
+        await db.candidate_queue.update_one({"_id": oid}, {"$set": {"status": "blocklisted", "updated_at": now}})
+        logger.info(f"🚫 [Anti-ghost] Approval blocked for blocklisted candidate '{name}'")
+        return {"success": False, "error": "blocklisted", "message": f"'{name}' is blocklisted and cannot be re-created"}
+
     # Check duplicate in persons
     existing = await db.persons.find_one({"slug": name_slug})
     if existing:
@@ -7285,12 +7372,26 @@ async def admin_approve_all_high(request: Request):
         {"status": "pending", "confidence": "high"}
     ).to_list(500)
 
-    results = {"approved": 0, "duplicates": 0, "errors": 0}
+    results = {"approved": 0, "duplicates": 0, "errors": 0, "blocklisted": 0}
     now = now_utc()
 
     for candidate in high_candidates:
         name = candidate["name"]
         name_slug = candidate.get("slug") or slugify(name)
+
+        # Anti-ghost: skip candidates matching a deleted personality.
+        if await is_person_blocklisted(
+            name_normalized=candidate.get("name_normalized") or normalize_person_name(name),
+            wikidata_id=candidate.get("wikidata_id", ""),
+            slug=name_slug,
+        ):
+            await db.candidate_queue.update_one(
+                {"_id": candidate["_id"]},
+                {"$set": {"status": "blocklisted", "updated_at": now}}
+            )
+            results["blocklisted"] += 1
+            logger.info(f"🚫 [Anti-ghost] Batch-approve skipped blocklisted '{name}'")
+            continue
 
         existing = await db.persons.find_one({"slug": name_slug})
         if existing:
@@ -8102,10 +8203,8 @@ async def admin_propose_celebrity(request: Request):
     if existing:
         return {"success": False, "error": "already_exists", "person_id": str(existing["_id"])}
 
-    # ── Check blocklist ──
-    settings = await db.app_settings.find_one({"_id": "global"}) or {}
-    blocked_slugs = set(settings.get("seed_blocklist", []))
-    if name_slug in blocked_slugs:
+    # ── Check blocklist (anti-ghost: name_normalized primary key + legacy slug) ──
+    if await is_person_blocklisted(name_normalized=normalize_person_name(name), slug=name_slug):
         return {"success": False, "error": "blocked"}
 
     # ── Wikipedia / Wikidata guard-fous ──
@@ -8121,6 +8220,11 @@ async def admin_propose_celebrity(request: Request):
 
             if is_deceased:
                 return {"success": False, "error": "deceased"}
+
+            # Anti-ghost: re-check once the wikidata_id is known (a renamed
+            # celebrity keeps the same QID even if the typed name differs).
+            if wikidata_id and await is_person_blocklisted(wikidata_id=wikidata_id):
+                return {"success": False, "error": "blocked"}
 
             langs = await check_multi_lang_pages(name, client)
 

@@ -770,6 +770,13 @@ async def refresh_google_trends(db, trends_service):
         added_count = 0
         updated_count = 0
         now = datetime.utcnow()
+
+        # Anti-ghost: load the blocklist once so deleted personalities are never
+        # re-created via the automated trends refresh.
+        from unidecode import unidecode as _unidecode
+        _bl = await db.app_settings.find_one({"_id": "global"}) or {}
+        _blocked_slugs = set(_bl.get("seed_blocklist", []))
+        _blocked_names = set(_bl.get("seed_blocklist_names", []))
         
         # Unmark all existing trending personalities
         await db.persons.update_many(
@@ -801,6 +808,10 @@ async def refresh_google_trends(db, trends_service):
                 )
                 updated_count += 1
                 logger.info(f"✅ Marked as trending: {name}")
+            elif slug in _blocked_slugs or _unidecode(name).lower().strip() in _blocked_names:
+                # Anti-ghost: deleted personality must not re-appear via trends.
+                logger.info(f"🚫 [Anti-ghost] Trends (scheduler) skipped blocklisted '{name}'")
+                continue
             else:
                 # Auto-add new trending personality
                 person_doc = {
