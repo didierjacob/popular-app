@@ -4,6 +4,11 @@ node_modules/
 __pycache__/
 *.pyc
 .venv/
+backend/.venv-audit/
+backend/.venv-backup/
+# Tous les venvs temporaires (audit, backup, etc.)
+.venv-*/
+**/.venv-*/
 
 # Environment files with secrets
 backend/.env

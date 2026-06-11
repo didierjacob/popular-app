@@ -563,10 +563,9 @@ SEED_PEOPLE = [
     # ══════════════════════════════════════════════════════
     # 📱 Influencers — Top social media personalities (20)
     # ══════════════════════════════════════════════════════
-    # 🇫🇷 France (7)
+    # 🇫🇷 France (6)
     {"name": "Léna Situations", "category": "influencer", "primary_country": "FR"},
     {"name": "Cyprien", "category": "influencer", "primary_country": "FR"},
-    {"name": "Norman Thavaud", "category": "influencer", "primary_country": "FR"},
     {"name": "Tibo InShape", "category": "influencer", "primary_country": "FR"},
     {"name": "McFly et Carlito", "category": "influencer", "primary_country": "FR"},
     {"name": "Enjoy Phoenix", "category": "influencer", "primary_country": "FR"},
