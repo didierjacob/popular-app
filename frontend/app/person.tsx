@@ -48,6 +48,9 @@ const API = (path: string) =>
 
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
+// LOT 3 — Signalement / demande de retrait via email pré-rempli (mailto, zéro backend)
+const SUPPORT_EMAIL = "popularoo@popularoo.com";
+
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(API(path));
   if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
@@ -287,6 +290,9 @@ export default function Person() {
   const [name, setName] = useState(params.name || "");
   const [initialLoading, setInitialLoading] = useState(true);
   const [person, setPerson] = useState<any>(null);
+  // Deep link hardening: distinguish a removed/blocklisted profile (404/400)
+  // from a transient network failure, so the error screen can offer "retry".
+  const [loadError, setLoadError] = useState<null | "notfound" | "network">(null);
 
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiRef = useRef<any>(null);
@@ -347,7 +353,10 @@ export default function Person() {
 
   const fetchData = useCallback(
     async (silent = false) => {
-      if (!silent) setInitialLoading(true);
+      if (!silent) {
+        setInitialLoading(true);
+        setLoadError(null);
+      }
       try {
         const p = await fetchWithCache(
           `/people/${id}`,
@@ -358,6 +367,11 @@ export default function Person() {
         setPerson(p);
         if ((p as any)?.name) setName((p as any).name);
       } catch (e) {
+        // apiGet throws `GET /people/<id> <status>`; a 400 (bad id) or 404
+        // (removed/blocklisted) means the profile is gone — anything else
+        // (network down, timeout) is transient and worth a retry.
+        const msg = String((e as any)?.message || "");
+        setLoadError(/\b(400|404)\b/.test(msg) ? "notfound" : "network");
         console.error(e);
       } finally {
         if (!silent) setInitialLoading(false);
@@ -400,6 +414,24 @@ export default function Person() {
       setReportSubmitting(false);
     }
   }, [reportReason, reportComment, id, reportSubmitting, t, closeReportModal]);
+
+  // LOT 3 — Personnalités uniquement (!isOutsider) : mailto pré-rempli, zéro backend.
+  // Réutilise le pattern de account.tsx (subject + body URL-encodés vers SUPPORT_EMAIL).
+  const reportProfileByEmail = useCallback(() => {
+    const subject = encodeURIComponent(t("reportProfile.mailtoSubject", { name }));
+    const body = encodeURIComponent(t("reportProfile.mailtoBody", { name, id }));
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(
+      () => {}
+    );
+  }, [t, name, id]);
+
+  const requestRemovalByEmail = useCallback(() => {
+    const subject = encodeURIComponent(t("removal.mailtoSubject", { name }));
+    const body = encodeURIComponent(t("removal.mailtoBody", { name, id }));
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(
+      () => {}
+    );
+  }, [t, name, id]);
 
   // Live feed: honest activity only. No fabricated voters are generated.
   // We only restore the user's OWN real vote from cache (within the 24h
@@ -573,11 +605,15 @@ export default function Person() {
   // total ALWAYS = likes + dislikes for visual consistency
   const displayTotalVotes = isOutsider ? displayLikes : displayLikes + displayDislikes;
 
-  // Share
+  // Share — shareable profile deep link (Personalities AND Outsiders).
+  // https://popularoo.com/p.html?id=<ObjectId> opens the app on this profile,
+  // and falls back to the App Store if the app isn't installed.
+  const profileLink = `https://popularoo.com/p.html?id=${id}`;
   const shareMessage = t("person.shareMessage", {
     name,
     score: Math.round(person?.popularoo_index || person?.score || 0),
     votes: formatNumber(displayTotalVotes),
+    link: profileLink,
   });
 
   const shareToTwitter = async () => {
@@ -604,6 +640,44 @@ export default function Person() {
 
   const trendStatus = getTrendStatus({ name: person?.name || name, score: person?.score || 50 });
 
+  // Deep link hardening: a removed/blocklisted profile (or a malformed link)
+  // used to render a "ghost" profile at score 0. Show a clean screen instead.
+  if (!initialLoading && !person) {
+    const isNetwork = loadError === "network";
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
+        <View style={styles.errorCenter}>
+          <View style={styles.errorLogo}>
+            <Text style={styles.errorLogoP}>P</Text>
+          </View>
+          <Text style={styles.errorTitle}>
+            {isNetwork ? t("person.networkErrorTitle") : t("person.notFoundTitle")}
+          </Text>
+          <Text style={styles.errorMessage}>
+            {isNetwork ? t("person.networkErrorMessage") : t("person.notFoundMessage")}
+          </Text>
+          {isNetwork && (
+            <TouchableOpacity
+              style={[styles.errorBtn, styles.errorBtnPrimary]}
+              onPress={() => fetchData(false)}
+            >
+              <Text style={styles.errorBtnText}>{t("common.retry")}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.errorBtn, styles.errorBtnSecondary]}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.push("/");
+            }}
+          >
+            <Text style={styles.errorBtnText}>{t("person.backHome")}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PALETTE.bg }}>
       {initialLoading ? (
@@ -623,40 +697,35 @@ export default function Person() {
                   // Sujet G: an Outsider profile should always lead back to
                   // the Outsiders list, not Home (which is where router.back()
                   // would otherwise land via the default tab stack).
+                  // Cold start via deep link: there's no history to pop, so
+                  // router.back() would be a no-op. Fall back to Home.
                   if (isOutsider) router.push("/outsiders");
-                  else router.back();
+                  else if (router.canGoBack()) router.back();
+                  else router.push("/");
                 }}
                 style={styles.homeBtn}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel={isOutsider ? t("outsiders.title") : t("person.home")}
               >
-                <Text style={styles.backArrow}>{"<"}</Text>
-                <Text style={styles.homeText}>
-                  {isOutsider ? t("outsiders.title") : t("person.home")}
-                </Text>
+                {/* LOT 4 — chevron seul, atténué (libellé texte retiré). Fonction inchangée. */}
+                <Text style={styles.backArrow}>{"‹"}</Text>
               </TouchableOpacity>
               <View style={styles.titleRow}>
                 <Text style={styles.title} numberOfLines={2}>
                   {name}
                 </Text>
-                {canReport && (
-                  <TouchableOpacity
-                    onPress={() => setReportModalVisible(true)}
-                    style={styles.reportBtn}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    accessibilityLabel={t("report.title")}
-                  >
-                    <Ionicons
-                      name="flag-outline"
-                      size={22}
-                      color={PALETTE.subtext}
-                    />
-                  </TouchableOpacity>
-                )}
+                {/* LOT 4 — drapeau backend (report-outsider) DÉBRANCHÉ de l'affichage.
+                    Remplacé par le bouton mailto « Report this profile » en pied de page.
+                    Le code backend reste intact (canReport, modal, submitReport, endpoint,
+                    file de modération admin) : réactivable en remettant le bloc {canReport && ...}. */}
               </View>
               <Text style={styles.meta}>
                 {isOutsider
-                  ? `${formatNumber(displayLikes)} supporters`
-                  : `${formatNumber(displayLikes)} likes \u2022 ${formatNumber(displayDislikes)} dislikes`}
+                  ? t("person.supporters", { count: formatNumber(displayLikes) })
+                  : t("person.likes_dislikes", {
+                      likes: formatNumber(displayLikes),
+                      dislikes: formatNumber(displayDislikes),
+                    })}
               </Text>
             </View>
 
@@ -907,6 +976,63 @@ export default function Person() {
                 </View>
               </View>
             )}
+
+            {/* LOT 3 — Actions secondaires (Personnalités uniquement) : signalement + demande de retrait, mailto */}
+            {!isOutsider && (
+              <View style={styles.secondaryActions}>
+                <TouchableOpacity
+                  onPress={reportProfileByEmail}
+                  style={styles.secondaryActionBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="flag-outline"
+                    size={15}
+                    color={PALETTE.subtext}
+                  />
+                  <Text style={styles.secondaryActionText}>
+                    {t("reportProfile.button")}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={requestRemovalByEmail}
+                  style={styles.secondaryActionBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={15}
+                    color={PALETTE.subtext}
+                  />
+                  <Text style={styles.secondaryActionText}>
+                    {t("removal.button")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* LOT 4 — Action secondaire (Outsiders uniquement) : signalement mailto, zéro backend.
+                S'affiche sur TOUS les Outsiders (self_boosted ET seed), contrairement à
+                l'ancien drapeau backend limité à self_boosted. Pas de « Request removal »
+                ici : le retrait d'un Outsider passe par Account → « Retirer mon Outsider ». */}
+            {isOutsider && (
+              <View style={styles.secondaryActions}>
+                <TouchableOpacity
+                  onPress={reportProfileByEmail}
+                  style={styles.secondaryActionBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="flag-outline"
+                    size={15}
+                    color={PALETTE.subtext}
+                  />
+                  <Text style={styles.secondaryActionText}>
+                    {t("reportProfile.button")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
       )}
@@ -1039,10 +1165,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   backArrow: {
-    color: PALETTE.text,
-    fontSize: 24,
+    // LOT 4 — chevron retour discret : couleur atténuée (subtext) au lieu de text.
+    color: PALETTE.subtext,
+    fontSize: 28,
     fontWeight: "300",
-    lineHeight: 28,
+    lineHeight: 30,
     marginRight: 2,
   },
   titleRow: {
@@ -1065,6 +1192,25 @@ const styles = StyleSheet.create({
     color: PALETTE.subtext,
     marginTop: 4,
     fontSize: 14,
+  },
+
+  // LOT 3 — actions secondaires discrètes (signalement / retrait), pied de page
+  secondaryActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 30,
+    gap: 6,
+  },
+  secondaryActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  secondaryActionText: {
+    color: PALETTE.subtext,
+    fontSize: 13,
+    textDecorationLine: "underline",
   },
 
   // Index Section
@@ -1288,6 +1434,66 @@ const styles = StyleSheet.create({
   },
   followBtnText: {
     color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  // Profile-unavailable screen (deep link to a removed/blocklisted profile)
+  errorCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  errorLogo: {
+    width: 84,
+    height: 84,
+    borderRadius: 20,
+    backgroundColor: PALETTE.card,
+    borderWidth: 2,
+    borderColor: PALETTE.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  errorLogoP: {
+    fontSize: 50,
+    fontWeight: "800",
+    color: PALETTE.gold,
+    lineHeight: 56,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: PALETTE.text,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: PALETTE.subtext,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  errorBtn: {
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  errorBtnPrimary: {
+    backgroundColor: PALETTE.green,
+  },
+  errorBtnSecondary: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: PALETTE.border,
+  },
+  errorBtnText: {
+    color: PALETTE.text,
     fontSize: 16,
     fontWeight: "700",
   },

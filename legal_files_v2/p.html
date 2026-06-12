@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Popularoo</title>
+<meta name="description" content="Open this profile in the Popularoo app.">
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #0F2F22;
+    --bg-soft: #143A2A;
+    --green: #009B4D;
+    --green-light: #2ECC71;
+    --gold: #FFD700;
+    --text: #F4F4F2;
+    --text-soft: #C8D5CE;
+    --rule: #1F4A36;
+    --shadow: rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  .logo {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 28px;
+    border-radius: 22px;
+    background: var(--bg-soft);
+    border: 2px solid var(--rule);
+    box-shadow: 0 10px 30px var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo span {
+    font-size: 58px;
+    font-weight: 800;
+    color: var(--gold);
+    line-height: 1;
+    transform: translateY(-2px);
+  }
+  .brand {
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 13px;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  p.sub {
+    color: var(--text-soft);
+    font-size: 16px;
+    margin-bottom: 32px;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 16px 20px;
+    border-radius: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    margin-bottom: 14px;
+    transition: transform 0.06s ease, opacity 0.2s ease;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary {
+    background: var(--green);
+    color: #fff;
+  }
+  .btn-store {
+    background: transparent;
+    color: var(--text);
+    border: 1.5px solid var(--rule);
+  }
+  .foot {
+    margin-top: 26px;
+    font-size: 13px;
+    color: var(--text-soft);
+    opacity: 0.8;
+  }
+  /* English line shown under each French label, more discreet. */
+  .en {
+    display: block;
+    font-weight: 400;
+    color: var(--text-soft);
+    opacity: 0.65;
+  }
+  h1 .en { font-size: 15px; margin-top: 5px; }
+  p.sub .en { font-size: 14px; margin-top: 3px; }
+  .btn .en { font-size: 13px; margin-top: 3px; opacity: 0.8; }
+  .btn-primary .en { color: rgba(255, 255, 255, 0.85); opacity: 1; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><span>P</span></div>
+    <div class="brand">Popularoo</div>
+
+    <!-- Shown when a valid profile id is present -->
+    <div id="profile-view" class="hidden">
+      <h1>Ouvrir ce profil<span class="en">Open this profile</span></h1>
+      <p class="sub">Voyez-le dans l'application Popularoo, ou téléchargez l'app.<span class="en">View it in the Popularoo app, or get the app from the App Store.</span></p>
+      <a id="open-app" class="btn btn-primary" href="#">Ouvrir dans Popularoo<span class="en">Open in Popularoo</span></a>
+      <a id="store-1" class="btn btn-store" href="#">Télécharger sur l'App Store<span class="en">Download on the App Store</span></a>
+    </div>
+
+    <!-- Shown when no/invalid id: just point to the App Store, no error -->
+    <div id="store-view" class="hidden">
+      <h1>Découvrir Popularoo<span class="en">Discover Popularoo</span></h1>
+      <p class="sub">Votez pour vos personnalités et outsiders préférés.<span class="en">Vote for your favourite personalities and outsiders.</span></p>
+      <a id="store-2" class="btn btn-primary" href="#">Télécharger sur l'App Store<span class="en">Download on the App Store</span></a>
+    </div>
+
+    <div class="foot">popularoo.com</div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var APP_STORE_URL = "https://apps.apple.com/app/popularoo/id6761003957";
+      var FALLBACK_MS = 1500;
+
+      // Stable identifier = MongoDB ObjectId (24 hex chars). Anything else is treated as absent.
+      function isValidObjectId(v) {
+        return typeof v === "string" && /^[a-f0-9]{24}$/i.test(v);
+      }
+
+      function getParam(name) {
+        try {
+          return new URLSearchParams(window.location.search).get(name) || "";
+        } catch (e) {
+          // Very old browsers without URLSearchParams.
+          var m = window.location.search.match(new RegExp("[?&]" + name + "=([^&]+)"));
+          return m ? decodeURIComponent(m[1]) : "";
+        }
+      }
+
+      function show(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove("hidden");
+      }
+
+      var rawId = getParam("id");
+
+      // ---- Case: no / invalid id -> plain App Store button, no error ----
+      if (!isValidObjectId(rawId)) {
+        var store2 = document.getElementById("store-2");
+        if (store2) store2.setAttribute("href", APP_STORE_URL);
+        show("store-view");
+        return;
+      }
+
+      // ---- Case: valid id -> try the app, fall back to the App Store ----
+      var deepLink = "popular://person?id=" + encodeURIComponent(rawId);
+
+      var openApp = document.getElementById("open-app");
+      var store1 = document.getElementById("store-1");
+      if (openApp) openApp.setAttribute("href", deepLink);
+      if (store1) store1.setAttribute("href", APP_STORE_URL);
+      show("profile-view");
+
+      // If the app opens, the page is backgrounded — cancel the App Store fallback
+      // so the user isn't bounced to the store on their way back.
+      var bailed = false;
+      function cancelFallback() { bailed = true; }
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) cancelFallback();
+      });
+      window.addEventListener("pagehide", cancelFallback);
+      window.addEventListener("blur", cancelFallback);
+
+      // Auto-attempt the deep link, then fall back after ~1.5s.
+      function attempt() {
+        try { window.location.href = deepLink; } catch (e) {}
+        window.setTimeout(function () {
+          if (!bailed && !document.hidden) {
+            window.location.href = APP_STORE_URL;
+          }
+        }, FALLBACK_MS);
+      }
+
+      // Manual buttons always work regardless of the auto path.
+      if (openApp) {
+        openApp.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          attempt();
+        });
+      }
+
+      attempt();
+    })();
+  </script>
+</body>
+</html>

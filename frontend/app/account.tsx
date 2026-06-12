@@ -737,10 +737,7 @@ export default function AccountScreen() {
                   <Text style={moStyles.statValue}>{myOutsider.likes ?? 0}</Text>
                   <Text style={moStyles.statLabel}>{t("account.myOutsiderLikes")}</Text>
                 </View>
-                <View style={moStyles.statBox}>
-                  <Text style={moStyles.statValue}>{myOutsider.dislikes ?? 0}</Text>
-                  <Text style={moStyles.statLabel}>{t("account.myOutsiderDislikes")}</Text>
-                </View>
+                {/* LOT 2 — Outsiders ne reçoivent pas de Dislike : compteur masqué */}
                 <View style={moStyles.statBox}>
                   <Text style={moStyles.statValue}>{myOutsider.score ?? 0}</Text>
                   <Text style={moStyles.statLabel}>{t("account.myOutsiderScore")}</Text>
