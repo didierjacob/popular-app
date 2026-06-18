@@ -1219,9 +1219,12 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     # superlikes on them. Outsiders = self_boosted OR category == "outsider".
     is_outsider = person.get("source") == "self_boosted" or person.get("category") == "outsider"
 
-    # Block dislikes on outsiders (anti-harassment protection)
-    if new_val == -1 and is_outsider:
-        raise HTTPException(status_code=403, detail="Dislikes are not available for Outsiders. You can only support them!")
+    # Downvote retiré (build Apple 1.2) : aucun vote négatif n'est plus accepté,
+    # quel que soit le profil (célébrités, nouveaux entrants, outsiders).
+    # Protège la base même si d'anciennes versions de l'app envoient encore -1.
+    # Les champs `dislikes` existants restent intacts mais ne sont plus incrémentés.
+    if new_val == -1:
+        raise HTTPException(status_code=403, detail="Downvotes are no longer supported.")
 
     # Block superlikes on non-outsiders
     if new_val == 5 and not is_outsider:

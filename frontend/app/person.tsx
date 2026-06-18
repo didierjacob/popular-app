@@ -225,18 +225,14 @@ function LiveVoteItem({
     timeStr = t("person.timeAgo_min", { count: Math.floor(elapsed / 60) });
   }
 
-  const actionColor = entry.action === "liked" ? "#2ECC71" : "#E74C3C";
+  // Downvote retiré (build Apple 1.2) : le feed n'affiche plus que des votes
+  // Popularoo (+1). Une éventuelle entrée « disliked » persistée legacy (< 24h)
+  // retombe sur le libellé positif — aucun libellé négatif n'est plus rendu.
+  const actionColor = "#2ECC71";
 
-  let actionText: string;
-  if (entry.isUser) {
-    actionText =
-      entry.action === "liked"
-        ? t("person.userLike")
-        : t("person.userDislike");
-  } else {
-    actionText =
-      entry.action === "liked" ? t("person.liked") : t("person.disliked");
-  }
+  const actionText = entry.isUser
+    ? t("person.userLike")
+    : t("person.liked");
 
   const hasCountry = !!entry.country;
   const rowStyle = entry.isUser
@@ -722,9 +718,8 @@ export default function Person() {
               <Text style={styles.meta}>
                 {isOutsider
                   ? t("person.supporters", { count: formatNumber(displayLikes) })
-                  : t("person.likes_dislikes", {
+                  : t("person.likes_only", {
                       likes: formatNumber(displayLikes),
-                      dislikes: formatNumber(displayDislikes),
                     })}
               </Text>
             </View>
@@ -758,7 +753,8 @@ export default function Person() {
               {!isOutsider && <TrendStatusBadge status={trendStatus} />}
             </View>
 
-            {/* Vote Buttons - Outsiders: Like only / Celebrities: Like + Dislike */}
+            {/* Vote Buttons — Like only (Popularoo). Downvote retiré (build Apple 1.2).
+                Outsiders : libellé « voteFor » ; Célébrités : libellé « like ». */}
             {isOutsider ? (
               <View style={[styles.voteRow, { justifyContent: "center" }]}>
                 <Animated.View
@@ -782,12 +778,11 @@ export default function Person() {
                 </Animated.View>
               </View>
             ) : (
-              <View style={styles.voteRow}>
+              <View style={[styles.voteRow, { justifyContent: "center" }]}>
                 <Animated.View
                   style={{
                     transform: [{ scale: likeScaleAnim }],
                     flex: 1,
-                    marginRight: 6,
                   }}
                 >
                   <TouchableOpacity
@@ -797,24 +792,6 @@ export default function Person() {
                   >
                     <Ionicons name="thumbs-up" size={20} color="#fff" />
                     <Text style={styles.voteBtnText}>{t("person.like")}</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-                <Animated.View
-                  style={{
-                    transform: [{ scale: dislikeScaleAnim }],
-                    flex: 1,
-                    marginLeft: 6,
-                  }}
-                >
-                  <TouchableOpacity
-                    style={[styles.voteBtn, styles.voteBtnDislike]}
-                    onPress={() => like(-1)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="thumbs-down" size={20} color="#fff" />
-                    <Text style={styles.voteBtnText}>
-                      {t("person.dislike")}
-                    </Text>
                   </TouchableOpacity>
                 </Animated.View>
               </View>
@@ -1271,9 +1248,6 @@ const styles = StyleSheet.create({
   },
   voteBtnLike: {
     backgroundColor: PALETTE.green,
-  },
-  voteBtnDislike: {
-    backgroundColor: PALETTE.accent,
   },
   voteBtnText: {
     color: "white",
