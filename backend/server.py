@@ -2562,6 +2562,50 @@ async def boost_myself(request: BoostMyselfRequest):
                 "idempotent": True,
             }
 
+        # ── Server-side IAP verification (Android only) ──
+        # Placed AFTER the idempotency short-circuit on purpose: a store re-delivery
+        # of an already-granted purchase returns above and never re-hits Google.
+        #
+        # Android only. iOS receipts are NOT verified here — App Store server-side
+        # validation is deferred to a future lot, so iOS purchases keep passing
+        # through exactly as they do today (no behaviour change for iOS).
+        #
+        # The productId is derived SERVER-SIDE from the already-validated tier, never
+        # from any client-supplied field, so the token we check is always tied to the
+        # product our own tier logic expects.
+        #
+        # Two modes, switched by the IAP_VERIFY_ENFORCE env var WITHOUT code changes:
+        #   • absent / "false"  → OBSERVATION: log the verification result (valid or
+        #                          not) but still grant the Booster.
+        #   • "true"            → STRICT: refuse with 403 if the purchase is not valid;
+        #                          no boost, no transaction, no email.
+        # Fail-safe (key missing, Google error/timeout): verify returns valid=False;
+        # strict refuses, observation lets it through. See iap_verify.verify_google_purchase.
+        if (request.platform or "").strip().lower() == "android":
+            from iap_verify import verify_google_purchase, product_id_for_tier
+
+            iap_enforce = os.getenv("IAP_VERIFY_ENFORCE", "false").strip().lower() == "true"
+            iap_product_id = product_id_for_tier(request.tier)
+            iap_result = verify_google_purchase(iap_product_id, request.receipt)
+
+            if iap_result["valid"]:
+                logger.info(
+                    f"IAP verify OK — android tier={request.tier} "
+                    f"product={iap_product_id} enforce={iap_enforce} user={request.user_id}"
+                )
+            else:
+                logger.warning(
+                    f"IAP verify FAILED — android tier={request.tier} "
+                    f"product={iap_product_id} reason={iap_result['reason']} "
+                    f"enforce={iap_enforce} user={request.user_id}"
+                )
+                if iap_enforce:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Purchase could not be verified with Google Play",
+                    )
+                # Observation mode: logged above, fall through and grant the boost.
+
         # Normalize name. Name is OPTIONAL (Apple 5.1.1(v)): an empty or too-short name
         # must NOT block the purchase. In that case we assign a provisional "Outsider"
         # display name and a slug derived from user_id, so each nameless buyer keeps a
