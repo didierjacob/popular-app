@@ -24,6 +24,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from unidecode import unidecode
+from wordlist_profanity import contains_profanity
 
 logger = logging.getLogger("candidate_detection")
 
@@ -645,6 +646,42 @@ def slugify_name(name: str) -> str:
     s = re.sub(r"[^a-z0-9\s-]", "", s)
     s = re.sub(r"[\s-]+", "-", s)
     return s.strip("-")
+
+
+async def passes_creation_filters(db, clean_name: str) -> dict:
+    """
+    Filtre auto de création (modèle UGC, SANS gate Wikipédia) — SOUMISSION.
+    100% local, aucun appel réseau : la soumission reste instantanée.
+    Enchaîne : nom → insultes → blocklist locale (name_normalized + slug).
+
+    Le contrôle mineur (Wikidata P569) et la blocklist Wikidata NE sont PAS ici :
+    ils s'exécutent à l'APPROBATION admin (Bloc 3), avant toute publication.
+    Le dédup (already_exists / already_pending) reste dans process_celebrity_request
+    (UX distincte : redirection vs message d'attente).
+
+    Returns {ok, reason, name_norm, slug}
+      - ok True  → à mettre en file
+      - ok False → rejet ; `reason` sert UNIQUEMENT aux logs (message user générique).
+    """
+    slug = slugify_name(clean_name)
+    name_norm = unidecode(clean_name).lower().strip()
+    base = {"ok": False, "name_norm": name_norm, "slug": slug}
+
+    # 1) Filtre nom (≥2 mots, pas de chiffres, pas d'acronymes) — déjà écrit
+    if not passes_name_filter(clean_name):
+        return {**base, "reason": "name_filter"}
+
+    # 2) Insultes / haine sur le nom saisi
+    if contains_profanity(name_norm):
+        return {**base, "reason": "profanity"}
+
+    # 3) Blocklist anti-fantôme locale (name_normalized primaire + slug legacy)
+    settings = await db.app_settings.find_one({"_id": "global"}) or {}
+    if (name_norm in set(settings.get("seed_blocklist_names", []))
+            or slug in set(settings.get("seed_blocklist", []))):
+        return {**base, "reason": "blocklist"}
+
+    return {**base, "ok": True, "reason": None}
 
 
 async def process_celebrity_request(db, name: str, device_id: str) -> dict:
