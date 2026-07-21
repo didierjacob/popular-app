@@ -1404,14 +1404,20 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     
     # Update person aggregates (do NOT overwrite score here — quick_recalc_index handles it)
     _now = now_utc()
+    _set_fields = {
+        "raw_score": raw_score,
+        "updated_at": _now,
+        "vote_momentum": "up" if new_val == 1 else "down",
+        "last_vote_at": _now,
+    }
+    # Chantier « cœur honnête » : un VRAI vote positif réarme l'horloge d'érosion
+    # des nouveaux entrants (branche 2). Les votes négatifs sont désactivés (403),
+    # donc en pratique new_val == 1 ici — la garde reste explicite.
+    if new_val == 1:
+        _set_fields["last_real_vote_at"] = _now
     await db.persons.update_one(
         {"_id": oid},
-        {"$inc": inc_doc, "$set": {
-            "raw_score": raw_score,
-            "updated_at": _now,
-            "vote_momentum": "up" if new_val == 1 else "down",
-            "last_vote_at": _now,
-        }}
+        {"$inc": inc_doc, "$set": _set_fields}
     )
     
     # Write vote event
@@ -3975,6 +3981,13 @@ class AppSettings(BaseModel):
     booster_votes: int = 100
     super_booster_votes: int = 1000
     maintenance_mode: bool = False
+    # Chantier « cœur honnête » :
+    # - show_vote_counts=False (défaut lancement) → le frontend masque les
+    #   compteurs de soutien/votes des célébrités et nouveaux entrants.
+    # - erosion_* : réglages de l'érosion par inactivité (branche 2).
+    show_vote_counts: bool = False
+    erosion_grace_days: float = 14.0
+    erosion_per_week: float = 0.5
 
 
 @api_router.get("/admin/settings")
@@ -3994,11 +4007,14 @@ async def admin_get_settings(request: Request):
                 "booster_votes": 100,
                 "super_booster_votes": 1000,
                 "maintenance_mode": False,
+                "show_vote_counts": False,
+                "erosion_grace_days": 14.0,
+                "erosion_per_week": 0.5,
                 "updated_at": now_utc(),
             }
             await db.app_settings.insert_one(default_settings)
             settings = default_settings
-        
+
         return {
             "allow_user_additions": settings.get("allow_user_additions", True),
             "booster_price": settings.get("booster_price", 0.99),
@@ -4006,6 +4022,9 @@ async def admin_get_settings(request: Request):
             "booster_votes": settings.get("booster_votes", 100),
             "super_booster_votes": settings.get("super_booster_votes", 1000),
             "maintenance_mode": settings.get("maintenance_mode", False),
+            "show_vote_counts": settings.get("show_vote_counts", False),
+            "erosion_grace_days": settings.get("erosion_grace_days", 14.0),
+            "erosion_per_week": settings.get("erosion_per_week", 0.5),
         }
         
     except Exception as e:
@@ -4028,6 +4047,9 @@ async def admin_update_settings(request: Request, settings: AppSettings):
                     "booster_votes": settings.booster_votes,
                     "super_booster_votes": settings.super_booster_votes,
                     "maintenance_mode": settings.maintenance_mode,
+                    "show_vote_counts": settings.show_vote_counts,
+                    "erosion_grace_days": settings.erosion_grace_days,
+                    "erosion_per_week": settings.erosion_per_week,
                     "updated_at": now_utc(),
                 }
             },
@@ -4043,6 +4065,84 @@ async def admin_update_settings(request: Request, settings: AppSettings):
     except Exception as e:
         logger.error(f"Admin update settings error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/public-config")
+async def get_public_config():
+    """
+    Config publique lue par le client (aucune auth).
+    Chantier « cœur honnête » : `show_vote_counts` pilote l'affichage des
+    compteurs de soutien/votes des célébrités et nouveaux entrants. Défaut False
+    au lancement → si le doc n'existe pas ou la lecture échoue, on masque
+    (fail-safe : jamais de faux compteurs révélés par accident).
+    """
+    try:
+        settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        return {"show_vote_counts": bool(settings.get("show_vote_counts", False))}
+    except Exception as e:
+        logger.warning(f"public-config failed: {e}")
+        return {"show_vote_counts": False}
+
+
+@api_router.post("/admin/migrate-user-search-honest-votes")
+async def admin_migrate_user_search_honest_votes(request: Request):
+    """
+    Chantier « cœur honnête » — retrait ONE-SHOT des faux votes de seeding sur
+    les nouveaux entrants EXISTANTS (source user_search / user_search_confirmed).
+
+        likes       = max(0, likes    - seed_votes_likes)
+        dislikes    = max(0, dislikes - seed_votes_dislikes)
+        seed_votes  = 0
+        total_votes = new_likes + new_dislikes + superlikes
+
+    Les VRAIS votes encaissés depuis la création sont conservés (on ne retire que
+    la part seed). Amorce aussi `last_real_vote_at` (= created_at) si absent, pour
+    que l'horloge d'érosion démarre proprement sur les profils legacy.
+
+    Idempotent : un profil déjà à seed_votes=0 est ignoré (relançable sans effet).
+    À déclencher MANUELLEMENT (jamais au démarrage). Célébrités (source=seed) et
+    Outsiders : NON touchés — hors périmètre.
+    """
+    _require_admin_auth(request)
+    cursor = db.persons.find({"source": {"$in": ["user_search", "user_search_confirmed"]}})
+    updated = 0
+    skipped = 0
+    details = []
+    async for p in cursor:
+        seed_l = int(p.get("seed_votes_likes", 0) or 0)
+        seed_d = int(p.get("seed_votes_dislikes", 0) or 0)
+        if seed_l == 0 and seed_d == 0:
+            skipped += 1
+            continue  # déjà propre
+
+        likes = int(p.get("likes", 0) or 0)
+        dislikes = int(p.get("dislikes", 0) or 0)
+        superlikes = int(p.get("superlikes", 0) or 0)
+        new_likes = max(0, likes - seed_l)
+        new_dislikes = max(0, dislikes - seed_d)
+        new_total = new_likes + new_dislikes + superlikes
+
+        set_fields = {
+            "likes": new_likes,
+            "dislikes": new_dislikes,
+            "total_votes": new_total,
+            "seed_votes_likes": 0,
+            "seed_votes_dislikes": 0,
+        }
+        if not p.get("last_real_vote_at"):
+            set_fields["last_real_vote_at"] = p.get("created_at") or now_utc()
+
+        await db.persons.update_one({"_id": p["_id"]}, {"$set": set_fields})
+        updated += 1
+        if len(details) < 200:
+            details.append({
+                "name": p.get("name", "?"),
+                "likes": f"{likes}→{new_likes}",
+                "dislikes": f"{dislikes}→{new_dislikes}",
+            })
+
+    logger.info(f"🧹 [CœurHonnête] user_search seed votes purged: {updated} updated, {skipped} already clean")
+    return {"success": True, "updated": updated, "skipped": skipped, "details": details}
 
 
 # -------------------- Google Trends Integration --------------------

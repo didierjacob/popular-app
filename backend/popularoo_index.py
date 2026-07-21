@@ -17,7 +17,7 @@ Circularity resolution:
 
 import math
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
 
@@ -33,9 +33,30 @@ _alpha_cache: Optional[float] = None
 _alpha_last_loaded: Optional[datetime] = None
 ALPHA_CACHE_TTL_SECONDS = 60  # 1 minute (changes rarely, fast refresh)
 
+# ---- Erosion cache (chantier « cœur honnête ») ----
+_erosion_cache: Optional[Tuple[float, float]] = None
+_erosion_last_loaded: Optional[datetime] = None
+EROSION_CACHE_TTL_SECONDS = 60  # réglable sans redeploy via app_settings
+
+# Défauts d'érosion par inactivité (nouveaux entrants, branche 2)
+EROSION_GRACE_DAYS_DEFAULT = 14.0     # jours sans vrai vote avant érosion
+EROSION_PER_WEEK_DEFAULT = 0.5        # points de PI perdus par semaine d'inactivité
+
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
+
+
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Coerce a datetime to naive UTC so it can be subtracted from _utcnow().
+    Documents may store tz-aware datetimes (candidate_detection uses
+    datetime.now(timezone.utc)) while _utcnow() is naive — mixing them raises.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 # ==================== CONFIG ====================
@@ -120,6 +141,37 @@ async def get_alpha(db) -> float:
     return _alpha_cache
 
 
+async def get_erosion_config(db) -> Tuple[float, float]:
+    """
+    Chantier « cœur honnête » : réglages d'érosion par inactivité des nouveaux
+    entrants (branche 2), externalisés dans app_settings.global pour ajustement
+    sans redeploy.
+      - erosion_grace_days : jours sans vrai vote avant que l'érosion démarre.
+      - erosion_per_week   : points de PI perdus par semaine d'inactivité.
+    Retourne (grace_days, erosion_per_week). Cache 60 s.
+    """
+    global _erosion_cache, _erosion_last_loaded
+
+    now = _utcnow()
+    if _erosion_cache is not None and _erosion_last_loaded:
+        if (now - _erosion_last_loaded).total_seconds() < EROSION_CACHE_TTL_SECONDS:
+            return _erosion_cache
+
+    grace = EROSION_GRACE_DAYS_DEFAULT
+    per_week = EROSION_PER_WEEK_DEFAULT
+    try:
+        settings = await db.app_settings.find_one({"_id": "global"})
+        if settings:
+            grace = float(settings.get("erosion_grace_days", EROSION_GRACE_DAYS_DEFAULT))
+            per_week = float(settings.get("erosion_per_week", EROSION_PER_WEEK_DEFAULT))
+    except Exception as e:
+        logger.warning(f"Failed to load erosion config: {e}, using defaults")
+
+    _erosion_cache = (grace, per_week)
+    _erosion_last_loaded = now
+    return _erosion_cache
+
+
 def compute_blended_index(
     alpha: float,
     external_score: Optional[float],
@@ -153,34 +205,52 @@ def compute_score_votes_users(person: Dict) -> float:
     return ((likes - dislikes) / total) * 100
 
 
-def compute_user_search_index(person: Dict) -> float:
+def compute_user_search_index(
+    person: Dict,
+    now: Optional[datetime] = None,
+    grace_days: float = EROSION_GRACE_DAYS_DEFAULT,
+    erosion_per_week: float = EROSION_PER_WEEK_DEFAULT,
+) -> float:
     """
     Vague 4 — Branche 2 : évolution post-création des profils user_search.
 
     Le PI part de `initial_pi` (champ figé à la création, sous-tâche 6) et
     est "nudgé" par les VRAIS votes — c.-à-d. les votes encaissés au-delà des
-    ~40 votes simulés au seeding (seed_votes_likes / seed_votes_dislikes).
+    votes simulés au seeding (seed_votes_likes / seed_votes_dislikes ; désormais
+    0 depuis le chantier « cœur honnête », mais toujours soustraits pour les
+    profils legacy).
 
         real_likes    = max(0, likes    - seed_votes_likes)
         real_dislikes = max(0, dislikes - seed_votes_dislikes)
         real_net      = real_likes - real_dislikes
         nudge         = (real_net / 100.0) * 5.0   # 100 votes nets réels → +5 PI
-        pi            = clamp(initial_pi + nudge, 25.0, 50.0)
+        pi            = clamp(initial_pi + nudge - erosion, 25.0, 50.0)
+
+    Érosion par inactivité (chantier « cœur honnête ») :
+        Après `grace_days` sans VRAI vote positif, le PI s'érode de
+        `erosion_per_week` points par semaine, vers le plancher dur 25 :
+
+            jours_inactif = (now - last_real_vote_at) en jours
+            erosion       = max(0, jours_inactif - grace_days) * (erosion_per_week / 7)
+
+        Aucun vote négatif n'est requis : la seule inactivité fait redescendre.
+        L'érosion n'est appliquée QUE si `now` est fourni (les appels historiques
+        `compute_user_search_index(person)` restent sans érosion — rétro-compat
+        des tests). `last_real_vote_at` absent → fallback `created_at` ; les deux
+        absents → pas d'érosion (nudge seul).
 
     Garde-fous :
       - initial_pi absent (profils legacy pré-migration sous-tâche 9) → fallback 25.0
       - seed_votes_* absents (profils anciens / auto_detection) → 0, donc tous
         les votes comptent comme réels (comportement par défaut acceptable)
-      - aucun vote réel → pi = initial_pi (nudge nul)
+      - aucun vote réel → pi = initial_pi (nudge nul), puis érosion éventuelle
 
     Plafond DUR 50 / plancher DUR 25 : un profil Vague 4 ne peut JAMAIS
-    dépasser 50 ni descendre sous 25, peu importe les votes. Le franchissement
-    de 50 nécessitera une intervention admin manuelle (Lot 4 — "diplôme en seed").
+    dépasser 50 ni descendre sous 25, peu importe les votes ou l'érosion. Le
+    franchissement de 50 nécessite une intervention admin manuelle (Lot 4).
 
-    Sur le coefficient (100.0 / 5.0) : retenu tel quel après tests locaux.
-    Il faut ~200 votes nets réels pour gagner +10 PI, soit plusieurs centaines
-    de votes nets pour franchir un initial_pi de 38 → 50. Progression lente et
-    méritocratique, conforme à l'intention.
+    Isolation : cette branche ne lit ni α ni external_score et ne touche jamais
+    la branche 3 des célébrités. L'érosion vit exclusivement ici.
     """
     initial_pi = person.get("initial_pi")
     if initial_pi is None:
@@ -193,6 +263,15 @@ def compute_user_search_index(person: Dict) -> float:
 
     nudge = (real_net / 100.0) * 5.0
     pi = initial_pi + nudge
+
+    # ── Érosion par inactivité (branche 2 uniquement) ──
+    if now is not None:
+        last_vote = _to_naive_utc(person.get("last_real_vote_at") or person.get("created_at"))
+        ref_now = _to_naive_utc(now)
+        if last_vote is not None and ref_now is not None:
+            days_inactive = (ref_now - last_vote).total_seconds() / 86400.0
+            erosion = max(0.0, days_inactive - grace_days) * (erosion_per_week / 7.0)
+            pi = pi - erosion
 
     # Plafond / plancher durs Vague 4
     pi = min(50.0, max(25.0, pi))
@@ -500,7 +579,10 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
     # Plafond dur 50 / plancher dur 25. Les Outsiders (category=outsider) sont
     # déjà interceptés par la Branche 1 ci-dessus — garde défensive ici malgré tout.
     if source in ("user_search", "user_search_confirmed") and person.get("category") != "outsider":
-        index_val = compute_user_search_index(person)
+        grace_days, erosion_per_week = await get_erosion_config(db)
+        index_val = compute_user_search_index(
+            person, now=now, grace_days=grace_days, erosion_per_week=erosion_per_week
+        )
 
         await db.persons.update_one(
             {"_id": person_id},
@@ -573,7 +655,10 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
     # ── Branch 2: Profils user_search (évolution post-création Vague 4) ──
     # Garde défensive category != outsider (déjà couvert par la Branche 1).
     if source in ("user_search", "user_search_confirmed") and person.get("category") != "outsider":
-        index_val = compute_user_search_index(person)
+        grace_days, erosion_per_week = await get_erosion_config(db)
+        index_val = compute_user_search_index(
+            person, now=_utcnow(), grace_days=grace_days, erosion_per_week=erosion_per_week
+        )
 
         await db.persons.update_one(
             {"_id": person["_id"]},

@@ -30,6 +30,7 @@ import RankDeltaBadge from "../components/RankDeltaBadge";
 import FlashOverlay from "../components/FlashOverlay";
 import { fetchSWR } from "../services/cacheService";
 import { useRankFlash } from "../hooks/useRankFlash";
+import { useShowVoteCounts } from "../hooks/useShowVoteCounts";
 import { cacheKeyPeopleHome, cacheKeyOutsiders } from "./splash";
 
 // Enable LayoutAnimation on Android
@@ -266,6 +267,7 @@ function TimeRemainingBadge({ hours }: { hours: number }) {
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
+  const showVoteCounts = useShowVoteCounts();
   const [people, setPeople] = useState<Person[]>([]);
   const [displayedPeople, setDisplayedPeople] = useState<Person[]>([]);
   const [personOfTheDay, setPersonOfTheDay] = useState<Person | null>(null);
@@ -651,7 +653,7 @@ export default function HomeScreen() {
               <View style={styles.potdInfo}>
                 <Text style={styles.potdName}>{personOfTheDay.name}</Text>
                 <Text style={styles.potdMeta}>
-                  {t(`categories.${personOfTheDay.category}`) || capitalize(personOfTheDay.category)} • {formatNumber(personOfTheDay.total_votes)} votes
+                  {t(`categories.${personOfTheDay.category}`) || capitalize(personOfTheDay.category)}{showVoteCounts ? ` • ${formatNumber(personOfTheDay.total_votes)} votes` : ""}
                 </Text>
                 <Text style={styles.potdIndex}>
                   Popularoo Index: {personOfTheDay.popularoo_index || Math.round(personOfTheDay.score)}
@@ -728,7 +730,7 @@ export default function HomeScreen() {
                   <View style={styles.personInfo}>
                     <Text style={styles.personName}>{person.name}</Text>
                     <Text style={styles.personMeta}>
-                      {t(`categories.${person.category}`) || capitalize(person.category)} • {formatNumber(person.total_votes)} {person.total_votes <= 1 ? t("common.vote") : t("common.votes")}
+                      {t(`categories.${person.category}`) || capitalize(person.category)}{showVoteCounts ? ` • ${formatNumber(person.total_votes)} ${person.total_votes <= 1 ? t("common.vote") : t("common.votes")}` : ""}
                     </Text>
                   </View>
                   <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>

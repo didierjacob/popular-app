@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, Touchabl
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
+import { useShowVoteCounts } from "../../hooks/useShowVoteCounts";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -39,6 +40,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function CategoryList() {
   const router = useRouter();
   const { t } = useTranslation();
+  const showVoteCounts = useShowVoteCounts();
   const params = useLocalSearchParams<{ key: string }>();
   const catKey = (params.key as string) || "all";
   const [items, setItems] = useState<Person[]>([]);
@@ -79,7 +81,7 @@ export default function CategoryList() {
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.meta}>
-          {capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+          {capitalize(item.category || 'other')}{showVoteCounts ? ` • ${formatNumber(item.total_votes)} ${item.total_votes <= 1 ? 'vote' : 'votes'}` : ""}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={PALETTE.subtext} />

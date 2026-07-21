@@ -8,6 +8,7 @@ import { fetchSWR } from "../services/cacheService";
 import RankDeltaBadge from "../components/RankDeltaBadge";
 import FlashOverlay from "../components/FlashOverlay";
 import { useRankFlash } from "../hooks/useRankFlash";
+import { useShowVoteCounts } from "../hooks/useShowVoteCounts";
 
 // Enable LayoutAnimation on Android (no-op on iOS).
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -63,6 +64,7 @@ const CATEGORIES = [
 export default function List() {
   const router = useRouter();
   const { t } = useTranslation();
+  const showVoteCounts = useShowVoteCounts();
   const params = useLocalSearchParams<{ category?: string }>();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +163,7 @@ export default function List() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-            {t(`categories.${item.category}`) || capitalize(item.category || 'other')} • {formatNumber(item.total_votes)} {item.total_votes <= 1 ? 'vote' : 'votes'}
+            {t(`categories.${item.category}`) || capitalize(item.category || 'other')}{showVoteCounts ? ` • ${formatNumber(item.total_votes)} ${item.total_votes <= 1 ? 'vote' : 'votes'}` : ""}
           </Text>
         </View>
         <View style={styles.deltaContainer}>

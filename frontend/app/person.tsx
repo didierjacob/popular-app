@@ -27,6 +27,7 @@ import ConfettiCannon from "react-native-confetti-cannon";
 import { fetchWithCache, CacheService } from "../services/cacheService";
 import { CreditsService } from "../services/creditsService";
 import { useTranslation } from "react-i18next";
+import { useShowVoteCounts } from "../hooks/useShowVoteCounts";
 import { getTrendStatus, type TrendStatus } from "../utils/trendUtils";
 
 const PALETTE = {
@@ -281,6 +282,7 @@ function LiveVoteItem({
 export default function Person() {
   const router = useRouter();
   const { t } = useTranslation();
+  const showVoteCounts = useShowVoteCounts();
   const params = useLocalSearchParams<{ id: string; name?: string }>();
   const id = params.id as string;
   const [name, setName] = useState(params.name || "");
@@ -605,10 +607,12 @@ export default function Person() {
   // https://popularoo.com/p.html?id=<ObjectId> opens the app on this profile,
   // and falls back to the App Store if the app isn't installed.
   const profileLink = `https://popularoo.com/p.html?id=${id}`;
+  // Chantier « cœur honnête » : le texte partagé ne révèle AUCUN compteur de
+  // votes. Les 6 chaînes person.shareMessage n'utilisent que {{name}} et
+  // {{link}} — on retire donc les paramètres `votes`/`score` (morts) pour que
+  // l'intention soit explicite et qu'aucun compteur ne puisse fuiter par le partage.
   const shareMessage = t("person.shareMessage", {
     name,
-    score: Math.round(person?.popularoo_index || person?.score || 0),
-    votes: formatNumber(displayTotalVotes),
     link: profileLink,
   });
 
@@ -715,13 +719,18 @@ export default function Person() {
                     Le code backend reste intact (canReport, modal, submitReport, endpoint,
                     file de modération admin) : réactivable en remettant le bloc {canReport && ...}. */}
               </View>
-              <Text style={styles.meta}>
-                {isOutsider
-                  ? t("person.supporters", { count: formatNumber(displayLikes) })
-                  : t("person.likes_only", {
-                      likes: formatNumber(displayLikes),
-                    })}
-              </Text>
+              {/* Chantier « cœur honnête » : compteur de soutien masqué pour les
+                  personnalités (célébrités + nouveaux entrants) tant que
+                  show_vote_counts est false. Les Outsiders gardent l'affichage. */}
+              {(isOutsider || showVoteCounts) && (
+                <Text style={styles.meta}>
+                  {isOutsider
+                    ? t("person.supporters", { count: formatNumber(displayLikes) })
+                    : t("person.likes_only", {
+                        likes: formatNumber(displayLikes),
+                      })}
+                </Text>
+              )}
             </View>
 
             {/* Large Popularoo Index */}
@@ -745,11 +754,15 @@ export default function Person() {
                   {Math.round(person?.popularoo_index || person?.score || 0)}
                 </Text>
               </Animated.View>
-              <Text style={styles.indexVotes}>
-                {t("person.totalVotes", {
-                  count: formatNumber(displayTotalVotes),
-                })}
-              </Text>
+              {/* Chantier « cœur honnête » : compteur de votes sous l'indice masqué
+                  pour les personnalités quand show_vote_counts est false. Outsiders inchangés. */}
+              {(isOutsider || showVoteCounts) && (
+                <Text style={styles.indexVotes}>
+                  {t("person.totalVotes", {
+                    count: formatNumber(displayTotalVotes),
+                  })}
+                </Text>
+              )}
               {!isOutsider && <TrendStatusBadge status={trendStatus} />}
             </View>
 

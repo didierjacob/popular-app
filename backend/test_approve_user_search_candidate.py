@@ -8,13 +8,14 @@ and injects a fake validate_fn so no Wikipedia/Wikidata call is made.
 Run with:
     python3 test_approve_user_search_candidate.py
 
-Covers the 6 expected cases:
-  1. Valid user_search (Vincent Cassel, ext=87)  → created, PI ~38, 40 votes, contrib
+Covers the 6 expected cases (chantier « cœur honnête » : plus aucun faux vote) :
+  1. Valid user_search (Vincent Cassel, ext=87)  → created, PI ~38, 0 faux vote
+     (+1 implicite), last_real_vote_at armé, contrib
   2. Valid user_search (Charlotte Cardin, ext=20) → created, PI = 28.0
   3. Invalid user_search (low_confidence)         → rejected, no person created
-  4. Valid user_search, pending_vote_value = 0    → created, no implicit +1 like
+  4. Valid user_search, pending_vote_value = 0    → created, 0 vote, no implicit +1
   5. Slug already in persons                      → duplicate, no person created
-  6. Randomisation: 3 runs of the same profile    → seed_votes_likes varies in 26..30
+  6. 3 runs of the same profile                   → seed_votes_likes toujours 0
 """
 import asyncio
 from datetime import datetime, timezone, timedelta
@@ -72,11 +73,13 @@ class FakeCollection:
 
 class FakeDB:
     def __init__(self, persons=None, candidate_queue=None,
-                 person_ticks=None, user_settings=None):
+                 person_ticks=None, user_settings=None, app_settings=None):
         self.persons = FakeCollection(persons)
         self.candidate_queue = FakeCollection(candidate_queue)
         self.person_ticks = FakeCollection(person_ticks)
         self.user_settings = FakeCollection(user_settings)
+        # Anti-fantôme blocklist lookup (candidate_detection step 2b). Empty by default.
+        self.app_settings = FakeCollection(app_settings)
 
 
 # ─────────────────────── Fake validate_single_name ────────────────────────
@@ -157,15 +160,19 @@ async def main():
         and abs(person["initial_pi"] - 38.05) < 0.001
         and person["popularity_external_score"] == 87.0
         and person["wikidata_id"] == "Q12345"
-        and 27 <= person["likes"] <= 31          # 26..30 + implicit +1
-        and 10 <= person["dislikes"] <= 14
+        and person["likes"] == 1                 # 0 faux + implicit +1 (Q3)
+        and person["dislikes"] == 0
+        and person["seed_votes_likes"] == 0      # cœur honnête : aucun faux vote
+        and person["seed_votes_dislikes"] == 0
         and person["likes"] == person["seed_votes_likes"] + 1   # implicit like applied
         and person["dislikes"] == person["seed_votes_dislikes"]
         and person["total_votes"] == person["likes"] + person["dislikes"]
-        and 37 <= person["total_votes"] <= 45
+        and person["total_votes"] == 1
         and person["superlikes"] == 0
         and person["active_strikes"] == 0
         and person["created_by_device_id"] == "device-vc"
+        # horloge d'érosion armée à la création
+        and person["last_real_vote_at"] == person["created_at"]
         # initial tick
         and tick is not None and abs(tick["score"] - 38.05) < 0.001
         and tick["person_id"] == person["_id"]
@@ -179,7 +186,7 @@ async def main():
         and abs(cand["initial_pi"] - 38.05) < 0.001
         and cand["validation_confidence"] == 82
     )
-    results.append(_check("Case 1 — valid (Vincent Cassel, ext=87) → PI 38.05, ~40 votes, contrib",
+    results.append(_check("Case 1 — valid (Vincent Cassel, ext=87) → PI 38.05, 0 faux vote (+1), contrib",
                           ok, f"PI={out.get('initial_pi')} likes={person['likes'] if person else None} "
                               f"dislikes={person['dislikes'] if person else None} "
                               f"total={person['total_votes'] if person else None}"))
@@ -231,10 +238,11 @@ async def main():
         and person is not None
         and person["likes"] == person["seed_votes_likes"]        # no +1
         and person["dislikes"] == person["seed_votes_dislikes"]
-        and 26 <= person["likes"] <= 30
-        and person["total_votes"] == person["likes"] + person["dislikes"]
+        and person["likes"] == 0                                 # cœur honnête : 0 vote
+        and person["dislikes"] == 0
+        and person["total_votes"] == 0
     )
-    results.append(_check("Case 4 — pending_vote_value=0 → created without implicit +1 like",
+    results.append(_check("Case 4 — pending_vote_value=0 → created without implicit +1 like (0 vote)",
                           ok, f"likes={person['likes'] if person else None} "
                               f"seed_likes={person['seed_votes_likes'] if person else None}"))
 
@@ -255,7 +263,7 @@ async def main():
     results.append(_check("Case 5 — slug already in persons → duplicate, no person created",
                           ok, f"status={out.get('status')} persons={len(db.persons.docs)}"))
 
-    # ── Case 6: randomisation — 3 runs of same profile, seed_votes_likes varies ──
+    # ── Case 6: 3 runs of same profile → seed_votes_likes toujours 0 (cœur honnête) ──
     seed_likes_seen = []
     for i in range(3):
         db = FakeDB()
@@ -264,14 +272,10 @@ async def main():
         validate_fn = make_validate_fn({"Repeat Profil": valid_result(ext=60.0)})
         await approve_user_search_candidate(db, cand, validate_fn=validate_fn)
         seed_likes_seen.append(db.persons.docs[-1]["seed_votes_likes"])
-    lo, hi = USER_SEARCH_LIKES_RANGE
-    ok = all(lo <= v <= hi for v in seed_likes_seen)
-    # not a hard requirement that all 3 differ, but values must stay in range;
-    # flag if they're suspiciously all identical
-    detail = f"seed_votes_likes over 3 runs = {seed_likes_seen} (expected each in {lo}..{hi})"
-    if len(set(seed_likes_seen)) == 1:
-        detail += "  [note: all identical — re-run to confirm randomisation]"
-    results.append(_check("Case 6 — randomisation: 3 runs → seed_votes_likes in 26..30", ok, detail))
+    lo, hi = USER_SEARCH_LIKES_RANGE   # (0, 0) désormais
+    ok = all(v == 0 for v in seed_likes_seen) and (lo, hi) == (0, 0)
+    detail = f"seed_votes_likes over 3 runs = {seed_likes_seen} (expected all 0)"
+    results.append(_check("Case 6 — cœur honnête : 3 runs → seed_votes_likes toujours 0", ok, detail))
 
     print()
     passed = sum(results)

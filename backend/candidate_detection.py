@@ -731,10 +731,13 @@ USER_SEARCH_PI_MIN = 25.0
 USER_SEARCH_PI_MAX = 40.0
 USER_SEARCH_PI_SLOPE = 0.15
 
-# Q4 — 40 simulated votes, lightly randomised so two creations don't look
-# identical: 26-30 likes + 10-14 dislikes (before the implicit like of Q3).
-USER_SEARCH_LIKES_RANGE = (26, 30)
-USER_SEARCH_DISLIKES_RANGE = (10, 14)
+# Q4 — chantier « cœur honnête » (2026-07) : PLUS AUCUN vote simulé.
+# Un nouvel entrant démarre à 0 vote réel ; seul le +1 implicite (Q3) peut
+# s'ajouter si la recherche valait un vote. Les compteurs affichés reflètent
+# désormais la seule réalité. `initial_pi` (25-40) reste la valeur de départ de
+# l'indice — inchangée par ce retrait, car la branche 2 nette déjà les seeds.
+USER_SEARCH_LIKES_RANGE = (0, 0)
+USER_SEARCH_DISLIKES_RANGE = (0, 0)
 
 
 async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -> dict:
@@ -754,7 +757,7 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
          etc.) → candidate_queue status 'duplicate', NO person is created.
       4. Otherwise the person is created with the deferred-V4 formulas:
          - initial PI         : Q1 clamp(25..40, 25 + ext_score*0.15)
-         - 40 simulated votes : Q4 26-30 likes / 10-14 dislikes (randomised)
+         - simulated votes    : chantier « cœur honnête » → 0 (aucun faux vote)
          - implicit like      : Q3 +1 like if candidate.pending_vote_value == 1
          and the contributor (requested_by_device_id) is credited.
 
@@ -834,7 +837,9 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         min(USER_SEARCH_PI_MAX, USER_SEARCH_PI_MIN + ext_score * USER_SEARCH_PI_SLOPE),
     )
 
-    # ── Step 4: 40 simulated votes, lightly randomised (Q4) ──
+    # ── Step 4: aucun vote simulé (chantier « cœur honnête », Q4 révisé) ──
+    # Ranges à (0, 0) → likes_sim = dislikes_sim = 0. On garde randint pour ne
+    # pas casser la forme du code si les ranges venaient à être rouverts.
     likes_sim = random.randint(*USER_SEARCH_LIKES_RANGE)
     dislikes_sim = random.randint(*USER_SEARCH_DISLIKES_RANGE)
 
@@ -877,6 +882,9 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         "created_at": now,
         "last_updated": now,
         "last_external_update": now,
+        # Horloge d'érosion par inactivité (branche 2) : armée à la création.
+        # Réarmée à chaque VRAI vote positif (server.vote_person, new_val == 1).
+        "last_real_vote_at": now,
         "created_by_device_id": candidate.get("requested_by_device_id"),
         # User-submitted profile + implicit +1 like (Q3) ⇒ surface an up arrow at creation.
         "vote_momentum": "up",
