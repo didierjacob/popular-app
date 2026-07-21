@@ -386,9 +386,10 @@ async def run_process_user_submissions_job(db):
     Vague 4, sous-tâche 7 — Dépile les soumissions user_search arrivées à échéance.
 
     Toutes les 30 minutes : récupère les entrées candidate_queue avec
-    source="user_search", status="pending" et process_after <= now (l'échéance
-    de 24h est atteinte), triées FIFO (requested_at ascendant — les plus
-    anciennes d'abord), limitées à 100 par run (défensif).
+    source="user_search", status="pending", moderation_status="approved" (Bloc 2 :
+    plus jamais un unreviewed en auto) et process_after <= now (l'échéance de 24h
+    est atteinte), triées FIFO (requested_at ascendant — les plus anciennes
+    d'abord), limitées à 100 par run (défensif).
 
     Chaque soumission éligible est passée à approve_user_search_candidate
     (sous-tâche 6) qui gère validation / rejet / duplicate / création.
@@ -409,6 +410,8 @@ async def run_process_user_submissions_job(db):
             db.candidate_queue.find({
                 "source": "user_search",
                 "status": "pending",
+                "moderation_status": "approved",   # ← Bloc 2 : COUPURE auto-publication.
+                                                   # Un doc unreviewed n'est JAMAIS dépilé.
                 "process_after": {"$lte": now},
             })
             .sort("requested_at", 1)

@@ -684,22 +684,28 @@ async def passes_creation_filters(db, clean_name: str) -> dict:
     return {**base, "ok": True, "reason": None}
 
 
-async def process_celebrity_request(db, name: str, device_id: str) -> dict:
+async def process_celebrity_request(
+    db, name: str, device_id: str,
+    social_links: dict = None,
+    social_links_format_ok: dict = None,
+) -> dict:
     """
-    Vague 4, sous-tâche 5 — Core logic for POST /api/submit-celebrity-request.
+    Bloc 2 — Cœur de POST /api/submit-celebrity-request (création UGC).
 
-    Normalizes the submitted name, runs the 4 dedup/blocklist checks, and (if
-    none match) enqueues a 'user_search' entry in candidate_queue. The heavy
-    validation (Wikipedia, Wikidata, scoring) is NOT done here — it runs later
-    in process_user_submissions_job via validate_single_name. The enqueue must
-    stay fast (< 200ms), so this only touches the local DB.
+    Ordre runtime : already_exists → already_pending → nom → insultes → blocklist
+    → enqueue. Les filtres nom/insultes/blocklist passent par passes_creation_filters
+    (Bloc 1). Un rejet renvoie {status:"rejected", reason} — `reason` sert
+    UNIQUEMENT aux logs ; l'endpoint renvoie un message générique.
+
+    Le doc entre en candidate_queue avec moderation_status="unreviewed" : JAMAIS
+    publié sans approbation admin. Aucune validation réseau ici (enqueue < 200 ms).
 
     Returns a dict with a 'status' key:
       - already_exists   + person_id      → slug already in persons
       - already_pending  + process_after  → same slug already queued (user_search)
-      - rejected                          → slug in seed_blocklist (caller masks
-                                            this as 'queued' to the user)
-      - queued           + process_after  → new entry inserted in candidate_queue
+      - rejected         + reason         → filtre auto (name_filter/profanity/blocklist),
+                                            `reason` = logs uniquement, message user générique
+      - queued           + process_after  → new entry inserted (moderation unreviewed)
 
     Raises ValueError on empty name / device_id (caller maps to HTTP 400).
     """
@@ -733,13 +739,17 @@ async def process_celebrity_request(db, name: str, device_id: str) -> dict:
             "process_after": original.isoformat() if hasattr(original, "isoformat") else original,
         }
 
-    # ── Check 3: blocklist — silent rejection (caller still shows the 24h wait) ──
-    settings = await db.app_settings.find_one({"_id": "global"}) or {}
-    blocked_slugs = set(settings.get("seed_blocklist", []))
-    if slug in blocked_slugs:
-        return {"status": "rejected"}
+    # ── Check 3: filtre auto (nom → insultes → blocklist) — Bloc 1 câblé ──
+    filt = await passes_creation_filters(db, clean_name)
+    if not filt["ok"]:
+        # `reason` UNIQUEMENT pour les logs ; message user générique côté endpoint.
+        logger.info(
+            f"🚫 [UserCreate] Rejet '{clean_name}' "
+            f"(device={clean_device_id[:8]}…) reason={filt['reason']}"
+        )
+        return {"status": "rejected", "reason": filt["reason"]}
 
-    # ── Enqueue: no synchronous validation, just the normalized name ──
+    # ── Enqueue: doc en modération (unreviewed), pas de publication auto ──
     process_after = now + USER_SUBMISSION_PROCESS_DELAY
     candidate_doc = {
         # Préliminaires habituels
@@ -753,9 +763,16 @@ async def process_celebrity_request(db, name: str, device_id: str) -> dict:
         "process_after": process_after,
         "pending_vote_value": USER_SUBMISSION_PENDING_VOTE_VALUE,
         "status": "pending",
+        # ── Bloc 2 : modération admin AVANT publication ──
+        "moderation_status": "unreviewed",
+        "social_links": social_links or {},
+        "social_links_format_ok": social_links_format_ok or {},
     }
     await db.candidate_queue.insert_one(candidate_doc)
-    logger.info(f"📥 [UserRequest] Enqueued '{clean_name}' (device={clean_device_id[:8]}…), process_after={process_after.isoformat()}")
+    logger.info(
+        f"📥 [UserCreate] Enqueued '{clean_name}' (device={clean_device_id[:8]}…) "
+        f"moderation=unreviewed, process_after={process_after.isoformat()}"
+    )
     return {"status": "queued", "process_after": process_after.isoformat()}
 
 
@@ -950,11 +967,12 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
             upsert=True,
         )
 
-    # ── Step 9: mark the candidate approved ──
+    # ── Step 9: mark the candidate approved (Bloc 2 : sanction admin explicite) ──
     await db.candidate_queue.update_one(
         {"_id": oid},
         {"$set": {
             "status": "approved",
+            "moderation_status": "approved",   # ← Bloc 2 : seul chemin de publication
             "validated_at": now,
             "person_id": str(person_id),
             "initial_pi": initial_pi,

@@ -115,11 +115,14 @@ class FakeCollection:
 
 class FakeDB:
     def __init__(self, candidate_queue=None, persons=None,
-                 person_ticks=None, user_settings=None):
+                 person_ticks=None, user_settings=None, app_settings=None):
         self.candidate_queue = FakeCollection(candidate_queue)
         self.persons = FakeCollection(persons)
         self.person_ticks = FakeCollection(person_ticks)
         self.user_settings = FakeCollection(user_settings)
+        # approve_user_search_candidate Step 2b (anti-ghost) lit app_settings.
+        # Vide par défaut → aucune blocklist ne s'applique dans ces tests.
+        self.app_settings = FakeCollection(app_settings)
 
 
 # ─────────────────────── Fake validate_single_name ────────────────────────
@@ -145,7 +148,11 @@ def make_validate_fn(profiles):
 
 def make_candidate(name, slug, source="user_search", status="pending",
                    process_after_offset_hours=-1, requested_at_offset_hours=-24,
-                   device="device-xyz", pending_vote=1, _id=None):
+                   device="device-xyz", pending_vote=1, _id=None,
+                   moderation_status="approved"):
+    # Bloc 2 : le job ne dépile QUE les docs moderation_status="approved". Les
+    # cas qui DOIVENT être publiés en reçoivent un par défaut ; Case 5 passe
+    # explicitement "unreviewed" pour prouver la coupure d'auto-publication.
     now = datetime.now(timezone.utc)
     return {
         "_id": _id or f"cand-{slug}",
@@ -154,6 +161,7 @@ def make_candidate(name, slug, source="user_search", status="pending",
         "slug": slug,
         "source": source,
         "status": status,
+        "moderation_status": moderation_status,
         "requested_by_device_id": device,
         "requested_at": now + timedelta(hours=requested_at_offset_hours),
         "process_after": now + timedelta(hours=process_after_offset_hours),
@@ -269,6 +277,37 @@ async def main():
         "Case 4 — approve raises for one entry → last_error written, job continues, no crash",
         ok, f"summary={summary} boom.last_error={boom.get('last_error')!r} "
             f"good.last_error={good.get('last_error')!r}"))
+
+    # ── Case 5 (Bloc 2 — COUPURE) : moderation_status="unreviewed" → JAMAIS publié ──
+    # Doc éligible sur tous les autres critères (user_search, pending, échéance
+    # passée), mais NON approuvé par un admin. Le job ne doit PAS le dépiler :
+    # aucun person créé, statut inchangé. C'est la preuve de la coupure d'auto-pub.
+    _approve_called = {"hit": False}
+
+    async def _spy_approve(db_, candidate):
+        _approve_called["hit"] = True
+        return {"status": "approved", "name": candidate["name"], "person_id": "should-not-happen"}
+
+    candidate_detection.approve_user_search_candidate = _spy_approve
+    candidate_detection.validate_single_name = make_validate_fn(
+        {"Unreviewed Profil": valid_result(ext=70.0)}
+    )
+    db = FakeDB()
+    cand = make_candidate("Unreviewed Profil", "unreviewed-profil",
+                          process_after_offset_hours=-2, moderation_status="unreviewed")
+    db.candidate_queue.docs.append(cand)
+    summary = await run_process_user_submissions_job(db)
+    ok = (
+        summary is None                       # rien d'éligible → "no due submissions"
+        and _approve_called["hit"] is False   # approve JAMAIS appelé
+        and cand["status"] == "pending"       # doc intact, attend le clic admin
+        and cand["moderation_status"] == "unreviewed"
+        and len(db.persons.docs) == 0         # AUCUNE personne publiée
+    )
+    results.append(_check(
+        "Case 5 — moderation_status 'unreviewed' → NON publié par le job (coupure auto-pub)",
+        ok, f"summary={summary} approve_called={_approve_called['hit']} "
+            f"status={cand.get('status')} persons={len(db.persons.docs)}"))
 
     candidate_detection.validate_single_name = _real_validate
     candidate_detection.approve_user_search_candidate = _real_approve

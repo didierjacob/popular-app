@@ -1704,26 +1704,58 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 @api_router.post("/submit-celebrity-request")
 async def submit_celebrity_request(body: Dict[str, Any]):
     """
-    Vague 4, sous-tâche 5 — A user asks for a celebrity that isn't in Popularoo yet.
+    Création UGC d'une Personnalité (Bloc 2) — conforme Google.
 
-    Normalizes the name, runs 4 dedup/blocklist checks, and (if none match)
-    enqueues a 'user_search' entry in candidate_queue. There is NO synchronous
-    Wikipedia/Wikidata validation here — the response must stay fast (< 200ms).
-    The heavy validation runs 24h later in process_user_submissions_job via
-    validate_single_name (sous-tâche 4).
+    Lien social obligatoire + filtre auto + modération admin AVANT publication.
+    RIEN n'est public sans clic admin : le doc entre en candidate_queue avec
+    moderation_status="unreviewed" et n'est publié qu'à l'approbation admin
+    (approve_user_search_candidate). Le job process_user_submissions ne dépile
+    plus que les docs moderation_status="approved".
 
-    Body: { "name": str, "device_id": str }  — both required.
+    Ordre runtime : device banni → lien social → already_exists → already_pending
+    → nom → insultes → blocklist → enqueue.
+
+    Body: { "name": str, "device_id": str, "social_links": {plateforme: str} }.
     """
     from candidate_detection import process_celebrity_request
 
-    name = (body.get("name") or "").strip()
     device_id = (body.get("device_id") or "").strip()
+    # ── Première ligne : un device banni ne peut RIEN créer (403). ──
+    await _check_device_not_banned(device_id)
+
+    name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
     if not device_id:
         raise HTTPException(status_code=400, detail="device_id is required")
 
-    result = await process_celebrity_request(db, name, device_id)
+    # ── Lien social obligatoire (≥1), allowlist 7 réseaux. Option 3B : la
+    #    présence suffit à accepter ; le format tague la qualité, ne bloque pas. ──
+    raw_social = body.get("social_links") or {}
+    if not isinstance(raw_social, dict):
+        raw_social = {}
+    social_links: Dict[str, str] = {}
+    social_links_format_ok: Dict[str, bool] = {}
+    for platform in CREATION_SOCIAL_PLATFORMS:
+        handle = _extract_social_handle(platform, raw_social.get(platform) or "")
+        if not handle:
+            continue
+        social_links[platform] = handle
+        pattern = CREATION_SOCIAL_REGEX.get(platform)
+        social_links_format_ok[platform] = bool(pattern and pattern.match(handle))
+
+    if not social_links:
+        raise HTTPException(
+            status_code=400,
+            detail="Au moins un lien vers un réseau social (Instagram, TikTok, X, "
+                   "YouTube, Facebook, Twitch ou LinkedIn) est requis pour créer un profil.",
+        )
+
+    result = await process_celebrity_request(
+        db, name, device_id,
+        social_links=social_links,
+        social_links_format_ok=social_links_format_ok,
+    )
     status = result["status"]
 
     if status == "already_exists":
@@ -1736,15 +1768,14 @@ async def submit_celebrity_request(body: Dict[str, Any]):
             "message_key": "search.queued_message",
         }
 
-    # "rejected" (slug in seed_blocklist) is masked as "queued": the user still
-    # gets the standard 24h waiting message so the blocklist stays invisible.
-    process_after = result.get("process_after")
+    # ── Rejet filtre auto (nom / insultes / blocklist) : message VISIBLE mais
+    #    GÉNÉRIQUE. La raison exacte (result["reason"]) n'existe que dans les logs. ──
     if status == "rejected":
-        process_after = (now_utc() + timedelta(hours=24)).isoformat()
+        raise HTTPException(status_code=400, detail="Impossible de créer ce profil.")
 
     return {
         "status": "queued",
-        "process_after": process_after,
+        "process_after": result.get("process_after"),
         "message_key": "search.queued_message",
     }
 
@@ -2408,6 +2439,75 @@ def _validate_social_username(platform: str, username: str) -> bool:
     cleaned = _clean_username(username)
     pattern = SOCIAL_REGEX.get(platform)
     return bool(pattern and pattern.match(cleaned))
+
+
+# ── Bloc 2 (Création UGC) : lien social obligatoire, allowlist 7 réseaux ──
+# Option 3B : la PRÉSENCE (non vide) suffit à accepter le lien. Le format ne
+# BLOQUE jamais — il tague seulement la qualité dans social_links_format_ok
+# pour la modération admin. social_links reste un dict de strings (handles nus).
+CREATION_SOCIAL_PLATFORMS = ["instagram", "tiktok", "x", "youtube", "facebook", "twitch", "linkedin"]
+
+# Regex de QUALITÉ (tag only, NON bloquantes).
+CREATION_SOCIAL_REGEX = {
+    "instagram": re.compile(r'^@?[a-zA-Z0-9._]{1,30}$'),
+    "tiktok":    re.compile(r'^@?[a-zA-Z0-9._]{2,24}$'),
+    "x":         re.compile(r'^@?[a-zA-Z0-9_]{4,15}$'),
+    "youtube":   re.compile(r'^@?[a-zA-Z0-9._-]{1,50}$'),
+    "facebook":  re.compile(r'^@?[a-zA-Z0-9._-]{1,50}$'),
+    "twitch":    re.compile(r'^@?[a-zA-Z0-9_]{3,25}$'),
+    "linkedin":  re.compile(r'^@?[a-zA-Z0-9._-]{1,60}$'),
+}
+
+# Hôtes reconnus par plateforme pour extraire le handle d'une URL complète.
+_SOCIAL_URL_HOSTS = {
+    "instagram": ["instagram.com"],
+    "tiktok":    ["tiktok.com"],
+    "x":         ["x.com", "twitter.com"],
+    "youtube":   ["youtube.com", "youtu.be"],
+    "facebook":  ["facebook.com", "fb.com", "fb.me"],
+    "twitch":    ["twitch.tv"],
+    "linkedin":  ["linkedin.com"],
+}
+
+# Segments de routage à ignorer lors de l'extraction (linkedin/in, youtube/c…).
+_SOCIAL_ROUTING_SEGMENTS = {"in", "c", "user", "channel", "profile.php", "pages"}
+
+
+def _extract_social_handle(platform: str, raw: str) -> str:
+    """
+    Bloc 2 — Parseur TOLÉRANT : accepte un handle nu (« @user », « user ») OU une
+    URL complète (« https://instagram.com/user », « tiktok.com/@user »,
+    « youtube.com/@chan », « linkedin.com/in/name ») et en extrait le handle.
+
+    Ne valide PAS le format (Option 3B) : renvoie le meilleur handle possible,
+    éventuellement vide si rien d'exploitable (ex. facebook profile.php?id=…).
+    La validation de format se fait à part (tag qualité), elle ne bloque pas.
+    """
+    if not raw:
+        return ""
+    s = raw.strip()
+    if not s:
+        return ""
+
+    lowered = s.lower()
+    looks_like_url = (
+        "://" in lowered
+        or lowered.startswith("www.")
+        or any(host in lowered for host in _SOCIAL_URL_HOSTS.get(platform, []))
+    )
+    if looks_like_url:
+        path = re.sub(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', '', s)   # retire le schéma
+        path = re.sub(r'^www\.', '', path, flags=re.IGNORECASE)
+        parts = path.split("/", 1)                             # coupe l'hôte
+        tail = parts[1] if len(parts) > 1 else ""
+        tail = tail.split("?", 1)[0].split("#", 1)[0].strip("/")  # query/fragment
+        for seg in (seg for seg in tail.split("/") if seg):
+            if seg.lower() in _SOCIAL_ROUTING_SEGMENTS:
+                continue
+            return seg.lstrip("@").strip()
+        return ""   # rien d'exploitable → handle vide → format taggé KO
+
+    return s.lstrip("@").strip()   # handle nu
 
 
 class SocialLinks(BaseModel):
