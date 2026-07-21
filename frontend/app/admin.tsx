@@ -138,8 +138,33 @@ interface PendingQueueEntry {
   process_after: string | null;
   requested_by_device_id: string | null;
   pending_vote_value: number;
+  // Bloc B1 — liens sociaux fournis a la creation (handle par plateforme) : permettent
+  // a l'admin de verifier la personne avant d'approuver. Cle = plateforme, valeur = handle nu.
+  social_links?: Record<string, string>;
+  social_links_format_ok?: Record<string, boolean>;
   last_error: string | null;
 }
+
+// Bloc B1 — Reconstruit une URL cliquable a partir du handle nu stocke cote backend
+// (_extract_social_handle renvoie un handle sans @). Meme liste que CREATION_SOCIAL_PLATFORMS.
+const SOCIAL_URL_BUILDERS: Record<string, (h: string) => string> = {
+  instagram: (h) => `https://instagram.com/${h}`,
+  tiktok: (h) => `https://tiktok.com/@${h}`,
+  x: (h) => `https://x.com/${h}`,
+  youtube: (h) => `https://youtube.com/@${h}`,
+  facebook: (h) => `https://facebook.com/${h}`,
+  twitch: (h) => `https://twitch.tv/${h}`,
+  linkedin: (h) => `https://linkedin.com/in/${h}`,
+};
+const SOCIAL_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  x: 'X',
+  youtube: 'YouTube',
+  facebook: 'Facebook',
+  twitch: 'Twitch',
+  linkedin: 'LinkedIn',
+};
 
 // Zone 2: persons.source=user_search publies recemment (moderation post-publication)
 interface Candidate {
@@ -1338,12 +1363,14 @@ export default function Admin() {
   // ---------- Actions zone 1 (pending queue) ----------
   const pendingForceValidate = useCallback((entry: PendingQueueEntry) => {
     Alert.alert(
-      'Valider maintenant',
-      `Publier "${entry.name}" immediatement (avant l'echeance 24h) ?`,
+      'Approuver et publier',
+      `Publier "${entry.name}" et le rendre visible dans les classements ?\n\n` +
+        `⚠️ Verifiez la majorite : n'approuvez pas une personne mineure ` +
+        `(controle de la date de naissance a faire manuellement via les liens sociaux).`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Valider maintenant',
+          text: 'Approuver',
           onPress: async () => {
             try {
               const res = await adminFetch(API(`/admin/candidate-queue/${entry.id}/force-validate`), {
@@ -2535,13 +2562,13 @@ function CandidatesSection({
 }: CandidatesSectionProps) {
   return (
     <View>
-      {/* ============ Zone 1 — En attente de validation (24h) ============ */}
+      {/* ============ Zone 1 — Propositions a moderer (approbation admin requise) ============ */}
       <View style={[styles.candidatesPendingZone, styles.section, { paddingBottom: 0 }]}>
         <View style={styles.candidatesHeaderRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sectionTitle}>⏳ En attente de validation (24h)</Text>
+            <Text style={styles.sectionTitle}>⏳ Propositions a moderer</Text>
             <Text style={styles.candidatesHeaderCount}>
-              {pendingQueue.length} soumission{pendingQueue.length > 1 ? 's' : ''} en file
+              {pendingQueue.length} proposition{pendingQueue.length > 1 ? 's' : ''} en attente
             </Text>
           </View>
           <TouchableOpacity
@@ -2553,7 +2580,8 @@ function CandidatesSection({
           </TouchableOpacity>
         </View>
         <Text style={styles.candidatesHelpText}>
-          Ces celebrites seront publiees automatiquement a l'echeance. Vous pouvez intervenir avant si besoin.
+          Rien n'est publie sans votre approbation. Verifiez chaque proposition (liens sociaux, majorite)
+          puis Approuvez pour publier, ou Refusez.
         </Text>
       </View>
 
@@ -2579,45 +2607,65 @@ function CandidatesSection({
             emptyText="Aucune soumission en attente"
             renderItem={(e) => {
               const requestedRel = formatRelativeShort(e.requested_at);
-              const processRel = formatRelativeShort(e.process_after);
-              const isFutureDeadline = e.process_after
-                ? Date.parse(e.process_after) > Date.now()
-                : false;
-              const deadlineLabel = isFutureDeadline
-                ? processRel
-                : processRel
-                  ? `echeance: ${processRel}`
-                  : '';
               const subline = e.last_error
                 ? `Tentative precedente echouee: ${e.last_error}`
                 : undefined;
+              // Bloc B1 — liens sociaux cliquables (verification avant approbation).
+              const socialEntries = Object.entries(e.social_links || {}).filter(
+                ([platform, handle]) => SOCIAL_URL_BUILDERS[platform] && !!handle
+              );
               return (
-                <AdminCard
-                  person={{
-                    id: e.id,
-                    name: e.name,
-                  }}
-                  subline={subline}
-                  rightSlot={
-                    <View style={{ alignItems: 'flex-end' }}>
-                      {!!requestedRel && (
-                        <Text style={styles.candidatesDateText}>Demande {requestedRel}</Text>
-                      )}
-                      {!!deadlineLabel && (
-                        <Text style={styles.candidatesDeadlineText}>{deadlineLabel}</Text>
-                      )}
-                      {e.pending_vote_value === 1 && (
-                        <Text style={styles.candidatesImplicitLike}>👍 like implicite</Text>
-                      )}
+                <View>
+                  <AdminCard
+                    person={{
+                      id: e.id,
+                      name: e.name,
+                    }}
+                    subline={subline}
+                    rightSlot={
+                      <View style={{ alignItems: 'flex-end' }}>
+                        {!!requestedRel && (
+                          <Text style={styles.candidatesDateText}>Demande {requestedRel}</Text>
+                        )}
+                        {e.pending_vote_value === 1 && (
+                          <Text style={styles.candidatesImplicitLike}>👍 like implicite</Text>
+                        )}
+                      </View>
+                    }
+                  />
+                  {socialEntries.length > 0 ? (
+                    <View style={styles.candidatesSocialRow}>
+                      {socialEntries.map(([platform, handle]) => {
+                        const url = SOCIAL_URL_BUILDERS[platform](handle);
+                        const formatOk = e.social_links_format_ok?.[platform] !== false;
+                        return (
+                          <TouchableOpacity
+                            key={platform}
+                            style={styles.candidatesSocialChip}
+                            onPress={() => Linking.openURL(url).catch(() => {})}
+                            activeOpacity={0.7}
+                          >
+                            <Ionicons name="link-outline" size={13} color={PALETTE.gold} />
+                            <Text style={styles.candidatesSocialChipText} numberOfLines={1}>
+                              {SOCIAL_LABELS[platform] || platform} · @{handle}
+                            </Text>
+                            {!formatOk && (
+                              <Text style={styles.candidatesSocialWarn}>⚠︎</Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
-                  }
-                />
+                  ) : (
+                    <Text style={styles.candidatesSocialEmpty}>Aucun lien social fourni</Text>
+                  )}
+                </View>
               );
             }}
             actions={(e) => [
               {
-                label: 'Valider maintenant',
-                icon: 'flash',
+                label: 'Approuver',
+                icon: 'checkmark-circle',
                 variant: 'primary',
                 onPress: () => onForceValidate(e),
               },
@@ -3967,17 +4015,49 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 12,
   },
-  candidatesDeadlineText: {
-    color: '#7AB8E0',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 2,
-  },
   candidatesImplicitLike: {
     color: PALETTE.green,
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
+  },
+  // Bloc B1 — liens sociaux cliquables sous la carte de proposition
+  candidatesSocialRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  candidatesSocialChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: '100%',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.bg,
+  },
+  candidatesSocialChipText: {
+    color: PALETTE.gold,
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  candidatesSocialWarn: {
+    color: '#E0A800',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  candidatesSocialEmpty: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 6,
+    marginLeft: 4,
   },
 
   // ---------- Styles Vague 4 sous-tache 2 — Outsiders signales ----------

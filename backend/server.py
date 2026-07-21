@@ -8304,6 +8304,11 @@ async def admin_list_pending_candidate_queue(request: Request):
             "process_after": _iso(c.get("process_after")),
             "requested_by_device_id": c.get("requested_by_device_id"),
             "pending_vote_value": c.get("pending_vote_value", 0),
+            # Bloc B1 — liens sociaux fournis à la création (Bloc 2). L'admin en a
+            # besoin pour vérifier la personne avant d'approuver. `social_links` mappe
+            # plateforme → handle ; `social_links_format_ok` tague la qualité du format.
+            "social_links": c.get("social_links", {}),
+            "social_links_format_ok": c.get("social_links_format_ok", {}),
             # validation_error is set when a previous approve attempt failed (rare for pending,
             # but kept for visibility if a retry left the entry in pending state).
             "last_error": c.get("validation_error"),
