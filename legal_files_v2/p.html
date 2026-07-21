@@ -123,16 +123,16 @@
     <!-- Shown when a valid profile id is present -->
     <div id="profile-view" class="hidden">
       <h1>Ouvrir ce profil<span class="en">Open this profile</span></h1>
-      <p class="sub">Voyez-le dans l'application Popularoo, ou téléchargez l'app.<span class="en">View it in the Popularoo app, or get the app from the App Store.</span></p>
+      <p class="sub">Voyez-le dans l'application Popularoo, ou téléchargez l'app.<span class="en">View it in the Popularoo app, or get the app on Google Play.</span></p>
       <a id="open-app" class="btn btn-primary" href="#">Ouvrir dans Popularoo<span class="en">Open in Popularoo</span></a>
-      <a id="store-1" class="btn btn-store" href="#">Télécharger sur l'App Store<span class="en">Download on the App Store</span></a>
+      <a id="store-1" class="btn btn-store" href="#">Télécharger sur Google Play<span class="en">Get it on Google Play</span></a>
     </div>
 
     <!-- Shown when no/invalid id: just point to the App Store, no error -->
     <div id="store-view" class="hidden">
       <h1>Découvrir Popularoo<span class="en">Discover Popularoo</span></h1>
       <p class="sub">Votez pour vos personnalités et outsiders préférés.<span class="en">Vote for your favourite personalities and outsiders.</span></p>
-      <a id="store-2" class="btn btn-primary" href="#">Télécharger sur l'App Store<span class="en">Download on the App Store</span></a>
+      <a id="store-2" class="btn btn-primary" href="#">Télécharger sur Google Play<span class="en">Get it on Google Play</span></a>
     </div>
 
     <div class="foot">popularoo.com</div>
@@ -142,7 +142,7 @@
     (function () {
       "use strict";
 
-      var APP_STORE_URL = "https://apps.apple.com/app/popularoo/id6761003957";
+      var PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.didierjacob.popularapp";
       var FALLBACK_MS = 1500;
 
       // Stable identifier = MongoDB ObjectId (24 hex chars). Anything else is treated as absent.
@@ -170,7 +170,7 @@
       // ---- Case: no / invalid id -> plain App Store button, no error ----
       if (!isValidObjectId(rawId)) {
         var store2 = document.getElementById("store-2");
-        if (store2) store2.setAttribute("href", APP_STORE_URL);
+        if (store2) store2.setAttribute("href", PLAY_STORE_URL);
         show("store-view");
         return;
       }
@@ -181,7 +181,7 @@
       var openApp = document.getElementById("open-app");
       var store1 = document.getElementById("store-1");
       if (openApp) openApp.setAttribute("href", deepLink);
-      if (store1) store1.setAttribute("href", APP_STORE_URL);
+      if (store1) store1.setAttribute("href", PLAY_STORE_URL);
       show("profile-view");
 
       // If the app opens, the page is backgrounded — cancel the App Store fallback
@@ -199,7 +199,7 @@
         try { window.location.href = deepLink; } catch (e) {}
         window.setTimeout(function () {
           if (!bailed && !document.hidden) {
-            window.location.href = APP_STORE_URL;
+            window.location.href = PLAY_STORE_URL;
           }
         }, FALLBACK_MS);
       }
