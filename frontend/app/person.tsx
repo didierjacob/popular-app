@@ -322,7 +322,14 @@ export default function Person() {
   // Report modal state (Lot 5 sub-task B)
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState<
-    "inappropriate" | "fake" | "offensive" | "spam" | "other" | null
+    | "inappropriate"
+    | "fake"
+    | "offensive"
+    | "spam"
+    | "impersonation"
+    | "minor"
+    | "other"
+    | null
   >(null);
   const [reportComment, setReportComment] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -383,9 +390,11 @@ export default function Person() {
   }, [fetchData]);
 
   const isOutsider = person?.source === "self_boosted" || person?.category === "outsider";
-  // Lot 5 sub-task B: report button shown ONLY for self_boosted profiles (strict),
-  // because backend /api/report-outsider rejects category-only outsiders with 400.
-  const canReport = person?.source === "self_boosted";
+  // Bloc B2 : signalement structuré des Personnalités créées par les utilisateurs.
+  // Backend /api/report-personality accepte source user_search / user_search_confirmed.
+  // (Les Outsiders self_boosted gardent leur propre chemin /report-outsider ci-dessous.)
+  const canReportPersonality =
+    person?.source === "user_search" || person?.source === "user_search_confirmed";
 
   const closeReportModal = useCallback(() => {
     setReportModalVisible(false);
@@ -397,7 +406,31 @@ export default function Person() {
     if (!reportReason || !id || reportSubmitting) return;
     setReportSubmitting(true);
     try {
-      await CreditsService.reportOutsider(id, reportReason, reportComment);
+      // Bloc B2 : les Personnalités UGC passent par /report-personality (motifs
+      // usurpation/mineur) ; les Outsiders gardent /report-outsider.
+      if (canReportPersonality) {
+        await CreditsService.reportPersonality(
+          id,
+          reportReason as
+            | "inappropriate"
+            | "impersonation"
+            | "minor"
+            | "fake"
+            | "other",
+          reportComment,
+        );
+      } else {
+        await CreditsService.reportOutsider(
+          id,
+          reportReason as
+            | "inappropriate"
+            | "fake"
+            | "offensive"
+            | "spam"
+            | "other",
+          reportComment,
+        );
+      }
       closeReportModal();
       Alert.alert(t("report.successTitle"), t("report.successMessage"));
     } catch (e: any) {
@@ -411,7 +444,7 @@ export default function Person() {
     } finally {
       setReportSubmitting(false);
     }
-  }, [reportReason, reportComment, id, reportSubmitting, t, closeReportModal]);
+  }, [reportReason, reportComment, id, reportSubmitting, t, closeReportModal, canReportPersonality]);
 
   // LOT 3 — Personnalités uniquement (!isOutsider) : mailto pré-rempli, zéro backend.
   // Réutilise le pattern de account.tsx (subject + body URL-encodés vers SUPPORT_EMAIL).
@@ -967,11 +1000,17 @@ export default function Person() {
               </View>
             )}
 
-            {/* LOT 3 — Actions secondaires (Personnalités uniquement) : signalement + demande de retrait, mailto */}
+            {/* LOT 3 / Bloc B2 — Actions secondaires (Personnalités uniquement) : signalement + demande de retrait.
+                Bloc B2 : les Personnalités créées par les utilisateurs (user_search) ouvrent le modal
+                de signalement STRUCTURÉ (exigence Google) ; les célébrités éditoriales gardent le mailto. */}
             {!isOutsider && (
               <View style={styles.secondaryActions}>
                 <TouchableOpacity
-                  onPress={reportProfileByEmail}
+                  onPress={
+                    canReportPersonality
+                      ? () => setReportModalVisible(true)
+                      : reportProfileByEmail
+                  }
                   style={styles.secondaryActionBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
@@ -1048,13 +1087,18 @@ export default function Person() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{t("report.title")}</Text>
+            <Text style={styles.modalTitle}>
+              {canReportPersonality ? t("report.titlePersonality") : t("report.title")}
+            </Text>
             <Text style={styles.modalSubtitle}>
               {t("report.subtitle", { name })}
             </Text>
             <View style={styles.reasonChips}>
               {(
-                ["inappropriate", "fake", "offensive", "spam", "other"] as const
+                // Bloc B2 : motifs Personnalité (usurpation + mineur) vs motifs Outsider.
+                canReportPersonality
+                  ? (["inappropriate", "impersonation", "minor", "fake", "other"] as const)
+                  : (["inappropriate", "fake", "offensive", "spam", "other"] as const)
               ).map((r) => {
                 const selected = reportReason === r;
                 return (

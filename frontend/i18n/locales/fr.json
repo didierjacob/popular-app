@@ -421,9 +421,12 @@
   },
   "report": {
     "title": "Signaler un Outsider",
+    "titlePersonality": "Signaler ce profil",
     "subtitle": "Pour : {{name}}",
     "reasons": {
       "inappropriate": "Contenu inapproprié",
+      "impersonation": "Usurpation d'identité",
+      "minor": "Personne mineure",
       "fake": "Fausse identité",
       "offensive": "Propos offensants",
       "spam": "Spam ou répétition",

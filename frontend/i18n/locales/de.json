@@ -421,9 +421,12 @@
   },
   "report": {
     "title": "Outsider melden",
+    "titlePersonality": "Dieses Profil melden",
     "subtitle": "Für: {{name}}",
     "reasons": {
       "inappropriate": "Unangemessener Inhalt",
+      "impersonation": "Identitätsdiebstahl",
+      "minor": "Minderjährige Person",
       "fake": "Falsche Identität",
       "offensive": "Beleidigende Sprache",
       "spam": "Spam oder Wiederholung",

@@ -371,6 +371,37 @@ export class CreditsService {
     return await response.json();
   }
 
+  // Bloc B2 — Signalement structuré d'une Personnalité UGC (source=user_search).
+  // Distinct de reportOutsider : endpoint /report-personality + motifs incluant
+  // usurpation d'identité (impersonation) et personne mineure (minor).
+  static async reportPersonality(
+    personId: string,
+    reason: 'inappropriate' | 'impersonation' | 'minor' | 'fake' | 'other',
+    comment: string,
+  ): Promise<{ success: boolean; report_id?: string }> {
+    const DEVICE_KEY = 'popularity_device_id';
+    let deviceId = await AsyncStorage.getItem(DEVICE_KEY);
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      await AsyncStorage.setItem(DEVICE_KEY, deviceId);
+    }
+    const response = await fetch(API('/report-personality'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+      body: JSON.stringify({
+        person_id: personId,
+        reason,
+        comment: (comment || '').slice(0, 500),
+      }),
+    });
+    if (!response.ok) {
+      const err: any = new Error(`Report failed (${response.status})`);
+      err.status = response.status;
+      throw err;
+    }
+    return await response.json();
+  }
+
   static async updateSocialLinks(boostId: string, links: SocialLinks): Promise<any> {
     try {
       const response = await fetch(API(`/outsiders/${boostId}/social-links`), {

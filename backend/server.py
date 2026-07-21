@@ -8787,6 +8787,160 @@ async def report_outsider(request: Request, body: ReportOutsiderRequest):
     }
 
 
+# ── Bloc B2 : POST /api/report-personality — Signalement structuré des Personnalités UGC ──
+#
+# Distinct de /report-outsider (self_boosted) : cible les Personnalités créées par
+# les utilisateurs (source="user_search"/"user_search_confirmed"), exigence Google
+# pour le contenu UGC. Collection dédiée `personality_reports` (fondation Bloc C —
+# auto-masquage à seuil). Motifs incluant usurpation d'identité et personne mineure.
+
+# Motifs structurés (alignés sur le modal frontend). "impersonation" = usurpation,
+# "minor" = personne mineure — les deux absents du flux outsider.
+PERSONALITY_REPORT_REASONS = {"inappropriate", "impersonation", "minor", "fake", "other"}
+
+class ReportPersonalityRequest(BaseModel):
+    person_id: str
+    reason: str  # inappropriate | impersonation | minor | fake | other
+    comment: str = ""  # Optional free-text
+
+@api_router.post("/report-personality")
+async def report_personality(request: Request, body: ReportPersonalityRequest):
+    """
+    Signaler une Personnalité créée par un utilisateur. Anti-spam identique à
+    l'outsider : 1 signalement par device par profil par 24h. Aucune action
+    automatique ici (l'auto-masquage à seuil est Bloc C) — le signalement est
+    seulement enregistré et consultable par l'admin.
+    """
+    device_id = request.headers.get("X-Device-ID", "")
+    if not device_id or len(device_id) < 5:
+        raise HTTPException(status_code=400, detail="X-Device-ID header required")
+
+    # Validate reason
+    if body.reason not in PERSONALITY_REPORT_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid reason. Must be one of: {sorted(PERSONALITY_REPORT_REASONS)}",
+        )
+
+    # Validate person exists and is a user-created personality
+    try:
+        person_oid = ObjectId(body.person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": person_oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Personality not found")
+    if person.get("source") not in ("user_search", "user_search_confirmed"):
+        raise HTTPException(
+            status_code=400,
+            detail="Can only report user-created personalities",
+        )
+
+    # Anti-spam: 1 report per device per profile per 24h
+    now = now_utc()
+    cutoff_24h = now - timedelta(hours=24)
+    existing_report = await db.personality_reports.find_one({
+        "person_id": body.person_id,
+        "device_id": device_id,
+        "created_at": {"$gte": cutoff_24h},
+    })
+    if existing_report:
+        raise HTTPException(
+            status_code=429,
+            detail="You have already reported this profile in the last 24 hours",
+        )
+
+    report_doc = {
+        "person_id": body.person_id,
+        "person_name": person.get("name", ""),
+        "reason": body.reason,
+        "comment": body.comment[:500] if body.comment else "",
+        "device_id": device_id,
+        "status": "pending",  # pending, reviewed
+        "created_at": now,
+    }
+
+    result = await db.personality_reports.insert_one(report_doc)
+
+    total_reports = await db.personality_reports.count_documents({
+        "person_id": body.person_id,
+        "status": "pending",
+    })
+
+    logger.info(
+        f"🚩 [Report] Personality '{person.get('name')}' reported by {device_id[:8]}... "
+        f"reason={body.reason} (total pending: {total_reports})"
+    )
+
+    return {
+        "success": True,
+        "report_id": str(result.inserted_id),
+        "total_pending_reports": total_reports,
+        "message": "Report submitted. Our team will review it shortly.",
+    }
+
+
+@api_router.get("/admin/personality-reports")
+async def admin_list_personality_reports(request: Request, status: str = Query(default="pending")):
+    """
+    Bloc B2 — Liste des signalements de Personnalités UGC, groupés par profil,
+    avec compte et motifs. Lecture seule (les actions de modération = Approuver/
+    Refuser/Supprimer passent par les écrans existants ; l'auto-masquage est Bloc C).
+    """
+    _require_admin_auth(request)
+
+    valid_statuses = {"pending", "reviewed", "all"}
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status filter. Use: {sorted(valid_statuses)}")
+
+    match_stage = {}
+    if status != "all":
+        match_stage["status"] = status
+
+    pipeline = [
+        {"$match": match_stage},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$person_id",
+            "person_name": {"$first": "$person_name"},
+            "report_count": {"$sum": 1},
+            "reasons": {"$push": "$reason"},
+            "all_reports": {"$push": {
+                "report_id": {"$toString": "$_id"},
+                "reason": "$reason",
+                "comment": "$comment",
+                "device_id": "$device_id",
+                "status": "$status",
+                "created_at": {"$dateToString": {"format": "%Y-%m-%dT%H:%M:%SZ", "date": "$created_at"}},
+            }},
+        }},
+        {"$sort": {"report_count": -1}},
+    ]
+
+    results = await db.personality_reports.aggregate(pipeline).to_list(200)
+
+    output = []
+    for r in results:
+        person = None
+        try:
+            person = await db.persons.find_one({"_id": ObjectId(r["_id"])})
+        except Exception:
+            pass
+
+        output.append({
+            "person_id": r["_id"],
+            "person_name": r.get("person_name", ""),
+            "report_count": r["report_count"],
+            "reasons_summary": dict(Counter(r["reasons"])),
+            "person_exists": person is not None,
+            "person_source": person.get("source", "") if person else None,
+            "reports": r["all_reports"],
+        })
+
+    return {"total_personalities_reported": len(output), "reports": output}
+
+
 # ── Family 4: Admin Outsider Moderation ──
 
 @api_router.get("/admin/outsider-reports")

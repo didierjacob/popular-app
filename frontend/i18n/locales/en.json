@@ -421,9 +421,12 @@
   },
   "report": {
     "title": "Report an Outsider",
+    "titlePersonality": "Report this profile",
     "subtitle": "For: {{name}}",
     "reasons": {
       "inappropriate": "Inappropriate content",
+      "impersonation": "Impersonation",
+      "minor": "Underage person",
       "fake": "Fake identity",
       "offensive": "Offensive language",
       "spam": "Spam or repetition",

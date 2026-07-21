@@ -246,6 +246,27 @@ interface OutsiderReportGroup {
 
 type OutsiderReportsFilter = 'pending' | 'all';
 
+// Bloc B2 — Signalements de Personnalites UGC (source=user_search). Reponse backend
+// groupee par person_id (1 ligne = 1 Personnalite, signalements imbriques). Lecture seule.
+interface PersonalityReportItem {
+  report_id: string;
+  reason: string;
+  comment: string;
+  device_id: string;
+  status: string;
+  created_at: string;
+}
+
+interface PersonalityReportGroup {
+  person_id: string;
+  person_name: string;
+  report_count: number;
+  reasons_summary: Record<string, number>;
+  person_exists: boolean;
+  person_source: string | null;
+  reports: PersonalityReportItem[];
+}
+
 // Vague 4 sous-tache 3 — Decedes (deceased_queue + 5 endpoints /admin/deceased*)
 // Note divergence brief vs backend: confirm DESACTIVE le profil (is_deceased=true, approved=false,
 // deactivated_reason=deceased) + annule Daily Runs actifs + ajoute slug a seed_blocklist. Pas de
@@ -356,6 +377,12 @@ export default function Admin() {
   const [outsiderReportsLoading, setOutsiderReportsLoading] = useState(false);
   const [outsiderReportsError, setOutsiderReportsError] = useState<string | null>(null);
   const [outsiderReportsFilter, setOutsiderReportsFilter] = useState<OutsiderReportsFilter>('pending');
+
+  // Bloc B2 — Signalements de Personnalites UGC (lecture seule)
+  const [personalityReports, setPersonalityReports] = useState<PersonalityReportGroup[]>([]);
+  const [personalityReportsLoading, setPersonalityReportsLoading] = useState(false);
+  const [personalityReportsError, setPersonalityReportsError] = useState<string | null>(null);
+  const [personalityReportsFilter, setPersonalityReportsFilter] = useState<OutsiderReportsFilter>('pending');
 
   // Vague 4 sous-tache 3 — Decedes
   const [deceasedItems, setDeceasedItems] = useState<DeceasedItem[]>([]);
@@ -821,6 +848,31 @@ export default function Admin() {
       loadOutsiderReports(outsiderReportsFilter);
     }
   }, [authenticated, currentTab, outsiderReportsFilter, loadOutsiderReports]);
+
+  // ---------- Bloc B2 — Signalements de Personnalites UGC (lecture seule) ----------
+  const loadPersonalityReports = useCallback(async (filter: OutsiderReportsFilter = personalityReportsFilter) => {
+    setPersonalityReportsLoading(true);
+    setPersonalityReportsError(null);
+    try {
+      const res = await adminFetch(API(`/admin/personality-reports?status=${filter === 'all' ? 'all' : 'pending'}`));
+      if (res.ok) {
+        const data = await res.json();
+        setPersonalityReports(Array.isArray(data?.reports) ? data.reports : []);
+      } else if (res.status !== 403) {
+        setPersonalityReportsError('Impossible de charger les signalements');
+      }
+    } catch {
+      setPersonalityReportsError('Erreur reseau');
+    } finally {
+      setPersonalityReportsLoading(false);
+    }
+  }, [adminFetch, personalityReportsFilter]);
+
+  useEffect(() => {
+    if (authenticated && currentTab === 'outsider_reports') {
+      loadPersonalityReports(personalityReportsFilter);
+    }
+  }, [authenticated, currentTab, personalityReportsFilter, loadPersonalityReports]);
 
   // Backend resout en bulk tous les pending pour l'outsider, donc on passe report_id de reports[0].
   const firstReportId = (g: OutsiderReportGroup): string | null =>
@@ -1683,17 +1735,28 @@ export default function Admin() {
             )}
 
             {currentTab === 'outsider_reports' && (
-              <OutsiderReportsSection
-                reports={outsiderReports}
-                loading={outsiderReportsLoading}
-                error={outsiderReportsError}
-                filter={outsiderReportsFilter}
-                onFilterChange={setOutsiderReportsFilter}
-                onRefresh={() => loadOutsiderReports(outsiderReportsFilter)}
-                onIgnore={outsiderIgnore}
-                onWarn={outsiderWarn}
-                onDelete={outsiderDelete}
-              />
+              <>
+                <OutsiderReportsSection
+                  reports={outsiderReports}
+                  loading={outsiderReportsLoading}
+                  error={outsiderReportsError}
+                  filter={outsiderReportsFilter}
+                  onFilterChange={setOutsiderReportsFilter}
+                  onRefresh={() => loadOutsiderReports(outsiderReportsFilter)}
+                  onIgnore={outsiderIgnore}
+                  onWarn={outsiderWarn}
+                  onDelete={outsiderDelete}
+                />
+                {/* Bloc B2 — Signalements de Personnalites UGC (lecture seule) */}
+                <PersonalityReportsSection
+                  reports={personalityReports}
+                  loading={personalityReportsLoading}
+                  error={personalityReportsError}
+                  filter={personalityReportsFilter}
+                  onFilterChange={setPersonalityReportsFilter}
+                  onRefresh={() => loadPersonalityReports(personalityReportsFilter)}
+                />
+              </>
             )}
 
             {currentTab === 'manual_add' && (
@@ -2788,6 +2851,9 @@ const REASON_FR: Record<string, string> = {
   inappropriate: 'inapproprie',
   fake: 'faux profil',
   offensive: 'offensant',
+  // Bloc B2 — motifs specifiques aux Personnalites UGC
+  impersonation: 'usurpation',
+  minor: 'mineur',
   other: 'autre',
 };
 
@@ -2988,6 +3054,127 @@ function OutsiderReportsSection({
                 onPress: () => onDelete(g),
               },
             ];
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+// ---------- Bloc B2 — Section Personnalites signalees (lecture seule) ----------
+// Miroir allege de OutsiderReportsSection : liste groupee par Personnalite UGC, motifs,
+// dernier commentaire. Pas d'actions ici (approbation/refus = onglet Candidats ;
+// auto-masquage a seuil = Bloc C). Objectif : rendre chaque signalement consultable.
+
+interface PersonalityReportsSectionProps {
+  reports: PersonalityReportGroup[];
+  loading: boolean;
+  error: string | null;
+  filter: OutsiderReportsFilter;
+  onFilterChange: (f: OutsiderReportsFilter) => void;
+  onRefresh: () => void;
+}
+
+function PersonalityReportsSection({
+  reports,
+  loading,
+  error,
+  filter,
+  onFilterChange,
+  onRefresh,
+}: PersonalityReportsSectionProps) {
+  const count = reports.length;
+  return (
+    <View style={{ marginTop: 8 }}>
+      {/* Header */}
+      <View style={[styles.section, { paddingBottom: 0 }]}>
+        <View style={styles.candidatesHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>🚩 Personnalites signalees</Text>
+            <Text style={styles.candidatesHeaderCount}>
+              {count} personnalite{count > 1 ? 's' : ''} {filter === 'pending' ? 'en attente' : 'au total'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            style={styles.candidatesRefreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="refresh-outline" size={20} color={PALETTE.gold} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Toggle filter */}
+        <View style={styles.outsiderFilterRow}>
+          {(['pending', 'all'] as OutsiderReportsFilter[]).map((f) => {
+            const active = filter === f;
+            return (
+              <TouchableOpacity
+                key={f}
+                onPress={() => onFilterChange(f)}
+                style={[styles.outsiderFilterChip, active && styles.outsiderFilterChipActive]}
+              >
+                <Text style={[styles.outsiderFilterChipText, active && styles.outsiderFilterChipTextActive]}>
+                  {f === 'pending' ? 'En attente' : 'Tous'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={PALETTE.gold} />
+        </View>
+      ) : error ? (
+        <View style={styles.section}>
+          <View style={styles.card}>
+            <Text style={styles.candidatesErrorText}>{error}</Text>
+            <TouchableOpacity style={styles.candidatesRetryBtn} onPress={onRefresh}>
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.candidatesRetryBtnText}>Reessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <ReviewList<PersonalityReportGroup>
+          data={reports}
+          keyExtractor={(g) => g.person_id}
+          emptyText={filter === 'pending' ? 'Aucun signalement en attente' : 'Aucun signalement'}
+          renderItem={(g) => {
+            const latest = g.reports && g.reports.length > 0 ? g.reports[0] : null;
+            const reasonsLine = formatReasonsSummary(g.reasons_summary);
+            const lastComment = latest?.comment && latest.comment.trim().length > 0
+              ? latest.comment.length > 140
+                ? `« ${latest.comment.slice(0, 137)}... »`
+                : `« ${latest.comment} »`
+              : null;
+            const subline = [reasonsLine, lastComment].filter(Boolean).join(' — ') || undefined;
+            return (
+              <View style={!g.person_exists ? { opacity: 0.7 } : undefined}>
+                <AdminCard
+                  person={{
+                    id: g.person_id,
+                    name: g.person_name || '(sans nom)',
+                  }}
+                  subline={subline}
+                  rightSlot={
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.outsiderReportCount}>
+                        {g.report_count} signalement{g.report_count > 1 ? 's' : ''}
+                      </Text>
+                      {latest?.created_at && (
+                        <Text style={styles.candidatesDateText}>{formatRelativeShort(latest.created_at)}</Text>
+                      )}
+                      {!g.person_exists && (
+                        <Text style={styles.outsiderDeletedTag}>Profil supprime</Text>
+                      )}
+                    </View>
+                  }
+                />
+              </View>
+            );
           }}
         />
       )}
