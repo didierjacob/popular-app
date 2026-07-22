@@ -648,6 +648,28 @@ def slugify_name(name: str) -> str:
     return s.strip("-")
 
 
+def normalize_person_name(name: str) -> str:
+    """Clé canonique de dédup, insensible aux accents ET aux espaces multiples.
+    Mirror de server.normalize_person_name. 'Léa  Seydoux' → 'lea seydoux'.
+    C'est la valeur stockée dans persons.name_normalized (backfillée + indexée)."""
+    collapsed = re.sub(r"\s+", " ", (name or "").strip())
+    return unidecode(collapsed).lower().strip()
+
+
+async def find_existing_person(db, name: str, slug: str = None):
+    """Dédup robuste : name_normalized (clé PRIMAIRE, indexée) puis slug (fallback
+    legacy). Immunise contre les slugs abîmés historiques ('mneskin' vs 'maneskin').
+    Retourne le doc persons existant, ou None."""
+    nn = normalize_person_name(name)
+    if nn:
+        doc = await db.persons.find_one({"name_normalized": nn})
+        if doc:
+            return doc
+    if slug:
+        return await db.persons.find_one({"slug": slug})
+    return None
+
+
 async def passes_creation_filters(db, clean_name: str) -> dict:
     """
     Filtre auto de création (modèle UGC, SANS gate Wikipédia) — SOUMISSION.
@@ -718,16 +740,23 @@ async def process_celebrity_request(
         raise ValueError("device_id is required")
 
     slug = slugify_name(clean_name)
-    name_norm = unidecode(clean_name).lower().strip()
+    name_norm = normalize_person_name(clean_name)
     now = datetime.now(timezone.utc)
 
     # ── Check 1: strict duplicate against real persons ──
-    existing_person = await db.persons.find_one({"slug": slug})
+    # Dédup robuste : name_normalized (indexé) puis slug (fallback legacy).
+    existing_person = await find_existing_person(db, clean_name, slug)
     if existing_person:
         return {"status": "already_exists", "person_id": str(existing_person["_id"])}
 
     # ── Check 2: duplicate against a still-pending user_search entry ──
+    # name_normalized (primaire, immunise contre les slugs abîmés) OU slug (fallback,
+    # pour une entrée de file legacy qui n'aurait pas encore name_normalized).
     existing_pending = await db.candidate_queue.find_one({
+        "source": "user_search",
+        "name_normalized": name_norm,
+        "status": "pending",
+    }) or await db.candidate_queue.find_one({
         "source": "user_search",
         "slug": slug,
         "status": "pending",
@@ -855,7 +884,8 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         return {"status": "rejected", "name": name, "error_code": error_code}
 
     # ── Step 2: dedup — a profile may have been created by another path ──
-    existing = await db.persons.find_one({"slug": slug})
+    # Dédup robuste : name_normalized (indexé) puis slug (fallback legacy).
+    existing = await find_existing_person(db, name, slug)
     if existing:
         await db.candidate_queue.update_one(
             {"_id": oid},
@@ -870,7 +900,7 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
 
     # ── Step 2b: anti-ghost blocklist — never re-create a deleted personality ──
     bl_settings = await db.app_settings.find_one({"_id": "global"}) or {}
-    name_norm = candidate.get("name_normalized") or unidecode(name).lower().strip()
+    name_norm = candidate.get("name_normalized") or normalize_person_name(name)
     wikidata_id = result.get("wikidata_id")
     if (
         name_norm in set(bl_settings.get("seed_blocklist_names", []))
@@ -1187,15 +1217,19 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
         logger.info(f"🔍 [Candidates] {len(merged)} unique names across 6 languages")
 
         # ── Step 3: Filter out names already in DB ──
+        # Harmonisé avec find_existing_person : on indexe slug + name_normalized
+        # (le champ stocké backfillé ET la valeur recalculée), pour ne rater aucun
+        # doublon même si le slug stocké est abîmé.
         existing_slugs = set()
-        cursor = db.persons.find({}, {"slug": 1, "name": 1})
+        cursor = db.persons.find({}, {"slug": 1, "name": 1, "name_normalized": 1})
         async for doc in cursor:
             slug = doc.get("slug", "")
             if slug:
                 existing_slugs.add(slug)
-            # Also add normalized name
-            name_norm = unidecode(doc.get("name", "")).lower().strip()
-            existing_slugs.add(name_norm)
+            stored_norm = doc.get("name_normalized")
+            if stored_norm:
+                existing_slugs.add(stored_norm)
+            existing_slugs.add(normalize_person_name(doc.get("name", "")))
 
         # ── Step 4: Filter out names already in candidate_queue (pending) ──
         pending_slugs = set()
@@ -1231,7 +1265,7 @@ async def detect_candidates(db, target_date: Optional[datetime] = None) -> Dict:
 
         for candidate in merged:
             name = candidate["name"]
-            name_norm = unidecode(name).lower().strip()
+            name_norm = normalize_person_name(name)
             name_slug = re.sub(r"[^a-z0-9\s-]", "", name_norm)
             name_slug = re.sub(r"[\s-]+", "-", name_slug).strip("-")
 

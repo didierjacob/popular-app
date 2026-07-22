@@ -165,9 +165,27 @@ def now_utc() -> datetime:
 # celebrity.
 
 def normalize_person_name(name: str) -> str:
-    """Canonical, accent-insensitive blocklist key for a personality name.
-    'Léa Seydoux' -> 'lea seydoux' (robust against the slugify accent bug)."""
-    return unidecode(name or "").lower().strip()
+    """Canonical, accent- AND whitespace-insensitive key for a personality name.
+    'Léa  Seydoux' -> 'lea seydoux'. Règle UNIQUE de dédup : c'est la valeur stockée
+    dans persons.name_normalized (backfillée + indexée) et la clé du blocklist.
+    Le collapse d'espaces est idempotent sur tout nom mono-espacé (aucune régression
+    blocklist : les entrées existantes, mono-espacées, continuent de matcher)."""
+    collapsed = re.sub(r"\s+", " ", (name or "").strip())
+    return unidecode(collapsed).lower().strip()
+
+
+async def find_existing_person(db, name: str, slug: str = None):
+    """Dédup robuste : name_normalized (clé PRIMAIRE, indexée) puis slug (fallback
+    legacy). Immunise contre les slugs abîmés historiques ('mneskin' vs 'maneskin').
+    Mirror de candidate_detection.find_existing_person. Retourne le doc ou None."""
+    nn = normalize_person_name(name)
+    if nn:
+        doc = await db.persons.find_one({"name_normalized": nn})
+        if doc:
+            return doc
+    if slug:
+        return await db.persons.find_one({"slug": slug})
+    return None
 
 
 async def is_person_blocklisted(name_normalized: str = "", wikidata_id: str = "", slug: str = "") -> bool:
@@ -7372,7 +7390,7 @@ async def admin_add_celebrities_batch(request: Request):
             logger.info(f"🚫 [Anti-ghost] batch-add skipped blocklisted '{name}'")
             continue
 
-        existing = await db.persons.find_one({"slug": slug})
+        existing = await find_existing_person(db, name, slug)
         if existing:
             results["skipped_duplicates"].append(name)
             continue
@@ -7385,6 +7403,7 @@ async def admin_add_celebrities_batch(request: Request):
 
         doc = {
             "name": name,
+            "name_normalized": normalize_person_name(name),
             "slug": slug,
             "category": category,
             "approved": True,
@@ -7534,8 +7553,8 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
         logger.info(f"🚫 [Anti-ghost] Approval blocked for blocklisted candidate '{name}'")
         return {"success": False, "error": "blocklisted", "message": f"'{name}' is blocklisted and cannot be re-created"}
 
-    # Check duplicate in persons
-    existing = await db.persons.find_one({"slug": name_slug})
+    # Check duplicate in persons (name_normalized primaire + slug fallback)
+    existing = await find_existing_person(db, name, name_slug)
     if existing:
         await db.candidate_queue.update_one({"_id": oid}, {"$set": {"status": "duplicate", "updated_at": now}})
         return {"success": False, "error": "duplicate", "message": f"'{name}' already exists in DB"}
@@ -7547,6 +7566,7 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
 
     person_doc = {
         "name": name,
+        "name_normalized": normalize_person_name(name),
         "slug": name_slug,
         "category": category,
         "approved": True,
@@ -7642,7 +7662,7 @@ async def admin_approve_all_high(request: Request):
             logger.info(f"🚫 [Anti-ghost] Batch-approve skipped blocklisted '{name}'")
             continue
 
-        existing = await db.persons.find_one({"slug": name_slug})
+        existing = await find_existing_person(db, name, name_slug)
         if existing:
             await db.candidate_queue.update_one(
                 {"_id": candidate["_id"]},
@@ -7658,6 +7678,7 @@ async def admin_approve_all_high(request: Request):
 
         person_doc = {
             "name": name,
+            "name_normalized": normalize_person_name(name),
             "slug": name_slug,
             "category": category,
             "approved": True,
@@ -7711,12 +7732,11 @@ async def admin_propose_celebrity_to_queue(request: Request):
         raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
 
     name_slug = slugify(name)
-    existing = await db.persons.find_one({"slug": name_slug})
+    existing = await find_existing_person(db, name, name_slug)
     if existing:
         return {"success": False, "error": "already_exists", "message": f"'{name}' already in database"}
 
-    from unidecode import unidecode as _unidecode
-    name_norm = _unidecode(name).lower().strip()
+    name_norm = normalize_person_name(name)
     existing_q = await db.candidate_queue.find_one({"name_normalized": name_norm, "status": "pending"})
     if existing_q:
         return {"success": False, "error": "already_in_queue", "message": f"'{name}' already pending in queue"}
@@ -8451,9 +8471,9 @@ async def admin_propose_celebrity(request: Request):
     if category not in valid_categories:
         raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {sorted(valid_categories)}")
 
-    # ── Check if already in DB ──
+    # ── Check if already in DB (name_normalized primaire + slug fallback) ──
     name_slug = slugify(name)
-    existing = await db.persons.find_one({"slug": name_slug})
+    existing = await find_existing_person(db, name, name_slug)
     if existing:
         return {"success": False, "error": "already_exists", "person_id": str(existing["_id"])}
 
@@ -8515,8 +8535,8 @@ async def admin_propose_celebrity(request: Request):
         pass
 
     final_slug = slugify(canonical_name)
-    # Double-check with canonical slug
-    existing = await db.persons.find_one({"slug": final_slug})
+    # Double-check with canonical name (name_normalized primaire + slug fallback)
+    existing = await find_existing_person(db, canonical_name, final_slug)
     if existing:
         return {"success": False, "error": "already_exists", "person_id": str(existing["_id"])}
 
@@ -8546,6 +8566,7 @@ async def admin_propose_celebrity(request: Request):
     now = now_utc()
     person_doc = {
         "name": canonical_name,
+        "name_normalized": normalize_person_name(canonical_name),
         "slug": final_slug,
         "category": category,  # Admin override
         "approved": True,
