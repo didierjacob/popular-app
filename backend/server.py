@@ -647,6 +647,7 @@ async def seed_people():
         slug = slugify(p["name"])
         doc = {
             "name": p["name"],
+            "name_normalized": normalize_person_name(p["name"]),
             "slug": slug,
             "category": p.get("category", "other"),
             "approved": True,
@@ -697,7 +698,10 @@ async def seed_missing_people():
             blocked += 1
             continue
 
-        existing = await db.persons.find_one({"slug": slug})
+        # Dédup robuste : name_normalized (indexé) puis slug (fallback legacy).
+        # Empêche le re-seed d'un doublon quand la fiche existante a un slug abîmé
+        # ('mneskin' vs 'maneskin') — cause du re-seed du 2026-07-22.
+        existing = await find_existing_person(db, p["name"], slug)
         if existing:
             continue
         # Give initial votes similar to other seeds (range 5000-15000)
@@ -707,6 +711,7 @@ async def seed_missing_people():
         score = round((init_likes / max(1, total)) * 200 - 100, 1)  # Convert to -100..+100 scale
         doc = {
             "name": p["name"],
+            "name_normalized": normalize_person_name(p["name"]),
             "slug": slug,
             "category": p.get("category", "other"),
             "approved": True,
