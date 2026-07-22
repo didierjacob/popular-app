@@ -3542,7 +3542,10 @@ async def admin_grant_booster(req: Request, request: GrantBoosterRequest):
     person = await db.persons.find_one({"name": {"$regex": f"^{request.name}$", "$options": "i"}, "source": "self_boosted"})
     if not person:
         # Create the outsider profile
-        slug = request.name.lower().replace(" ", "-").replace("'", "")
+        # Étape 1 (accents/slugs) : slug via slugify() (unidecode) pour rester cohérent
+        # avec les autres générateurs — le .replace() maison gardait les accents et
+        # produisait des slugs divergents ("rosalía" vs "rosalia").
+        slug = slugify(request.name)
         person_doc = {
             "name": request.name,
             "slug": slug,
