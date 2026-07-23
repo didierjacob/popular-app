@@ -8721,6 +8721,9 @@ async def report_outsider(request: Request, body: ReportOutsiderRequest):
 # "minor" = personne mineure — les deux absents du flux outsider.
 PERSONALITY_REPORT_REASONS = {"inappropriate", "impersonation", "minor", "fake", "other"}
 
+# Bloc C (2) — seuil d'auto-masquage doux (réglable en code, pas d'écriture DB).
+REPORT_AUTOHIDE_THRESHOLD = 5
+
 class ReportPersonalityRequest(BaseModel):
     person_id: str
     reason: str  # inappropriate | impersonation | minor | fake | other
@@ -8791,6 +8794,27 @@ async def report_personality(request: Request, body: ReportPersonalityRequest):
         "status": "pending",
     })
 
+    # ── Bloc C (2) — auto-masquage doux à seuil ──
+    #    À REPORT_AUTOHIDE_THRESHOLD signalements pending, la fiche est retirée des
+    #    classements (visible_in_rankings=false) en attente de revue admin. Doux et
+    #    RÉVERSIBLE (POST /admin/personality-reports/{id}/restore). Idempotent : on ne
+    #    (re)masque que si la fiche est encore visible.
+    auto_hidden = False
+    if total_reports >= REPORT_AUTOHIDE_THRESHOLD and person.get("visible_in_rankings", True):
+        await db.persons.update_one(
+            {"_id": person_oid},
+            {"$set": {
+                "visible_in_rankings": False,
+                "auto_hidden_at": now,
+                "auto_hidden_reason": "reports_threshold",
+            }},
+        )
+        auto_hidden = True
+        logger.warning(
+            f"🫥 [AutoHide] Personality '{person.get('name')}' masquée "
+            f"({total_reports} signalements ≥ seuil {REPORT_AUTOHIDE_THRESHOLD}) — en attente de revue admin"
+        )
+
     logger.info(
         f"🚩 [Report] Personality '{person.get('name')}' reported by {device_id[:8]}... "
         f"reason={body.reason} (total pending: {total_reports})"
@@ -8800,6 +8824,7 @@ async def report_personality(request: Request, body: ReportPersonalityRequest):
         "success": True,
         "report_id": str(result.inserted_id),
         "total_pending_reports": total_reports,
+        "auto_hidden": auto_hidden,
         "message": "Report submitted. Our team will review it shortly.",
     }
 
@@ -8858,10 +8883,49 @@ async def admin_list_personality_reports(request: Request, status: str = Query(d
             "reasons_summary": dict(Counter(r["reasons"])),
             "person_exists": person is not None,
             "person_source": person.get("source", "") if person else None,
+            # Bloc C (2) — état de masquage (auto-hide à seuil), pour l'admin.
+            "auto_hidden": bool(person.get("auto_hidden_at")) if person else False,
+            "visible_in_rankings": person.get("visible_in_rankings", True) if person else None,
             "reports": r["all_reports"],
         })
 
     return {"total_personalities_reported": len(output), "reports": output}
+
+
+@api_router.post("/admin/personality-reports/{person_id}/restore")
+async def admin_restore_personality(person_id: str, request: Request):
+    """
+    Bloc C (2) — Ré-afficher une Personnalité auto-masquée après revue admin :
+    remet visible_in_rankings=true, efface les flags auto_hidden_*, et marque ses
+    signalements comme 'reviewed' (ils quittent la file pending → pas de re-masquage
+    immédiat). Réversible/idempotent.
+    """
+    _require_admin_auth(request)
+    try:
+        oid = ObjectId(person_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid person_id")
+
+    person = await db.persons.find_one({"_id": oid})
+    if not person:
+        raise HTTPException(status_code=404, detail="Personality not found")
+
+    await db.persons.update_one(
+        {"_id": oid},
+        {"$set": {"visible_in_rankings": True},
+         "$unset": {"auto_hidden_at": "", "auto_hidden_reason": ""}},
+    )
+    res = await db.personality_reports.update_many(
+        {"person_id": person_id, "status": "pending"},
+        {"$set": {"status": "reviewed", "reviewed_at": now_utc()}},
+    )
+
+    await _log_admin_action("restore_personality", person.get("name", ""), {
+        "person_id": person_id,
+        "reports_reviewed": res.modified_count,
+    })
+    logger.info(f"👁️ [Restore] Personality '{person.get('name')}' ré-affichée (reports reviewed: {res.modified_count})")
+    return {"success": True, "person_id": person_id, "reports_reviewed": res.modified_count}
 
 
 # ── Family 4: Admin Outsider Moderation ──

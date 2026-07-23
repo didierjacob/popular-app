@@ -264,6 +264,9 @@ interface PersonalityReportGroup {
   reasons_summary: Record<string, number>;
   person_exists: boolean;
   person_source: string | null;
+  // Bloc C (2) — auto-masquage doux à seuil
+  auto_hidden?: boolean;
+  visible_in_rankings?: boolean | null;
   reports: PersonalityReportItem[];
 }
 
@@ -873,6 +876,37 @@ export default function Admin() {
       loadPersonalityReports(personalityReportsFilter);
     }
   }, [authenticated, currentTab, personalityReportsFilter, loadPersonalityReports]);
+
+  // Bloc C (2) — ré-afficher une Personnalité auto-masquée (après revue admin).
+  const personalityRestore = useCallback((g: PersonalityReportGroup) => {
+    Alert.alert(
+      'Re-afficher',
+      `Re-afficher "${g.person_name || '(sans nom)'}" dans les classements ? Ses signalements seront marques "revus".`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Re-afficher',
+          onPress: async () => {
+            try {
+              const res = await adminFetch(API(`/admin/personality-reports/${g.person_id}/restore`), {
+                method: 'POST',
+              });
+              if (res.ok) {
+                Alert.alert('Re-affichee', `${g.person_name || 'La fiche'} est de nouveau visible.`);
+                loadPersonalityReports(personalityReportsFilter);
+              } else {
+                let msg = 'Echec du re-affichage';
+                try { const d = await res.json(); if (d?.detail) msg = String(d.detail); } catch {}
+                Alert.alert('Erreur', msg);
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur reseau');
+            }
+          },
+        },
+      ]
+    );
+  }, [adminFetch, personalityReportsFilter, loadPersonalityReports]);
 
   // Backend resout en bulk tous les pending pour l'outsider, donc on passe report_id de reports[0].
   const firstReportId = (g: OutsiderReportGroup): string | null =>
@@ -1747,7 +1781,7 @@ export default function Admin() {
                   onWarn={outsiderWarn}
                   onDelete={outsiderDelete}
                 />
-                {/* Bloc B2 — Signalements de Personnalites UGC (lecture seule) */}
+                {/* Bloc B2/C — Signalements de Personnalites UGC (+ auto-masquage / re-affichage) */}
                 <PersonalityReportsSection
                   reports={personalityReports}
                   loading={personalityReportsLoading}
@@ -1755,6 +1789,7 @@ export default function Admin() {
                   filter={personalityReportsFilter}
                   onFilterChange={setPersonalityReportsFilter}
                   onRefresh={() => loadPersonalityReports(personalityReportsFilter)}
+                  onRestore={personalityRestore}
                 />
               </>
             )}
@@ -3073,6 +3108,7 @@ interface PersonalityReportsSectionProps {
   filter: OutsiderReportsFilter;
   onFilterChange: (f: OutsiderReportsFilter) => void;
   onRefresh: () => void;
+  onRestore: (g: PersonalityReportGroup) => void;
 }
 
 function PersonalityReportsSection({
@@ -3082,6 +3118,7 @@ function PersonalityReportsSection({
   filter,
   onFilterChange,
   onRefresh,
+  onRestore,
 }: PersonalityReportsSectionProps) {
   const count = reports.length;
   return (
@@ -3167,6 +3204,9 @@ function PersonalityReportsSection({
                       {latest?.created_at && (
                         <Text style={styles.candidatesDateText}>{formatRelativeShort(latest.created_at)}</Text>
                       )}
+                      {g.auto_hidden && (
+                        <Text style={styles.personalityAutoHiddenTag}>🫥 Auto-masquee</Text>
+                      )}
                       {!g.person_exists && (
                         <Text style={styles.outsiderDeletedTag}>Profil supprime</Text>
                       )}
@@ -3176,6 +3216,14 @@ function PersonalityReportsSection({
               </View>
             );
           }}
+          actions={(g) => (g.auto_hidden ? [
+            {
+              label: 'Re-afficher',
+              icon: 'eye-outline',
+              variant: 'primary',
+              onPress: () => onRestore(g),
+            },
+          ] : [])}
         />
       )}
     </View>
@@ -4303,6 +4351,13 @@ const styles = StyleSheet.create({
     color: PALETTE.accent,
     fontSize: 11,
     fontWeight: '700',
+  },
+  // Bloc C (2) — badge auto-masquage
+  personalityAutoHiddenTag: {
+    color: '#E0A800',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
 
   // ---------- Styles Vague 4 sous-tache 3 — Decedes ----------
