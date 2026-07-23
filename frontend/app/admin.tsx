@@ -1682,6 +1682,8 @@ export default function Admin() {
               <DashboardTab
                 stats={stats}
                 dashboardStats={dashboardStats}
+                activityData={activityData}
+                onOpenTab={setCurrentTab}
               />
             )}
 
@@ -1847,184 +1849,175 @@ export default function Admin() {
 }
 
 // Dashboard Tab Component — Vague 4 sous-tache 6 : enrichi avec /admin/dashboard-stats
-function DashboardTab({ stats, dashboardStats }: any) {
+function DashboardTab({ stats, dashboardStats, activityData, onOpenTab }: any) {
   const ds: DashboardStats | null = dashboardStats;
   const noStats = !stats && !ds;
+  const catColor = (c?: string | null) => (c && THEME.cat[c]) ? THEME.cat[c] : THEME.muted;
+  const catTotal = ds ? Object.values(ds.category_breakdown || {}).reduce((a: number, b) => a + (b as number), 0) : 0;
+
+  const Tile = ({ label, value, sub, subColor = THEME.ink2, accent = false }:
+    { label: string; value: any; sub?: string; subColor?: string; accent?: boolean }) => (
+    <View style={styles.kpiTile}>
+      {accent && <View style={styles.kpiAccentBar} />}
+      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={styles.kpiValue}>{value}</Text>
+      {sub ? <Text style={[styles.kpiSub, { color: subColor }]}>{sub}</Text> : null}
+    </View>
+  );
+
+  const ModRow = ({ icon, title, sub, count, tab, first }:
+    { icon: any; title: string; sub: string; count: number; tab: Tab; first?: boolean }) => (
+    <View style={[styles.rowLine, first && { borderTopWidth: 0 }]}>
+      <View style={styles.modIcon}><Ionicons name={icon} size={16} color={THEME.ink2} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.modTitle}>{title}</Text>
+        <Text style={styles.modSub}>{sub}</Text>
+      </View>
+      {count > 0 && (
+        <View style={styles.modBadge}><Text style={styles.modBadgeText}>{count}</Text></View>
+      )}
+      <TouchableOpacity
+        style={count > 0 ? styles.btnPrimary : styles.btnPlain}
+        onPress={() => onOpenTab?.(tab)}
+      >
+        <Text style={count > 0 ? styles.btnPrimaryText : styles.btnPlainText}>Ouvrir →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (noStats) {
+    return (
+      <View style={styles.panel}>
+        <Text style={styles.kpiLabel}>Statistiques indisponibles</Text>
+      </View>
+    );
+  }
 
   return (
     <View>
-      {noStats && (
-        <View style={styles.section}>
-          <View style={styles.card}>
-            <Text style={styles.statLabel}>Statistiques indisponibles</Text>
-          </View>
+      {/* ── Tuiles KPI ── */}
+      {stats && ds && (
+        <View style={styles.kpiGrid}>
+          <Tile label="Total profils" value={stats.total_people} sub="profils en base" accent />
+          <Tile label="Votes totaux" value={stats.total_votes} sub="cumulés" />
+          <Tile label="Actifs 24h" value={stats.active_users_24h} sub={`${stats.active_users_7d ?? '—'} sur 7 jours`} />
+          <Tile label="À modérer" value={ds.queues.pending_candidates} sub="créations en attente" subColor={THEME.warning} />
+          <Tile label="Décès à vérifier" value={ds.queues.pending_deceased} sub="file décédés" subColor={THEME.serious} />
+          <Tile label="Revenus 24h" value={`${stats.revenue_24h}€`} sub="estimé (non vérifié IAP)" />
         </View>
       )}
 
-      {/* ============ Section 1 — KPI business (legacy /admin/stats) ============ */}
-      {stats && (
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
-            <Ionicons name="people" size={32} color={PALETTE.gold} />
-            <Text style={styles.statNumber}>{stats.total_people}</Text>
-            <Text style={styles.statLabel}>Total profils</Text>
-          </View>
-
-          <View style={[styles.statCard, { borderColor: PALETTE.green }]}>
-            <Ionicons name="bar-chart" size={32} color={PALETTE.green} />
-            <Text style={styles.statNumber}>{stats.total_votes}</Text>
-            <Text style={styles.statLabel}>Votes totaux</Text>
-          </View>
-
-          <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
-            <Ionicons name="person" size={32} color="#00D8FF" />
-            <Text style={styles.statNumber}>{stats.active_users_24h}</Text>
-            <Text style={styles.statLabel}>Actifs 24h</Text>
-          </View>
-
-          <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
-            <Ionicons name="cash" size={32} color="#FF4757" />
-            <Text style={styles.statNumber}>{stats.revenue_24h}€</Text>
-            <Text style={styles.statLabel}>Revenus 24h (est.)</Text>
-          </View>
-        </View>
-      )}
-
-      {/* ============ Section 2 — Engagement & revenus (champs etendus /admin/stats) ============ */}
-      {stats && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📈 Engagement & revenus</Text>
-          <View style={[styles.statsGrid, { padding: 0 }]}>
-            <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
-              <Ionicons name="people-outline" size={28} color="#00D8FF" />
-              <Text style={styles.statNumber}>{stats.active_users_7d ?? '—'}</Text>
-              <Text style={styles.statLabel}>Actifs 7 jours</Text>
-            </View>
-
-            <View style={[styles.statCard, { borderColor: '#00D8FF' }]}>
-              <Ionicons name="calendar-outline" size={28} color="#00D8FF" />
-              <Text style={styles.statNumber}>{stats.active_users_30d ?? '—'}</Text>
-              <Text style={styles.statLabel}>Actifs 30 jours</Text>
-            </View>
-
-            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
-              <Ionicons name="add-circle-outline" size={28} color={PALETTE.gold} />
-              <Text style={styles.statNumber}>{stats.new_people_24h}</Text>
-              <Text style={styles.statLabel}>Nouveaux profils 24h</Text>
-            </View>
-
-            <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
-              <Ionicons name="wallet-outline" size={28} color="#FF4757" />
-              <Text style={styles.statNumber}>{stats.revenue_total_lifetime ?? '—'}€</Text>
-              <Text style={styles.statLabel}>Revenus a vie (est.)</Text>
-            </View>
-          </View>
-          <Text style={styles.revenueDisclaimer}>
-            💡 Revenus = estimation (nb de boosts × prix tarifaire), NON verifies cote IAP
-            (Google Play en mode observation). A titre indicatif, pas un chiffre comptable.
-          </Text>
-        </View>
-      )}
-
-      {/* ============ Section 3 — Files d'attente admin (dashboard-stats.queues) ============ */}
+      {/* ── File de modération (navigation) ── */}
       {ds && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⏳ Files d'attente admin</Text>
-          <View style={[styles.statsGrid, { padding: 0 }]}>
-            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
-              <Ionicons name="people-circle-outline" size={28} color={PALETTE.gold} />
-              <Text style={styles.statNumber}>{ds.queues.pending_candidates}</Text>
-              <Text style={styles.statLabel}>Candidats en attente</Text>
-            </View>
-
-            <View style={[styles.statCard, { borderColor: PALETTE.accent }]}>
-              <Ionicons name="skull-outline" size={28} color={PALETTE.accent} />
-              <Text style={styles.statNumber}>{ds.queues.pending_deceased}</Text>
-              <Text style={styles.statLabel}>Deces a verifier</Text>
-            </View>
-
-            <View style={[styles.statCard, { borderColor: PALETTE.gold }]}>
-              <Ionicons name="pricetags-outline" size={28} color={PALETTE.gold} />
-              <Text style={styles.statNumber}>{ds.queues.pending_category_reviews}</Text>
-              <Text style={styles.statLabel}>Revues categorie</Text>
-            </View>
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>File de modération</Text>
+            <Text style={styles.panelCount}>
+              {ds.queues.pending_candidates + ds.queues.pending_deceased + ds.queues.pending_category_reviews} en attente
+            </Text>
           </View>
+          <ModRow first icon="people-circle-outline" title="Créations utilisateurs"
+            sub="à approuver ou refuser" count={ds.queues.pending_candidates} tab="candidates" />
+          <ModRow icon="skull-outline" title="Décès à vérifier"
+            sub="confirmer / rejeter" count={ds.queues.pending_deceased} tab="deceased" />
+          <ModRow icon="pricetags-outline" title="Revues de catégorie"
+            sub="appliquer / rejeter" count={ds.queues.pending_category_reviews} tab="categories" />
         </View>
       )}
 
-      {/* ============ Section 4 — Top 5 popularite (dashboard-stats.top5) ============ */}
+      {/* ── Top 5 popularité ── */}
       {ds && ds.top5 && ds.top5.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏆 Top 5 popularite</Text>
-          <View style={styles.card}>
-            {ds.top5.map((p, idx) => (
-              <View key={`${idx}-${p.name}`} style={styles.dashTopRow}>
-                <Text style={styles.dashTopRank}>{idx + 1}.</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dashTopName}>{p.name}</Text>
-                  <Text style={styles.dashTopMeta}>{categoryFR(p.category)}</Text>
-                </View>
-                <Text style={styles.dashTopScore}>{p.popularoo_index.toFixed(1)}</Text>
-              </View>
-            ))}
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Top 5 popularité</Text>
+            <Text style={styles.panelCount}>indice Popularoo</Text>
           </View>
+          {ds.top5.map((p, idx) => (
+            <View key={`${idx}-${p.name}`} style={[styles.top5Row, idx === 0 && { borderTopWidth: 0 }]}>
+              <Text style={styles.top5Rank}>{idx + 1}</Text>
+              <Text style={styles.top5Name} numberOfLines={1}>{p.name}</Text>
+              {p.category && (
+                <View style={[styles.catChip, { backgroundColor: catColor(p.category) }]}>
+                  <Text style={styles.catChipText}>{categoryFR(p.category)}</Text>
+                </View>
+              )}
+              <Text style={styles.top5Index}>{p.popularoo_index.toFixed(1)}</Text>
+            </View>
+          ))}
         </View>
       )}
 
-      {/* ============ Section 5 — Repartition par categorie (dashboard-stats.category_breakdown) ============ */}
+      {/* ── Répartition par catégorie (barres) ── */}
       {ds && ds.category_breakdown && Object.keys(ds.category_breakdown).length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎯 Repartition par categorie</Text>
-          <View style={styles.card}>
-            <View style={styles.dashCategoryGrid}>
-              {Object.entries(ds.category_breakdown).map(([cat, count]) => (
-                <View key={cat} style={styles.dashCategoryChip}>
-                  <Text style={styles.dashCategoryCount}>{count}</Text>
-                  <Text style={styles.dashCategoryLabel}>{categoryFR(cat)}</Text>
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Répartition par catégorie</Text>
+            <Text style={styles.panelCount}>{catTotal} profils</Text>
+          </View>
+          {Object.entries(ds.category_breakdown)
+            .sort((a, b) => (b[1] as number) - (a[1] as number))
+            .map(([cat, count]) => {
+              const pct = catTotal > 0 ? Math.round((count as number) / catTotal * 100) : 0;
+              return (
+                <View key={cat} style={styles.catBarRow}>
+                  <View style={styles.catBarHead}>
+                    <Text style={styles.catBarLabel}>{categoryFR(cat)}</Text>
+                    <Text style={styles.catBarPct}>{count} · {pct}%</Text>
+                  </View>
+                  <View style={styles.catBarTrack}>
+                    <View style={[styles.catBarFill, { width: `${pct}%`, backgroundColor: catColor(cat) }]} />
+                  </View>
                 </View>
-              ))}
-            </View>
-          </View>
+              );
+            })}
         </View>
       )}
 
-      {/* ============ Section 6 — Sante pipeline (dashboard-stats: total_celebrities + alpha + last_jobs) ============ */}
+      {/* ── Flux d'activité (données déjà chargées) ── */}
+      {activityData?.recent_people?.length > 0 && (
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Activité récente</Text>
+            <Text style={styles.panelCount}>nouveaux profils</Text>
+          </View>
+          {activityData.recent_people.slice(0, 6).map((it: any, i: number) => (
+            <View key={i} style={[styles.actRow, i === 0 && { borderTopWidth: 0 }]}>
+              <View style={[styles.actDot, { backgroundColor: THEME.good }]} />
+              <Text style={styles.actText} numberOfLines={1}>{it.name || it.person_name || 'Profil'}</Text>
+              <Text style={styles.actTime}>{it.created_at ? formatRelativeShort(it.created_at) : ''}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ── Santé pipeline ── */}
       {ds && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔧 Sante pipeline</Text>
-          <View style={styles.card}>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Celebrites validees (hors outsiders)</Text>
-              <Text style={styles.dashPipelineValue}>{ds.total_celebrities}</Text>
-            </View>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Alpha (popularoo_index)</Text>
-              <Text style={styles.dashPipelineValue}>{ds.alpha?.toFixed(3) ?? '—'}</Text>
-            </View>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Scores externes</Text>
-              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.external_scores)}</Text>
-            </View>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Detection candidats</Text>
-              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.candidate_detection)}</Text>
-            </View>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Verif deces (top 50)</Text>
-              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.deceased_check_top50)}</Text>
-            </View>
-            <View style={styles.dashPipelineRow}>
-              <Text style={styles.dashPipelineLabel}>Verif deces (complet)</Text>
-              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.deceased_check_all)}</Text>
-            </View>
-            <View style={[styles.dashPipelineRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.dashPipelineLabel}>Revue categories</Text>
-              <Text style={styles.dashPipelineValue}>{formatDateFR(ds.last_jobs.category_review)}</Text>
-            </View>
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Santé pipeline</Text>
+            <Text style={styles.panelCount}>{ds.total_celebrities} célébrités</Text>
           </View>
+          {([
+            ['Alpha (indice)', ds.alpha?.toFixed(2) ?? '—'],
+            ['Scores externes', formatDateFR(ds.last_jobs.external_scores)],
+            ['Détection candidats', formatDateFR(ds.last_jobs.candidate_detection)],
+            ['Vérif décès (top 50)', formatDateFR(ds.last_jobs.deceased_check_top50)],
+            ['Vérif décès (complet)', formatDateFR(ds.last_jobs.deceased_check_all)],
+            ['Revue catégories', formatDateFR(ds.last_jobs.category_review)],
+          ] as [string, string][]).map(([label, value], i) => (
+            <View key={label} style={[styles.pipeRow, i === 0 && { borderTopWidth: 0 }]}>
+              <Text style={styles.pipeLabel}>{label}</Text>
+              <Text style={styles.pipeValue}>{value}</Text>
+            </View>
+          ))}
         </View>
       )}
 
+      {/* ── Pied — disclaimer ── */}
+      <Text style={styles.footerNote}>
+        💡 Revenus = estimation (nb de boosts × prix tarifaire), NON vérifiés côté IAP
+        (Google Play en observation). Indice = popularité externe (α verrouillé à 1.00).
+      </Text>
     </View>
   );
 }
@@ -3746,6 +3739,75 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 4,
   },
+
+  // ══════════ Phase B2 — Dashboard cockpit (THEME) ══════════
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
+  kpiTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: THEME.surface,
+    borderRadius: THEME.radius.card,
+    borderWidth: 1,
+    borderColor: THEME.hairline,
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+    overflow: 'hidden',
+  },
+  kpiAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: THEME.accent },
+  kpiLabel: { color: THEME.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  kpiValue: { color: THEME.ink, fontSize: 30, fontWeight: '700', marginTop: 6, fontVariant: ['tabular-nums'] },
+  kpiSub: { fontSize: 11.5, marginTop: 3 },
+
+  panel: {
+    backgroundColor: THEME.surface,
+    borderRadius: THEME.radius.card,
+    borderWidth: 1,
+    borderColor: THEME.hairline,
+    marginHorizontal: 12,
+    marginTop: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+  },
+  panelHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  panelTitle: { color: THEME.ink, fontSize: 13.5, fontWeight: '700' },
+  panelCount: { color: THEME.muted, fontSize: 12 },
+
+  rowLine: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 10, borderTopWidth: 1, borderTopColor: THEME.hairline },
+  modIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: THEME.surface2, alignItems: 'center', justifyContent: 'center' },
+  modTitle: { color: THEME.ink, fontSize: 13.5, fontWeight: '600' },
+  modSub: { color: THEME.muted, fontSize: 11.5, marginTop: 1 },
+  modBadge: { minWidth: 22, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: THEME.surface2, borderWidth: 1, borderColor: THEME.hairline, alignItems: 'center', justifyContent: 'center' },
+  modBadgeText: { color: THEME.ink2, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  btnPrimary: { backgroundColor: THEME.accent, borderRadius: THEME.radius.btn, paddingHorizontal: 12, paddingVertical: 7 },
+  btnPrimaryText: { color: '#fff', fontSize: 12.5, fontWeight: '600' },
+  btnPlain: { backgroundColor: THEME.surface2, borderRadius: THEME.radius.btn, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: THEME.hairline },
+  btnPlainText: { color: THEME.ink2, fontSize: 12.5, fontWeight: '600' },
+
+  top5Row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: THEME.hairline },
+  top5Rank: { color: THEME.muted, fontSize: 13, width: 16, fontVariant: ['tabular-nums'] },
+  top5Name: { color: THEME.ink, fontSize: 13.5, flex: 1 },
+  catChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  catChipText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  top5Index: { color: THEME.ink, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'], marginLeft: 4 },
+
+  catBarRow: { marginTop: 11 },
+  catBarHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  catBarLabel: { color: THEME.ink2, fontSize: 12 },
+  catBarPct: { color: THEME.muted, fontSize: 12, fontVariant: ['tabular-nums'] },
+  catBarTrack: { height: 7, borderRadius: 4, backgroundColor: THEME.surface2, overflow: 'hidden' },
+  catBarFill: { height: 7, borderRadius: 4 },
+
+  actRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: THEME.hairline },
+  actDot: { width: 8, height: 8, borderRadius: 4 },
+  actText: { color: THEME.ink, fontSize: 13, flex: 1 },
+  actTime: { color: THEME.muted, fontSize: 11, marginLeft: 8 },
+
+  pipeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: THEME.hairline },
+  pipeLabel: { color: THEME.ink2, fontSize: 12.5 },
+  pipeValue: { color: THEME.ink, fontSize: 12.5, fontWeight: '600', fontVariant: ['tabular-nums'] },
+
+  footerNote: { color: THEME.muted, fontSize: 11, fontStyle: 'italic', lineHeight: 15, padding: 14, marginTop: 4 },
+
   // Vague 4 sous-tache 6 — Stats enrichie
   dashTopRow: {
     flexDirection: 'row',
