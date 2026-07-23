@@ -304,26 +304,28 @@ interface CategoryReviewItem {
 }
 
 type Tab =
-  | 'stats'           // ex-dashboard, sera enrichi en sous-tache 6
-  | 'activity'        // existant
-  | 'candidates'      // placeholder, sous-tache 1
-  | 'outsider_reports'// placeholder, sous-tache 2
-  | 'manual_add'      // sous-tache 5 (creation immediate via /admin/propose-celebrity)
-  | 'deceased'        // placeholder, sous-tache 4
-  | 'categories'      // placeholder, sous-tache 5
-  | 'moderation'      // existant
-  | 'settings';       // existant
+  | 'stats'            // tableau de bord (stats + files + jobs)
+  | 'activity'         // flux d'activité récente
+  | 'candidates'       // créations utilisateurs à modérer (approuver/refuser)
+  | 'outsider_reports' // signalements (Outsiders + Personnalités UGC)
+  | 'manual_add'       // ajout manuel d'une célébrité (Wikidata)
+  | 'deceased'         // file des décédés à confirmer
+  | 'categories'       // revues de catégorie à appliquer
+  | 'moderation'       // recherche + gestion des fiches existantes
+  | 'settings';        // réglages
 
+// Libellés d'onglets — clairs et cohérents (FR). La clé technique (ex. 'candidates')
+// est inchangée ; seul le label affiché évolue.
 const TAB_LABELS: Record<Tab, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  stats:            { label: 'Stats',      icon: 'stats-chart' },
-  activity:         { label: 'Activite',   icon: 'pulse' },
-  candidates:       { label: 'Candidats',  icon: 'people-circle' },
-  outsider_reports: { label: 'Outsiders',  icon: 'flag' },
-  manual_add:       { label: 'Ajout',      icon: 'add-circle' },
-  deceased:         { label: 'Decedes',    icon: 'skull' },
-  categories:       { label: 'Categories', icon: 'pricetags' },
-  moderation:       { label: 'Moderation', icon: 'shield-checkmark' },
-  settings:         { label: 'Settings',   icon: 'settings' },
+  stats:            { label: 'Stats',        icon: 'stats-chart' },
+  activity:         { label: 'Activite',     icon: 'pulse' },
+  candidates:       { label: 'Creations',    icon: 'people-circle' },
+  outsider_reports: { label: 'Signalements', icon: 'flag' },
+  manual_add:       { label: 'Ajout manuel', icon: 'add-circle' },
+  deceased:         { label: 'Decedes',      icon: 'skull' },
+  categories:       { label: 'Categories',   icon: 'pricetags' },
+  moderation:       { label: 'Recherche',    icon: 'shield-checkmark' },
+  settings:         { label: 'Reglages',     icon: 'settings' },
 };
 
 const TAB_ORDER: Tab[] = [
@@ -3572,21 +3574,6 @@ function CategoriesSection({
   );
 }
 
-// Placeholder rendu pour les 5 sections restantes en construction (sous-taches 2-5 a venir).
-function PlaceholderSection({ tab }: { tab: Tab }) {
-  const meta = TAB_LABELS[tab];
-  return (
-    <View style={styles.section}>
-      <View style={styles.placeholderCard}>
-        <Ionicons name={meta.icon} size={48} color={PALETTE.gold} />
-        <Text style={styles.placeholderTitle}>{meta.label}</Text>
-        <Text style={styles.placeholderText}>Section en construction</Text>
-        <Text style={styles.placeholderHint}>Le contenu arrive dans une sous-tache dediee.</Text>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PALETTE.bg },
   loginContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
@@ -3949,33 +3936,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
-  },
-  placeholderCard: {
-    backgroundColor: PALETTE.card,
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderStyle: 'dashed',
-  },
-  placeholderTitle: {
-    color: PALETTE.text,
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  placeholderText: {
-    color: PALETTE.gold,
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  placeholderHint: {
-    color: PALETTE.subtext,
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'center',
   },
 
   // ---------- Styles Vague 4 — Candidats ----------
