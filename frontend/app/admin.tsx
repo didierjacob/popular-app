@@ -1828,7 +1828,7 @@ function DashboardTab({ stats, dashboardStats }: any) {
           <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
             <Ionicons name="cash" size={32} color="#FF4757" />
             <Text style={styles.statNumber}>{stats.revenue_24h}€</Text>
-            <Text style={styles.statLabel}>Revenus 24h</Text>
+            <Text style={styles.statLabel}>Revenus 24h (est.)</Text>
           </View>
         </View>
       )}
@@ -1859,9 +1859,13 @@ function DashboardTab({ stats, dashboardStats }: any) {
             <View style={[styles.statCard, { borderColor: '#FF4757' }]}>
               <Ionicons name="wallet-outline" size={28} color="#FF4757" />
               <Text style={styles.statNumber}>{stats.revenue_total_lifetime ?? '—'}€</Text>
-              <Text style={styles.statLabel}>Revenus a vie</Text>
+              <Text style={styles.statLabel}>Revenus a vie (est.)</Text>
             </View>
           </View>
+          <Text style={styles.revenueDisclaimer}>
+            💡 Revenus = estimation (nb de boosts × prix tarifaire), NON verifies cote IAP
+            (Google Play en mode observation). A titre indicatif, pas un chiffre comptable.
+          </Text>
         </View>
       )}
 
@@ -3649,6 +3653,15 @@ const styles = StyleSheet.create({
   },
   statNumber: { color: PALETTE.text, fontSize: 28, fontWeight: '700', marginTop: 8 },
   statLabel: { color: PALETTE.subtext, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  // Admin A3 — avertissement revenus estimés (non vérifiés IAP)
+  revenueDisclaimer: {
+    color: PALETTE.subtext,
+    fontSize: 11,
+    fontStyle: 'italic',
+    lineHeight: 15,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
   // Vague 4 sous-tache 6 — Stats enrichie
   dashTopRow: {
     flexDirection: 'row',
