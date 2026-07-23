@@ -1,28 +1,29 @@
 """
-Étape 2 (import Wikidata) — FETCH : sélection top-K/pays via SPARQL, READ-ONLY (Wikidata).
+Étape 2 (import Wikidata) — FETCH robuste : sélection top-K/pays via SPARQL, READ-ONLY.
 
 ⚠️  N'ÉCRIT RIEN DANS MONGO. Interroge query.wikidata.org (endpoint public) et écrit
     un fichier LOCAL `wikidata_candidates.json` (consommé ensuite par import_wikidata.py).
 
-Stratégie (validée par calibration 2026-07-23) :
-  • Sélection PAR PAYS (P27) = diversité nationale native (le tri global sitelinks
-    est infaisable sur WDQS → timeouts). Top-K par nation.
-  • Panel de 23 nations, tous continents (extensible).
-  • Vivants uniquement (FILTER NOT EXISTS P570).
-  • Plancher de notoriété : sitelinks >= FLOOR (qualité > quota : moins que K là où
-    la notoriété décroche).
-  • Catégorie via occupation P106 (priorité politics>sport>influencer>culture>business).
-    Les fiches "other" (académiques/juristes/etc.) sont EXCLUES.
-  • Récupère aussi P569 (date de naissance) pour le filtre mineur (fait à l'import).
+Stratégie robuste (2 requêtes LÉGÈRES par pays, pour éviter les 504 de WDQS) :
+  • Requête A (cheap, index sitelinks) : top-K QID par pays.
+      ?p wdt:P31 wd:Q5 ; wdt:P27 wd:<pays> ; wikibase:sitelinks ?sl .
+      FILTER NOT EXISTS { ?p wdt:P570 ?d } ORDER BY DESC(?sl) LIMIT K
+      → uniquement QID + sitelinks (aucun OPTIONAL, aucun GROUP BY).
+  • Requête B (détails) : pour les QID collectés, par lots via VALUES ?p {...} :
+      labels FR/EN + P106 (occupations) + P569 (naissance).
 
-Réglages en tête de fichier (K, FLOOR, PANEL). Rate-limit + retry/backoff.
+  Vivants uniquement (P570 exclu en A). Plancher sitelinks >= FLOOR. Catégorie via
+  P106 (priorité politics>sport>influencer>culture>business) ; "other" EXCLU.
+  User-Agent explicite, timeout par requête, RETRY backoff sur 504/timeout, pause
+  entre pays.
+
+Réglages : TOPK, FLOOR, PANEL, BATCH_B en tête de fichier.
 
 Usage (Render Shell) :
     cd /opt/render/project/src/backend
     python fetch_wikidata.py            # écrit wikidata_candidates.json
 """
 import json
-import os
 import time
 import urllib.parse
 import urllib.request
@@ -30,10 +31,10 @@ import urllib.request
 UA = "PopularooImport/1.0 (didier@coffeeandfilms.com)"
 SPARQL = "https://query.wikidata.org/sparql"
 
-TOPK = 20          # top-K par pays
+TOPK = 20          # top-K par pays (requête A)
 FLOOR = 45         # plancher de notoriété (sitelinks)
+BATCH_B = 50       # taille des lots VALUES (requête B)
 
-# Panel de 23 nations (tous continents). QID de citoyenneté P27.
 PANEL = {
     "FR": "Q142", "UK": "Q145", "DE": "Q183", "IT": "Q38", "ES": "Q29", "RU": "Q159",
     "US": "Q30", "BR": "Q155", "MX": "Q96", "CA": "Q16", "AR": "Q414",
@@ -44,9 +45,6 @@ PANEL = {
 
 PRIO = ["politics", "sport", "influencer", "culture", "business", "other"]
 
-# Mapping occupation P106 (QID) → catégorie app. Élargi au-delà du top-50 observé ;
-# les occupations inconnues → non mappées (comptées "unmapped", n'apportent pas de
-# catégorie). Une personne sans AUCUNE catégorie réelle → "other" → EXCLUE.
 CAT = {
     # sport
     "Q937857": "sport", "Q628099": "sport", "Q10833314": "sport", "Q2066131": "sport",
@@ -89,7 +87,7 @@ def cat_of(occ_qids):
     return "other"
 
 
-def run(query, timeout=110, retries=4):
+def run(query, timeout=90, retries=4):
     url = SPARQL + "?" + urllib.parse.urlencode({"query": query, "format": "json"})
     req = urllib.request.Request(url, headers={"Accept": "application/sparql-results+json", "User-Agent": UA})
     last = None
@@ -99,81 +97,111 @@ def run(query, timeout=110, retries=4):
                 return json.load(r)["results"]["bindings"]
         except Exception as e:
             last = e
-            time.sleep(4 * (i + 1))
+            wait = 4 * (i + 1)
+            print(f"      retry {i+1}/{retries} après {wait}s ({e})")
+            time.sleep(wait)
     raise last
 
 
-def fetch_country(qid):
-    q = f"""SELECT ?p ?pLabel (MAX(?sl) AS ?sitelinks) (SAMPLE(?birth) AS ?birthDate)
-       (GROUP_CONCAT(DISTINCT ?occ; separator="|") AS ?occs) WHERE {{
+# ── Requête A : top-K QID + sitelinks pour un pays (cheap) ──
+def fetch_country_qids(qid):
+    q = f"""SELECT ?p ?sl WHERE {{
   ?p wdt:P31 wd:Q5 ; wdt:P27 wd:{qid} ; wikibase:sitelinks ?sl .
   FILTER NOT EXISTS {{ ?p wdt:P570 ?d }}
-  OPTIONAL {{ ?p wdt:P569 ?birth }}
-  OPTIONAL {{ ?p wdt:P106 ?occ }}
-  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "fr,en". }}
-}} GROUP BY ?p ?pLabel ORDER BY DESC(?sitelinks) LIMIT {TOPK}"""
+}} ORDER BY DESC(?sl) LIMIT {TOPK}"""
     rows = run(q)
-    out = []
+    return [(x["p"]["value"].rsplit("/", 1)[-1], int(x["sl"]["value"])) for x in rows]
+
+
+# ── Requête B : détails (label + occs + naissance) pour un lot de QID via VALUES ──
+def fetch_details(qids):
+    values = " ".join(f"wd:{q}" for q in qids)
+    q = f"""SELECT ?p ?pLabel (GROUP_CONCAT(DISTINCT ?occ; separator="|") AS ?occs)
+       (SAMPLE(?birth) AS ?birthDate) WHERE {{
+  VALUES ?p {{ {values} }}
+  OPTIONAL {{ ?p wdt:P106 ?occ }}
+  OPTIONAL {{ ?p wdt:P569 ?birth }}
+  SERVICE wikibase:label {{ bd:serviceParam wikibase:language "fr,en". }}
+}} GROUP BY ?p ?pLabel"""
+    rows = run(q)
+    out = {}
     for x in rows:
         qid_p = x["p"]["value"].rsplit("/", 1)[-1]
         label = x.get("pLabel", {}).get("value", "")
-        # Si le label est resté le QID (pas de libellé FR/EN), on ignore la fiche.
-        if not label or label == qid_p:
-            continue
         occs = [o.rsplit("/", 1)[-1] for o in x["occs"]["value"].split("|") if o] if x.get("occs", {}).get("value") else []
-        out.append({
-            "wikidata_id": qid_p,
-            "name": label,
-            "sitelinks": int(x["sitelinks"]["value"]),
-            "birth": x.get("birthDate", {}).get("value"),  # ISO string or None
-            "occs": occs,
-        })
+        out[qid_p] = {"name": label, "occs": occs, "birth": x.get("birthDate", {}).get("value")}
     return out
 
 
 def main():
-    seen = {}      # wikidata_id -> record (dédup inter-pays : 1re nationalité gagne)
-    per_country_kept = {}
-    excluded_other = 0
-    excluded_floor = 0
-
+    # ── Étape 1 : QID par pays (dédup inter-pays : 1re nationalité gagne) ──
+    assigned = {}   # qid -> {"sitelinks", "country"}
+    per_country_raw = {}
     for cc, qid in PANEL.items():
         try:
-            rows = fetch_country(qid)
+            pairs = fetch_country_qids(qid)
         except Exception as e:
-            print(f"  {cc} ({qid}) ERREUR: {e}")
+            print(f"  {cc} ({qid}) A ÉCHEC: {e}")
+            per_country_raw[cc] = 0
             continue
-        kept = 0
-        for r in rows:
-            if r["sitelinks"] < FLOOR:
-                excluded_floor += 1
+        n = 0
+        for q, sl in pairs:
+            if sl < FLOOR:
                 continue
-            category = cat_of(r["occs"])
-            if category == "other":
-                excluded_other += 1
+            if q in assigned:
                 continue
-            if r["wikidata_id"] in seen:
-                continue
-            r["category"] = category
-            r["country"] = cc
-            del r["occs"]
-            seen[r["wikidata_id"]] = r
-            kept += 1
-        per_country_kept[cc] = kept
-        print(f"  {cc}: retenus={kept}")
+            assigned[q] = {"sitelinks": sl, "country": cc}
+            n += 1
+        per_country_raw[cc] = n
+        print(f"  {cc}: {n} QID (>= plancher {FLOOR})")
         time.sleep(1.5)
 
-    records = list(seen.values())
+    qids = list(assigned.keys())
+    print(f"\n  {len(qids)} QID uniques à détailler (requête B, lots de {BATCH_B})...")
+
+    # ── Étape 2 : détails par lots ──
+    details = {}
+    for i in range(0, len(qids), BATCH_B):
+        chunk = qids[i:i + BATCH_B]
+        try:
+            details.update(fetch_details(chunk))
+        except Exception as e:
+            print(f"    lot B {i//BATCH_B + 1} ÉCHEC: {e}")
+        print(f"    lot B {i//BATCH_B + 1}/{(len(qids)+BATCH_B-1)//BATCH_B} ok ({len(details)} détaillés)")
+        time.sleep(1.5)
+
+    # ── Assemblage + filtre catégorie ──
+    records = []
+    excluded_other = 0
+    no_label = 0
+    for q, meta in assigned.items():
+        det = details.get(q)
+        if not det or not det["name"] or det["name"] == q:
+            no_label += 1
+            continue
+        category = cat_of(det["occs"])
+        if category == "other":
+            excluded_other += 1
+            continue
+        records.append({
+            "wikidata_id": q,
+            "name": det["name"],
+            "sitelinks": meta["sitelinks"],
+            "birth": det["birth"],
+            "category": category,
+            "country": meta["country"],
+        })
+
     out_path = "wikidata_candidates.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({"topk": TOPK, "floor": FLOOR, "panel": list(PANEL.keys()),
                    "records": records}, f, ensure_ascii=False, indent=2)
 
     print("\n" + "=" * 60)
-    print(f"  Candidats uniques retenus : {len(records)}")
-    print(f"  Exclus (< plancher {FLOOR}) : {excluded_floor}")
+    print(f"  Candidats retenus          : {len(records)}")
     print(f"  Exclus (catégorie 'other') : {excluded_other}")
-    print(f"  Par pays : " + "  ".join(f"{cc}={n}" for cc, n in per_country_kept.items()))
+    print(f"  Ignorés (sans libellé)     : {no_label}")
+    print(f"  Par pays (QID >= plancher) : " + "  ".join(f"{cc}={n}" for cc, n in per_country_raw.items()))
     print(f"\n📄 Écrit dans ./{out_path} (fichier local, aucune écriture Mongo).")
 
 
