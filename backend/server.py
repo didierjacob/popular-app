@@ -704,11 +704,8 @@ async def seed_missing_people():
         existing = await find_existing_person(db, p["name"], slug)
         if existing:
             continue
-        # Give initial votes similar to other seeds (range 5000-15000)
-        init_likes = random.randint(5000, 12000)
-        init_dislikes = random.randint(1000, 4000)
-        total = init_likes + init_dislikes
-        score = round((init_likes / max(1, total)) * 200 - 100, 1)  # Convert to -100..+100 scale
+        # Cœur honnête : ZÉRO faux vote. L'indice vient de la popularité externe
+        # (α=1.0, calculée par le job quotidien). Pas de seed_votes_*.
         doc = {
             "name": p["name"],
             "name_normalized": normalize_person_name(p["name"]),
@@ -717,12 +714,11 @@ async def seed_missing_people():
             "approved": True,
             "created_at": now,
             "updated_at": now,
-            "score": score,
-            "likes": init_likes,
-            "dislikes": init_dislikes,
-            "total_votes": total,
-            "seed_votes_likes": init_likes,
-            "seed_votes_dislikes": init_dislikes,
+            "score": 0.0,
+            "likes": 0,
+            "dislikes": 0,
+            "total_votes": 0,
+            "superlikes": 0,
             "source": "seed",
         }
         if p.get("primary_country"):
@@ -734,7 +730,7 @@ async def seed_missing_people():
         # Insert initial tick
         await db.person_ticks.insert_one({
             "person_id": result.inserted_id,
-            "score": score,
+            "score": 0.0,
             "created_at": now
         })
         added += 1
@@ -1174,8 +1170,10 @@ async def list_people(
                 ii += 1
 
         return [p for p in (person_to_out(d) for d in merged[:limit]) if p is not None]
-    
-    cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
+
+    # Cœur honnête : tri par popularité (popularoo_index), plus par total_votes
+    # (qui deviennent 0 après purge des faux compteurs). total_votes reste tie-break.
+    cursor = db.persons.find(filter_q).sort([("popularoo_index", -1), ("total_votes", -1)]).limit(limit)
     docs = await cursor.to_list(length=limit)
     return [p for p in (person_to_out(d) for d in docs) if p is not None]
 
@@ -1937,8 +1935,10 @@ async def search_people(query: str = Query(..., min_length=1), limit: int = Quer
                 ])
                 regex_list.append({"name": {"$regex": flexible_regex, "$options": "i"}})
             filter_q["$and"] = regex_list
-        
-        cursor = db.persons.find(filter_q).sort([("total_votes", -1), ("score", -1)]).limit(limit)
+
+        # Cœur honnête : résultats de recherche triés par popularité (popularoo_index),
+        # plus par total_votes (0 après purge des faux compteurs). total_votes = tie-break.
+        cursor = db.persons.find(filter_q).sort([("popularoo_index", -1), ("total_votes", -1)]).limit(limit)
         results = await cursor.to_list(length=limit)
         
         out = []
@@ -4573,26 +4573,20 @@ async def admin_add_missing_seeds(request: Request):
                 continue
 
             if not existing:
-                # Generate random initial votes between 8000 and 15000
-                initial_votes = random.randint(8000, 15000)
-                like_ratio = random.uniform(0.40, 0.80)
-                initial_likes = int(initial_votes * like_ratio)
-                initial_dislikes = initial_votes - initial_likes
-                raw_score = like_ratio * 100
-                initial_score = round(raw_score, 1)  # Session 2: no more round-to-25
-                initial_score = max(0, min(100, initial_score))
-                
+                # Cœur honnête : ZÉRO faux vote (indice = popularité externe, α=1.0).
                 doc = {
                     "name": p["name"],
+                    "name_normalized": normalize_person_name(p["name"]),
                     "slug": slugify(p["name"]),
                     "category": p.get("category", "other"),
                     "approved": True,
                     "created_at": now_utc(),
                     "updated_at": now_utc(),
-                    "score": float(initial_score),
-                    "likes": initial_likes,
-                    "dislikes": initial_dislikes,
-                    "total_votes": initial_votes,
+                    "score": 0.0,
+                    "likes": 0,
+                    "dislikes": 0,
+                    "total_votes": 0,
+                    "superlikes": 0,
                     "source": "seed",
                 }
                 if p.get("primary_country"):
@@ -4654,53 +4648,15 @@ async def admin_update_celebrity_countries(request: Request):
 
 @api_router.post("/admin/initialize-votes")
 async def admin_initialize_votes(request: Request):
-    """Admin-only: Initialize existing personalities with realistic vote counts"""
+    """VERROUILLÉ (cœur honnête) : injecteur de faux votes désactivé. No-op — n'écrit
+    rien. L'indice = popularité externe (α=1.0) ; aucun compteur de votes simulé."""
     _require_admin_auth(request)
-    try:
-        # Find all personalities with 0 or very low votes
-        low_vote_persons = await db.persons.find({
-            "total_votes": {"$lt": 100},
-            "source": {"$ne": "self_boosted"}  # Don't touch self-boosted
-        }).to_list(1000)
-        
-        updated_count = 0
-        for person in low_vote_persons:
-            # Generate random initial votes between 8000 and 15000
-            initial_votes = random.randint(8000, 15000)
-            like_ratio = random.uniform(0.40, 0.80)
-            initial_likes = int(initial_votes * like_ratio)
-            initial_dislikes = initial_votes - initial_likes
-            raw_score = like_ratio * 100
-            initial_score = round(raw_score, 1)  # Session 2: no more round-to-25
-            initial_score = max(0, min(100, initial_score))
-            
-            await db.persons.update_one(
-                {"_id": person["_id"]},
-                {
-                    "$set": {
-                        "likes": initial_likes,
-                        "dislikes": initial_dislikes,
-                        "total_votes": initial_votes,
-                        "score": float(initial_score),
-                        "updated_at": now_utc(),
-                    }
-                }
-            )
-            updated_count += 1
-        
-        return {
-            "success": True,
-            "message": f"Initialized vote counts for {updated_count} personalities",
-            "updated_count": updated_count,
-        }
-        
-    except Exception as e:
-        logger.error(f"Initialize votes error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-        logger.error(f"Admin update settings error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("🔒 [Honest] /admin/initialize-votes ignoré (injecteur de faux votes verrouillé)")
+    return {
+        "success": False,
+        "locked": True,
+        "message": "Vote initialization is locked (honest-core guardrail): no fake votes injected.",
+    }
 
 
 
@@ -4899,65 +4855,14 @@ async def get_daily_stats():
 
 @api_router.post("/admin/init-votes")
 async def init_votes():
-    """Initialize all personalities with random votes (8,500-12,000) to make the app look active"""
-    try:
-        # Get all persons
-        persons = await db.persons.find({}).to_list(length=1000)
-        
-        updated_count = 0
-        now = now_utc()
-        
-        # Generate unique vote counts for each person
-        used_votes = set()
-        
-        for person in persons:
-            # Generate unique random votes between 8,500 and 12,000
-            while True:
-                base_votes = random.randint(8500, 12000)
-                if base_votes not in used_votes:
-                    used_votes.add(base_votes)
-                    break
-            
-            # Random like ratio between 45% and 75%
-            like_ratio = random.uniform(0.45, 0.75)
-            likes = int(base_votes * like_ratio)
-            dislikes = base_votes - likes
-            
-            # Calculate score
-            score = (likes / base_votes) * 100 if base_votes > 0 else 50.0
-            
-            # Update the person
-            await db.persons.update_one(
-                {"_id": person["_id"]},
-                {
-                    "$set": {
-                        "likes": likes,
-                        "dislikes": dislikes,
-                        "total_votes": base_votes,
-                        "score": score,
-                        "updated_at": now
-                    }
-                }
-            )
-            
-            # Add a tick for the chart
-            await db.person_ticks.insert_one({
-                "person_id": person["_id"],
-                "score": score,
-                "created_at": now
-            })
-            
-            updated_count += 1
-        
-        return {
-            "success": True,
-            "message": f"Initialized {updated_count} personalities with random votes (8,500-12,000)",
-            "updated_count": updated_count
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to init votes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """VERROUILLÉ (cœur honnête) : injecteur de faux votes désactivé. No-op — n'écrit
+    rien. L'indice = popularité externe (α=1.0) ; aucun compteur de votes simulé."""
+    logger.info("🔒 [Honest] /admin/init-votes ignoré (injecteur de faux votes verrouillé)")
+    return {
+        "success": False,
+        "locked": True,
+        "message": "Vote initialization is locked (honest-core guardrail): no fake votes injected.",
+    }
 
 
 # -------------------- Popularoo Index Admin Endpoints --------------------
@@ -5078,32 +4983,17 @@ async def admin_fix_visible_user_search(request: Request):
 
 @api_router.post("/admin/migrate-user-search-v4")
 async def admin_migrate_user_search_v4(request: Request):
-    """
-    Vague 4, sous-tâche 9 — One-time migration of legacy user_search profiles
-    to the deferred-V4 formula.
-
-    Recomputes the V4 initial PI (clamp 25..40, 25 + ext_score*0.15) and grafts
-    ~40 simulated votes onto profiles with source in
-    {"user_search", "user_search_confirmed"} + approved, so the old profiles
-    (PI ~10-15, 0 votes) sit coherently next to the new deferred_v4 ones.
-
-    - Defensive guard: category == "outsider" is skipped.
-    - Idempotent: a profile with a non-null `migrated_v4_at` is skipped, so the
-      endpoint can be re-run safely.
-    - Real existing votes are preserved and the simulated votes added on top.
-
-    Triggered manually via curl (NOT automatic at deploy):
-      curl -X POST https://<host>/api/admin/migrate-user-search-v4 \\
-           -H "X-Admin-Password: <password>"
-    """
+    """VERROUILLÉ (cœur honnête) : cette migration greffait ~40 faux votes sur les
+    profils user_search legacy. Désactivée — no-op, n'écrit rien. Pour retirer les
+    faux votes de seeding des user_search, utiliser /admin/migrate-user-search-honest-votes."""
     _require_admin_auth(request)
-    try:
-        from candidate_detection import migrate_user_search_v4
-        result = await migrate_user_search_v4(db)
-        return {"success": True, **result}
-    except Exception as e:
-        logger.error(f"migrate-user-search-v4 error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("🔒 [Honest] /admin/migrate-user-search-v4 ignoré (greffe de faux votes verrouillée)")
+    return {
+        "success": False,
+        "locked": True,
+        "message": "migrate-user-search-v4 is locked (honest-core guardrail): no simulated votes grafted. "
+                   "Use /admin/migrate-user-search-honest-votes to strip legacy seed votes.",
+    }
 
 
 
@@ -5309,12 +5199,7 @@ async def admin_bulk_import_personalities(request: Request):
                 skipped += 1
                 continue
 
-            # Insert new personality
-            base_votes = random.randint(8000, 15000)
-            likes_ratio = random.uniform(0.55, 0.75)
-            likes = int(base_votes * likes_ratio)
-            dislikes = base_votes - likes
-
+            # Cœur honnête : ZÉRO faux vote (indice = popularité externe, α=1.0).
             # Generate unique slug
             base_slug = slugify(name)
             slug = base_slug
@@ -5325,14 +5210,15 @@ async def admin_bulk_import_personalities(request: Request):
 
             person_doc = {
                 "name": name,
+                "name_normalized": normalize_person_name(name),
                 "slug": slug,
                 "category": category,
                 "approved": True,
-                "score": round(100 * (likes / max(1, base_votes)), 2),
-                "likes": likes,
-                "dislikes": dislikes,
+                "score": 0.0,
+                "likes": 0,
+                "dislikes": 0,
                 "superlikes": 0,
-                "total_votes": base_votes,
+                "total_votes": 0,
                 "popularoo_index": 0.0,
                 "active_strikes": 0,
                 "source": "seed",
@@ -7380,12 +7266,7 @@ async def admin_add_celebrities_batch(request: Request):
             results["skipped_duplicates"].append(name)
             continue
 
-        # Realistic initial votes (similar to existing seeds)
-        init_likes = random.randint(6000, 12000)
-        init_dislikes = random.randint(1500, 4000)
-        total = init_likes + init_dislikes
-        score = round((init_likes / max(1, total)) * 200 - 100, 1)
-
+        # Cœur honnête : ZÉRO faux vote (indice = popularité externe, α=1.0).
         doc = {
             "name": name,
             "name_normalized": normalize_person_name(name),
@@ -7394,12 +7275,11 @@ async def admin_add_celebrities_batch(request: Request):
             "approved": True,
             "created_at": now,
             "updated_at": now,
-            "score": score,
-            "likes": init_likes,
-            "dislikes": init_dislikes,
-            "total_votes": total,
-            "seed_votes_likes": init_likes,
-            "seed_votes_dislikes": init_dislikes,
+            "score": 0.0,
+            "likes": 0,
+            "dislikes": 0,
+            "total_votes": 0,
+            "superlikes": 0,
             "source": "seed",
             "is_international": True,
             "country_tags": ["international"],
@@ -7410,11 +7290,11 @@ async def admin_add_celebrities_batch(request: Request):
             # Insert initial tick
             await db.person_ticks.insert_one({
                 "person_id": result.inserted_id,
-                "score": score,
-                "total_votes": total,
+                "score": 0.0,
+                "total_votes": 0,
                 "created_at": now,
             })
-            results["added"].append({"name": name, "category": category, "votes": total})
+            results["added"].append({"name": name, "category": category, "votes": 0})
             results["total_added"] += 1
         except Exception as e:
             results["errors"].append({"name": name, "error": str(e)})
@@ -7544,11 +7424,7 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
         await db.candidate_queue.update_one({"_id": oid}, {"$set": {"status": "duplicate", "updated_at": now}})
         return {"success": False, "error": "duplicate", "message": f"'{name}' already exists in DB"}
 
-    # Create person with realistic initial votes
-    init_likes = random.randint(6000, 12000)
-    init_dislikes = random.randint(1500, 4000)
-    total = init_likes + init_dislikes
-
+    # Cœur honnête : ZÉRO faux vote (indice = popularité externe, α=1.0).
     person_doc = {
         "name": name,
         "name_normalized": normalize_person_name(name),
@@ -7557,12 +7433,11 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
         "approved": True,
         "created_at": now,
         "updated_at": now,
-        "score": 50.0,
-        "likes": init_likes,
-        "dislikes": init_dislikes,
-        "total_votes": total,
-        "seed_votes_likes": init_likes,
-        "seed_votes_dislikes": init_dislikes,
+        "score": 0.0,
+        "likes": 0,
+        "dislikes": 0,
+        "total_votes": 0,
+        "superlikes": 0,
         "source": "auto_detected",
         "wiki_description": candidate.get("wiki_description", ""),
         "wikidata_id": candidate.get("wikidata_id"),
@@ -7576,7 +7451,7 @@ async def admin_approve_candidate(candidate_id: str, request: Request):
     await db.person_ticks.insert_one({
         "person_id": person_id,
         "score": person_doc["score"],
-        "total_votes": total,
+        "total_votes": 0,
         "created_at": now,
     })
 
@@ -7657,10 +7532,8 @@ async def admin_approve_all_high(request: Request):
             continue
 
         category = candidate.get("category_suggested", "other")
-        init_likes = random.randint(6000, 12000)
-        init_dislikes = random.randint(1500, 4000)
-        total = init_likes + init_dislikes
 
+        # Cœur honnête : ZÉRO faux vote (indice = popularité externe, α=1.0).
         person_doc = {
             "name": name,
             "name_normalized": normalize_person_name(name),
@@ -7669,12 +7542,11 @@ async def admin_approve_all_high(request: Request):
             "approved": True,
             "created_at": now,
             "updated_at": now,
-            "score": 50.0,
-            "likes": init_likes,
-            "dislikes": init_dislikes,
-            "total_votes": total,
-            "seed_votes_likes": init_likes,
-            "seed_votes_dislikes": init_dislikes,
+            "score": 0.0,
+            "likes": 0,
+            "dislikes": 0,
+            "total_votes": 0,
+            "superlikes": 0,
             "source": "auto_detected",
             "wiki_description": candidate.get("wiki_description", ""),
             "wikidata_id": candidate.get("wikidata_id"),
@@ -7686,7 +7558,7 @@ async def admin_approve_all_high(request: Request):
             await db.person_ticks.insert_one({
                 "person_id": result.inserted_id,
                 "score": person_doc["score"],
-                "total_votes": total,
+                "total_votes": 0,
                 "created_at": now,
             })
             await db.candidate_queue.update_one(
