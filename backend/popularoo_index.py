@@ -28,10 +28,7 @@ _config_cache: Optional[Dict[str, Any]] = None
 _config_last_loaded: Optional[datetime] = None
 CONFIG_CACHE_TTL_SECONDS = 300  # 5 minutes
 
-# ---- Alpha cache (Session 2) ----
-_alpha_cache: Optional[float] = None
-_alpha_last_loaded: Optional[datetime] = None
-ALPHA_CACHE_TTL_SECONDS = 60  # 1 minute (changes rarely, fast refresh)
+# ---- Alpha : VERROUILLÉ à 1.0 (cœur honnête) — plus de cache DB, cf. get_alpha ci-dessous ----
 
 # ---- Erosion cache (chantier « cœur honnête ») ----
 _erosion_cache: Optional[Tuple[float, float]] = None
@@ -106,39 +103,22 @@ async def load_config(db) -> Dict[str, Any]:
     return _config_cache
 
 
+# ── VERROU α = 1.0 (garde-fou « cœur honnête ») ──
+# L'indice Popularoo est DÉFINITIVEMENT = popularité externe seule :
+#   popularoo_index = 1.0 × external + 0.0 × votes.
+# get_alpha() retourne 1.0 EN DUR (point d'étranglement unique lu par tout le
+# recalcul d'indice), quelle que soit la valeur stockée en base. Le levier
+# /admin/set-alpha est verrouillé (no-op) côté server.py.
+ALPHA_LOCKED = 1.0
+
+
 async def get_alpha(db) -> float:
     """
-    Session 2: Get the alpha coefficient from app_settings.
-    α controls the blend: popularoo_index = α × external + (1-α) × votes.
-    α = 1.0 → 100% external (launch default).
-    Cached for 60 seconds.
+    VERROUILLÉ à 1.0 (cœur honnête). L'ancien réglage app_settings.alpha est ignoré.
+    popularoo_index = α × external + (1-α) × votes, avec α = 1.0 → 100% external.
+    Signature async conservée (les appelants font `await get_alpha(db)`).
     """
-    global _alpha_cache, _alpha_last_loaded
-
-    now = _utcnow()
-    if _alpha_cache is not None and _alpha_last_loaded:
-        if (now - _alpha_last_loaded).total_seconds() < ALPHA_CACHE_TTL_SECONDS:
-            return _alpha_cache
-
-    try:
-        settings = await db.app_settings.find_one({"_id": "global"})
-        if settings and "alpha" in settings:
-            _alpha_cache = float(settings["alpha"])
-        else:
-            # First run: seed alpha = 1.0
-            await db.app_settings.update_one(
-                {"_id": "global"},
-                {"$set": {"alpha": 1.0}},
-                upsert=True
-            )
-            _alpha_cache = 1.0
-            logger.info("📊 Seeded default alpha = 1.0")
-    except Exception as e:
-        logger.warning(f"Failed to load alpha from DB: {e}, using default 1.0")
-        _alpha_cache = 1.0
-
-    _alpha_last_loaded = now
-    return _alpha_cache
+    return ALPHA_LOCKED
 
 
 async def get_erosion_config(db) -> Tuple[float, float]:

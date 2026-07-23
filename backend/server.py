@@ -7185,46 +7185,26 @@ async def admin_rename_persons_batch(request: Request):
 
 @api_router.get("/admin/get-alpha")
 async def admin_get_alpha(request: Request):
-    """Get current alpha coefficient. α = blend weight: index = α×external + (1-α)×votes."""
+    """Get current alpha coefficient. VERROUILLÉ à 1.0 (garde-fou cœur honnête) :
+    index = 1.0×external + 0.0×votes. La valeur stockée est ignorée."""
     _require_admin_auth(request)
-    settings = await db.app_settings.find_one({"_id": "global"})
-    alpha = settings.get("alpha", 1.0) if settings else 1.0
-    last_updated = settings.get("alpha_last_updated") if settings else None
-    return {"alpha": alpha, "last_updated": last_updated}
+    from popularoo_index import ALPHA_LOCKED
+    return {"alpha": ALPHA_LOCKED, "locked": True, "last_updated": None}
 
 
 @api_router.post("/admin/set-alpha")
 @limiter.limit("10/15minutes")
 async def admin_set_alpha(request: Request):
-    """Set alpha coefficient. Body: {"alpha": 0.7}. Must be 0 ≤ α ≤ 1."""
+    """VERROUILLÉ : α est figé à 1.0 (garde-fou « cœur honnête »). No-op — n'écrit
+    rien. L'indice reste = popularité externe seule."""
     _require_admin_auth(request)
-    body = await request.json()
-    new_alpha = body.get("alpha")
-    if new_alpha is None or not isinstance(new_alpha, (int, float)):
-        return {"error": "alpha must be a number"}
-    new_alpha = float(new_alpha)
-    if new_alpha < 0 or new_alpha > 1:
-        return {"error": "alpha must be between 0 and 1"}
-
-    now = now_utc()
-    await db.app_settings.update_one(
-        {"_id": "global"},
-        {"$set": {"alpha": new_alpha, "alpha_last_updated": now}},
-        upsert=True
-    )
-
-    # Invalidate the alpha cache in popularoo_index
-    from popularoo_index import _alpha_cache, _alpha_last_loaded
-    import popularoo_index
-    popularoo_index._alpha_cache = None
-    popularoo_index._alpha_last_loaded = None
-
-    logger.info(f"⚖️ Alpha set to {new_alpha} by admin")
+    from popularoo_index import ALPHA_LOCKED
+    logger.info("⚖️ [Alpha] set-alpha ignoré : α verrouillé à 1.0 (cœur honnête)")
     return {
-        "success": True,
-        "alpha": new_alpha,
-        "last_updated": now,
-        "note": "Scores will update within 15 minutes (next recalculation cycle). Use /admin/recalculate-all-indices for immediate effect."
+        "success": False,
+        "locked": True,
+        "alpha": ALPHA_LOCKED,
+        "error": "alpha is locked at 1.0 (honest-core guardrail) — index = external popularity only",
     }
 
 

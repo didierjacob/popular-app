@@ -113,9 +113,9 @@ async def main():
     print(f"🌍 [IMPORT WIKIDATA] base='{db_name}' — mode: {mode}")
     print(f"   {len(records)} candidats (topk={blob.get('topk')} floor={blob.get('floor')})\n")
 
-    # alpha (pour l'indice provisoire = alpha × score externe)
-    settings = await db.app_settings.find_one({"_id": "global"}) or {}
-    alpha = float(settings.get("alpha", 1.0))
+    # alpha VERROUILLÉ à 1.0 (garde-fou « cœur honnête », cf. popularoo_index.get_alpha) :
+    # indice provisoire = 1.0 × score externe. La valeur stockée en base est ignorée.
+    alpha = 1.0
 
     to_insert = []
     minors = []          # âge < 18 avéré → exclus
