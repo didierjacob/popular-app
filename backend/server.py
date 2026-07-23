@@ -1722,8 +1722,16 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 
 # ==================== VAGUE 4 — SOUS-TÂCHE 5: User Celebrity Request ====================
 
+# ── Bloc C (3) — anti-flood création : compteur par device (réglable en code) ──
+#    Limite le nb de créations qu'un même appareil peut soumettre (candidate_queue).
+#    Le @limiter IP ci-dessous est une défense-en-profondeur (anti-hammer brut).
+RATE_CREATE_PER_HOUR = 5
+RATE_CREATE_PER_DAY = 20
+
+
 @api_router.post("/submit-celebrity-request")
-async def submit_celebrity_request(body: Dict[str, Any]):
+@limiter.limit("10/minute")   # coarse IP (anti-hammer) ; le vrai gate = compteur device
+async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
     """
     Création UGC d'une Personnalité (Bloc 2) — conforme Google.
 
@@ -1733,8 +1741,9 @@ async def submit_celebrity_request(body: Dict[str, Any]):
     (approve_user_search_candidate). Le job process_user_submissions ne dépile
     plus que les docs moderation_status="approved".
 
-    Ordre runtime : device banni → lien social → already_exists → already_pending
-    → nom → insultes → blocklist → enqueue.
+    Ordre runtime : device banni → anti-flood (device) → lien social → already_exists
+    → already_pending → nom → insultes → blocklist → enqueue.
+    Anti-flood secondaire : @limiter IP (10/min).
 
     Body: { "name": str, "device_id": str, "social_links": {plateforme: str} }.
     """
@@ -1749,6 +1758,30 @@ async def submit_celebrity_request(body: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="name is required")
     if not device_id:
         raise HTTPException(status_code=400, detail="device_id is required")
+
+    # ── Anti-flood par device (Bloc C 3) : max RATE_CREATE_PER_HOUR/h et
+    #    RATE_CREATE_PER_DAY/j de créations enfilées par ce device. ──
+    _now = now_utc()
+    recent_h = await db.candidate_queue.count_documents({
+        "source": "user_search",
+        "requested_by_device_id": device_id,
+        "requested_at": {"$gte": _now - timedelta(hours=1)},
+    })
+    if recent_h >= RATE_CREATE_PER_HOUR:
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de créations récentes depuis cet appareil. Réessaie dans une heure.",
+        )
+    recent_d = await db.candidate_queue.count_documents({
+        "source": "user_search",
+        "requested_by_device_id": device_id,
+        "requested_at": {"$gte": _now - timedelta(days=1)},
+    })
+    if recent_d >= RATE_CREATE_PER_DAY:
+        raise HTTPException(
+            status_code=429,
+            detail="Limite quotidienne de créations atteinte pour cet appareil. Réessaie demain.",
+        )
 
     # ── Lien social obligatoire (≥1), allowlist 7 réseaux. Option 3B : la
     #    présence suffit à accepter ; le format tague la qualité, ne bloque pas. ──
