@@ -3202,60 +3202,16 @@ class AdminBoostRequest(BaseModel):
 
 @api_router.post("/admin/boost-votes")
 async def admin_boost_votes(req: Request, request: AdminBoostRequest):
-    """Admin-only: Manually add votes to any personality"""
+    """VERROUILLÉ (cœur honnête) : injecteur de faux votes désactivé. No-op — n'écrit
+    rien. L'indice = popularité externe (α=1.0) ; ajouter des votes ne le changerait
+    même pas. Aucun compteur de votes simulé."""
     _require_admin_auth(req)
-    try:
-        person_id = ObjectId(request.person_id)
-        person = await db.persons.find_one({"_id": person_id})
-        
-        if not person:
-            raise HTTPException(status_code=404, detail="Person not found")
-        
-        # Update votes
-        if request.type == "likes":
-            new_likes = person.get("likes", 0) + request.amount
-            new_dislikes = person.get("dislikes", 0)
-        else:
-            new_likes = person.get("likes", 0)
-            new_dislikes = person.get("dislikes", 0) + request.amount
-        
-        new_total = new_likes + new_dislikes
-        new_score = (new_likes / new_total * 100) if new_total > 0 else 100.0
-        
-        await db.persons.update_one(
-            {"_id": person_id},
-            {
-                "$set": {
-                    "likes": new_likes,
-                    "dislikes": new_dislikes,
-                    "total_votes": new_total,
-                    "score": new_score,
-                    "updated_at": now_utc(),
-                }
-            }
-        )
-        
-        # Add tick for chart
-        await db.person_ticks.insert_one({
-            "person_id": person_id,
-            "score": new_score,
-            "created_at": now_utc()
-        })
-        
-        return {
-            "success": True,
-            "person_name": person.get("name"),
-            "new_likes": new_likes,
-            "new_dislikes": new_dislikes,
-            "new_score": new_score,
-            "new_total_votes": new_total,
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin boost error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("🔒 [Honest] /admin/boost-votes ignoré (injecteur de faux votes verrouillé)")
+    return {
+        "success": False,
+        "locked": True,
+        "message": "Manual vote boosting is locked (honest-core guardrail): no fake votes injected.",
+    }
 
 
 # -------------------- Admin: Moderation --------------------

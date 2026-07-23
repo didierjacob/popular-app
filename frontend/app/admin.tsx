@@ -343,13 +343,8 @@ export default function Admin() {
   
   // Stats
   const [stats, setStats] = useState<Stats | null>(null);
-  const [topPeople, setTopPeople] = useState<Person[]>([]);
   // Vague 4 sous-tache 6 — Stats enrichie (dashboard-stats, parallele a stats legacy)
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  
-  // Boost
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-  
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('');
@@ -520,12 +515,11 @@ export default function Admin() {
         setDashboardStats(null);
       }
 
-      // Load top people (public endpoint, pas besoin d'auth)
-      // limit=300 pour alimenter le selecteur du Booster (recherche client-side).
+      // Load people (public endpoint, pas besoin d'auth) — seed initial de la
+      // recherche de l'onglet Modération (limit=300).
       const peopleRes = await fetch(API('/people?limit=300'));
       if (peopleRes.ok) {
         const peopleData = await peopleRes.json();
-        setTopPeople(peopleData);
         setSearchResults(peopleData);
       }
 
@@ -580,94 +574,9 @@ export default function Admin() {
     }
   }, [authenticated, loadData]);
 
-  const handleBoostDialog = (type: 'likes' | 'dislikes') => {
-    if (!selectedPerson) {
-      Alert.alert('Erreur', 'Sélectionnez d\'abord une personnalité');
-      return;
-    }
-
-    const typeLabel = type === 'likes' ? 'Likes' : 'Dislikes';
-    const emoji = type === 'likes' ? '👍' : '👎';
-
-    if (Platform.OS === 'ios') {
-      Alert.prompt(
-        `${emoji} Ajouter ${typeLabel}`,
-        `Personnalité : ${selectedPerson.name}\n\nCombien de ${typeLabel.toLowerCase()} ? (1-5000)`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Ajouter',
-            onPress: async (value?: string) => {
-              const amount = parseInt(value || '0');
-              if (isNaN(amount) || amount < 1 || amount > 5000) {
-                Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
-                return;
-              }
-              await executeBoost(selectedPerson.id, amount, type);
-            },
-          },
-        ],
-        'plain-text',
-        '100',
-        'number-pad'
-      );
-    } else {
-      Alert.alert(
-        `${emoji} Ajouter ${typeLabel}`,
-        `Personnalité : ${selectedPerson.name}\n\nNombre de ${typeLabel.toLowerCase()} (1-5000) :`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: '100', onPress: () => executeBoost(selectedPerson.id, 100, type) },
-          { text: '500', onPress: () => executeBoost(selectedPerson.id, 500, type) },
-          { text: '1000', onPress: () => executeBoost(selectedPerson.id, 1000, type) },
-          {
-            text: 'Personnalisé',
-            onPress: () => {
-              Alert.prompt(
-                'Montant personnalisé',
-                'Entrez le nombre (1-5000) :',
-                [
-                  { text: 'Annuler', style: 'cancel' },
-                  {
-                    text: 'Ajouter',
-                    onPress: async (value?: string) => {
-                      const amount = parseInt(value || '0');
-                      if (isNaN(amount) || amount < 1 || amount > 5000) {
-                        Alert.alert('Erreur', 'Entrez un nombre entre 1 et 5000');
-                        return;
-                      }
-                      await executeBoost(selectedPerson.id, amount, type);
-                    },
-                  },
-                ],
-                'plain-text'
-              );
-            },
-          },
-        ]
-      );
-    }
-  };
-
-  const executeBoost = async (personId: string, amount: number, type: 'likes' | 'dislikes') => {
-    try {
-      const res = await adminFetch(API('/admin/boost-votes'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: personId, amount, type }),
-      });
-
-      if (res.ok) {
-        Alert.alert('✅ Succès', `${amount} ${type === 'likes' ? 'likes' : 'dislikes'} ajoutés`, [{ text: 'OK' }]);
-        loadData();
-        setSelectedPerson(null);
-      } else {
-        Alert.alert('Erreur', 'Boost échoué');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur réseau');
-    }
-  };
+  // Cœur honnête : le « Booster » (ajout manuel de likes/dislikes) a été retiré —
+  // action trompeuse et sans effet sur l'indice (α=1.0). L'endpoint /admin/boost-votes
+  // est verrouillé (no-op) côté backend.
 
   const handleDeletePerson = (person: Person) => {
     Alert.alert(
@@ -1739,10 +1648,6 @@ export default function Admin() {
               <DashboardTab
                 stats={stats}
                 dashboardStats={dashboardStats}
-                topPeople={topPeople}
-                selectedPerson={selectedPerson}
-                onSelectPerson={setSelectedPerson}
-                onBoost={handleBoostDialog}
               />
             )}
 
@@ -1909,19 +1814,9 @@ export default function Admin() {
 }
 
 // Dashboard Tab Component — Vague 4 sous-tache 6 : enrichi avec /admin/dashboard-stats
-function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSelectPerson, onBoost }: any) {
+function DashboardTab({ stats, dashboardStats }: any) {
   const ds: DashboardStats | null = dashboardStats;
   const noStats = !stats && !ds;
-
-  // Booster — recherche client-side sur topPeople (chargé via /people?limit=300)
-  const [boosterQuery, setBoosterQuery] = useState('');
-  const filteredBoosterPeople = useMemo(() => {
-    const q = boosterQuery.trim().toLowerCase();
-    if (!q) {
-      return (topPeople as Person[]).slice(0, 50);
-    }
-    return (topPeople as Person[]).filter((p) => p.name.toLowerCase().includes(q));
-  }, [topPeople, boosterQuery]);
 
   return (
     <View>
@@ -2093,86 +1988,6 @@ function DashboardTab({ stats, dashboardStats, topPeople, selectedPerson, onSele
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🚀 Booster</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Sélectionner une personnalité</Text>
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Rechercher une personnalité…"
-            placeholderTextColor={PALETTE.subtext}
-            value={boosterQuery}
-            onChangeText={setBoosterQuery}
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-
-          <Text style={styles.boosterResultCount}>
-            {boosterQuery.trim()
-              ? `${filteredBoosterPeople.length} résultat${filteredBoosterPeople.length > 1 ? 's' : ''}`
-              : `Top ${filteredBoosterPeople.length} par score`}
-          </Text>
-
-          <ScrollView
-            style={styles.boosterList}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-          >
-            {filteredBoosterPeople.length === 0 ? (
-              <Text style={styles.boosterEmpty}>Aucune personnalité trouvée</Text>
-            ) : (
-              filteredBoosterPeople.map((person: Person) => {
-                const active = selectedPerson?.id === person.id;
-                return (
-                  <TouchableOpacity
-                    key={person.id}
-                    style={[styles.boosterRow, active && styles.boosterRowActive]}
-                    onPress={() => onSelectPerson(person)}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.boosterRowName} numberOfLines={1}>{person.name}</Text>
-                      <Text style={styles.boosterRowMeta}>
-                        {person.likes ?? 0} likes • {person.dislikes ?? 0} dislikes
-                      </Text>
-                    </View>
-                    <Text style={[styles.boosterRowScore, active && { color: '#000' }]}>
-                      {person.score}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </ScrollView>
-
-          {selectedPerson && (
-            <>
-              <View style={styles.selectedPerson}>
-                <Text style={styles.selectedPersonName}>✓ {selectedPerson.name}</Text>
-                <Text style={styles.selectedPersonStats}>
-                  {selectedPerson.likes} likes • {selectedPerson.dislikes} dislikes
-                </Text>
-              </View>
-
-              <Text style={styles.cardLabel}>Actions de boost</Text>
-
-              <View style={styles.boostActionsRow}>
-                <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('likes')}>
-                  <Ionicons name="thumbs-up" size={24} color={PALETTE.green} />
-                  <Text style={styles.boostActionTitle}>Ajouter Likes</Text>
-                  <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.boostActionBtn} onPress={() => onBoost('dislikes')}>
-                  <Ionicons name="thumbs-down" size={24} color={PALETTE.accent} />
-                  <Text style={styles.boostActionTitle}>Ajouter Dislikes</Text>
-                  <Text style={styles.boostActionSubtitle}>1-5000 votes</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </View>
-      </View>
     </View>
   );
 }
