@@ -1805,10 +1805,17 @@ async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
                    "YouTube, Facebook, Twitch ou LinkedIn) est requis pour créer un profil.",
         )
 
+    # ── Bloc C (4) : IP de la soumission (X-Forwarded-For derrière le proxy Render,
+    #    fallback client.host). Stockée pour INFO admin ; le ban reste device-primary
+    #    (pas d'auto-ban IP — risque NAT partagé). ──
+    _fwd = request.headers.get("X-Forwarded-For", "")
+    request_ip = _fwd.split(",")[0].strip() if _fwd else (request.client.host if request.client else None)
+
     result = await process_celebrity_request(
         db, name, device_id,
         social_links=social_links,
         social_links_format_ok=social_links_format_ok,
+        request_ip=request_ip,
     )
     status = result["status"]
 
@@ -8216,6 +8223,8 @@ async def admin_list_pending_candidate_queue(request: Request):
             "requested_at": _iso(c.get("requested_at")),
             "process_after": _iso(c.get("process_after")),
             "requested_by_device_id": c.get("requested_by_device_id"),
+            # Bloc C (4) — IP de la soumission (INFO admin ; ban device-primary).
+            "requested_ip": c.get("requested_ip"),
             "pending_vote_value": c.get("pending_vote_value", 0),
             # Bloc B1 — liens sociaux fournis à la création (Bloc 2). L'admin en a
             # besoin pour vérifier la personne avant d'approuver. `social_links` mappe

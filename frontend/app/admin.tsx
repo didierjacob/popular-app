@@ -137,6 +137,8 @@ interface PendingQueueEntry {
   requested_at: string | null;
   process_after: string | null;
   requested_by_device_id: string | null;
+  // Bloc C (4) — IP de la soumission (info admin ; ban device-primary)
+  requested_ip?: string | null;
   pending_vote_value: number;
   // Bloc B1 — liens sociaux fournis a la creation (handle par plateforme) : permettent
   // a l'admin de verifier la personne avant d'approuver. Cle = plateforme, valeur = handle nu.
@@ -2724,6 +2726,9 @@ function CandidatesSection({
                       <View style={{ alignItems: 'flex-end' }}>
                         {!!requestedRel && (
                           <Text style={styles.candidatesDateText}>Demande {requestedRel}</Text>
+                        )}
+                        {!!e.requested_ip && (
+                          <Text style={styles.candidatesDateText}>IP {e.requested_ip}</Text>
                         )}
                         {e.pending_vote_value === 1 && (
                           <Text style={styles.candidatesImplicitLike}>👍 like implicite</Text>

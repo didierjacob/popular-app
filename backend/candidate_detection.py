@@ -772,6 +772,7 @@ async def process_celebrity_request(
     db, name: str, device_id: str,
     social_links: dict = None,
     social_links_format_ok: dict = None,
+    request_ip: str = None,
 ) -> dict:
     """
     Bloc 2 — Cœur de POST /api/submit-celebrity-request (création UGC).
@@ -858,6 +859,9 @@ async def process_celebrity_request(
         "moderation_status": "unreviewed",
         "social_links": social_links or {},
         "social_links_format_ok": social_links_format_ok or {},
+        # ── Bloc C (4) : IP de la soumission (INFO admin ; ban reste device-primary,
+        #    pas d'auto-ban IP — risque NAT partagé). ──
+        "requested_ip": request_ip or None,
     }
     await db.candidate_queue.insert_one(candidate_doc)
     logger.info(
