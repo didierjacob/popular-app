@@ -605,31 +605,8 @@ export default function Admin() {
     );
   };
 
-  const handleResetPerson = (person: Person) => {
-    Alert.alert(
-      '🔄 Réinitialiser',
-      `Réinitialiser "${person.name}" à un score neutre de 50 ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Réinitialiser',
-          onPress: async () => {
-            try {
-              const res = await adminFetch(API(`/admin/person/${person.id}/reset`), { method: 'POST' });
-              if (res.ok) {
-                Alert.alert('✅ Réinitialisé', `"${person.name}" a été réinitialisé`);
-                loadData();
-              } else {
-                Alert.alert('Erreur', 'Réinitialisation échouée');
-              }
-            } catch (error) {
-              Alert.alert('Erreur', 'Erreur réseau');
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Cœur honnête : le « Reset (score 50) » a été retiré — sémantique morte avec α=1.0
+  // (l'indice = popularité externe, pas le score-vote). Endpoint reset verrouillé (no-op).
 
   const handleRenameOutsider = (person: Person) => {
     setRenameTarget(person);
@@ -1752,7 +1729,6 @@ export default function Admin() {
                 onSourceChange={setFilterSource}
                 searchResults={searchResults}
                 onDelete={handleDeletePerson}
-                onReset={handleResetPerson}
                 onRename={handleRenameOutsider}
               />
             )}
@@ -2002,7 +1978,6 @@ function ModerationTab({
   onSourceChange,
   searchResults,
   onDelete,
-  onReset,
   onRename,
 }: any) {
   return (
@@ -2077,10 +2052,6 @@ function ModerationTab({
 
             <TouchableOpacity style={styles.actionBtn} onPress={() => onRename(person)}>
               <Ionicons name="create-outline" size={20} color={PALETTE.green} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.actionBtn} onPress={() => onReset(person)}>
-              <Ionicons name="refresh" size={20} color={PALETTE.gold} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionBtn} onPress={() => onDelete(person)}>

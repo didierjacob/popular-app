@@ -3260,50 +3260,15 @@ async def admin_delete_person(request: Request, person_id: str):
 
 @api_router.post("/admin/person/{person_id}/reset")
 async def admin_reset_person(request: Request, person_id: str):
-    """Admin-only: Reset a personality's score to 50 (neutral)"""
+    """VERROUILLÉ (cœur honnête) : le « reset score à 50 » n'a plus de sens (α=1.0 →
+    l'indice = popularité externe, pas le score-vote). No-op — n'écrit rien."""
     _require_admin_auth(request)
-    try:
-        obj_id = ObjectId(person_id)
-        person = await db.persons.find_one({"_id": obj_id})
-        
-        if not person:
-            raise HTTPException(status_code=404, detail="Person not found")
-        
-        person_name = person.get("name")
-        
-        # Reset to neutral state
-        await db.persons.update_one(
-            {"_id": obj_id},
-            {
-                "$set": {
-                    "likes": 0,
-                    "dislikes": 0,
-                    "total_votes": 0,
-                    "score": 50.0,
-                    "updated_at": now_utc(),
-                }
-            }
-        )
-        
-        # Add reset tick
-        await db.person_ticks.insert_one({
-            "person_id": obj_id,
-            "score": 50.0,
-            "created_at": now_utc()
-        })
-        
-        return {
-            "success": True,
-            "message": f"'{person_name}' has been reset to neutral (50)",
-            "person_name": person_name,
-            "new_score": 50.0,
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin reset person error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info("🔒 [Honest] /admin/person/{id}/reset ignoré (reset score-vote obsolète, α=1.0)")
+    return {
+        "success": False,
+        "locked": True,
+        "message": "Score reset is obsolete (honest-core guardrail): the index is external popularity (α=1.0).",
+    }
 
 
 # -------------------- Admin: Activity Feed --------------------
