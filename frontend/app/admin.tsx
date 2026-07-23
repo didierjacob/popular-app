@@ -62,6 +62,35 @@ const PALETTE = {
   border: '#2E6148',
 };
 
+// ── Phase B — Thème « cockpit sombre » (tokens partagés) ──
+// Migration incrémentale : B1 = top bar + onglets, B2 = Stats, B3 = reste.
+// PALETTE (vert) reste utilisée par les sections non encore migrées.
+const THEME = {
+  plane: '#0d0d0d',            // fond écran
+  surface: '#1a1a19',          // cartes
+  surface2: '#211f1e',         // encarts / boutons
+  ink: '#ffffff',
+  ink2: '#c3c2b7',
+  muted: '#898781',
+  hairline: 'rgba(255,255,255,0.09)',
+  hairlineStrong: 'rgba(255,255,255,0.14)',
+  accent: '#9085e9',           // violet signature
+  accentSoft: 'rgba(144,133,233,0.14)',
+  good: '#0ca30c',
+  warning: '#fab219',
+  serious: '#ec835a',
+  critical: '#d03b3b',
+  info: '#3987e5',
+  cat: {
+    culture: '#d55181',
+    politics: '#3987e5',
+    sport: '#199e70',
+    business: '#c98500',
+    influencer: '#d95926',
+  } as Record<string, string>,
+  radius: { card: 12, pill: 9, btn: 8 },
+} as const;
+
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://popular-app.onrender.com';
 const API = (path: string) => `${API_BASE}/api${path.startsWith('/') ? path : `/${path}`}`;
 
@@ -1568,42 +1597,68 @@ export default function Admin() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Text style={{ color: PALETTE.text, fontSize: 24, fontWeight: '300' }}>{"<"}</Text>
+      {/* Header — barre du haut « cockpit » (B1) */}
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.topbarBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons name="chevron-back" size={22} color={THEME.ink2} />
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>🔧 Admin</Text>
+        <LinearGradient
+          colors={['#9d93f0', '#6f63d6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.topbarLogo}
+        >
+          <Text style={styles.topbarLogoText}>P</Text>
+        </LinearGradient>
+        <Text style={styles.topbarTitle} numberOfLines={1}>Popularoo · Administration</Text>
+        <View style={{ flex: 1 }} />
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, { backgroundColor: THEME.good }]} />
+          <Text style={styles.statusPillText}>α verrouillé {(dashboardStats?.alpha ?? 1).toFixed(2)}</Text>
         </View>
-        <TouchableOpacity onPress={loadData} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ marginRight: 16 }}>
-          <Ionicons name="refresh" size={24} color={PALETTE.gold} />
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, { backgroundColor: THEME.info }]} />
+          <Text style={styles.statusPillText}>Live</Text>
+        </View>
+        <TouchableOpacity onPress={loadData} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.topbarIcon}>
+          <Ionicons name="refresh" size={20} color={THEME.ink2} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleLogout} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="log-out-outline" size={24} color={PALETTE.subtext} />
+        <TouchableOpacity onPress={handleLogout} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.topbarIcon}>
+          <Ionicons name="log-out-outline" size={20} color={THEME.muted} />
         </TouchableOpacity>
       </View>
 
-      {/* Tabs — fade gradient à droite pour signaler que la liste est scrollable horizontalement */}
+      {/* Tabs — pills ; badges de compte (files) ; fade droite = scroll horizontal */}
       <View style={styles.tabBarWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={{ paddingRight: 32 }}>
           {TAB_ORDER.map((t) => {
             const meta = TAB_LABELS[t];
             const active = currentTab === t;
+            // Badges de compte (données déjà chargées ; aucun fetch ajouté).
+            let badge = 0;
+            let badgeColor: string = THEME.warning;
+            if (t === 'candidates') badge = dashboardStats?.queues?.pending_candidates ?? 0;
+            else if (t === 'deceased') badge = dashboardStats?.queues?.pending_deceased ?? 0;
+            else if (t === 'outsider_reports') { badge = outsiderReports.length + personalityReports.length; badgeColor = THEME.serious; }
             return (
               <TouchableOpacity
                 key={t}
                 style={[styles.tab, active && styles.tabActive]}
                 onPress={() => setCurrentTab(t)}
               >
-                <Ionicons name={meta.icon} size={20} color={active ? '#000' : PALETTE.text} />
+                <Ionicons name={meta.icon} size={16} color={active ? THEME.ink : THEME.ink2} />
                 <Text style={[styles.tabText, active && styles.tabTextActive]}>{meta.label}</Text>
+                {badge > 0 && (
+                  <View style={[styles.tabBadge, { backgroundColor: badgeColor }]}>
+                    <Text style={styles.tabBadgeText}>{badge}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
         </ScrollView>
         <LinearGradient
-          colors={['rgba(15,47,34,0)', PALETTE.bg]}
+          colors={['rgba(13,13,13,0)', THEME.plane]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           pointerEvents="none"
@@ -3575,7 +3630,7 @@ function CategoriesSection({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PALETTE.bg },
+  container: { flex: 1, backgroundColor: THEME.plane },
   loginContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   loginTitle: { color: PALETTE.text, fontSize: 28, fontWeight: '700', marginTop: 24 },
   loginSubtitle: { color: PALETTE.subtext, fontSize: 14, marginTop: 8, marginBottom: 32 },
@@ -3600,11 +3655,43 @@ const styles = StyleSheet.create({
   loginButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
   backButton: { marginTop: 16 },
   backButtonText: { color: PALETTE.subtext, fontSize: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
-  headerBack: { padding: 8 },
-  headerTitle: { color: PALETTE.text, fontSize: 24, fontWeight: '700' },
+  // ── Top bar (Phase B1) ──
+  topbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.hairline,
+  },
+  topbarBack: { padding: 4 },
+  topbarLogo: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topbarLogoText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  topbarTitle: { color: THEME.ink, fontSize: 15, fontWeight: '600', flexShrink: 1, marginLeft: 2 },
+  topbarIcon: { padding: 6 },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: THEME.surface2,
+    borderRadius: THEME.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: THEME.hairline,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusPillText: { color: THEME.ink2, fontSize: 11.5, fontWeight: '600' },
+  // ── Barre d'onglets (pills, Phase B1) ──
   tabBarWrapper: { position: 'relative' },
-  tabBar: { flexDirection: 'row', padding: 8, paddingHorizontal: 16 },
+  tabBar: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 16 },
   tabBarFade: {
     position: 'absolute',
     right: 0,
@@ -3615,18 +3702,28 @@ const styles = StyleSheet.create({
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 13,
+    borderRadius: THEME.radius.pill,
     marginRight: 8,
-    backgroundColor: PALETTE.card,
-    borderWidth: 2,
-    borderColor: PALETTE.border,
+    backgroundColor: THEME.surface,
+    borderWidth: 1,
+    borderColor: THEME.hairline,
   },
-  tabActive: { backgroundColor: PALETTE.gold, borderColor: PALETTE.gold },
-  tabText: { color: PALETTE.text, fontSize: 14, fontWeight: '600' },
-  tabTextActive: { color: '#000' },
+  tabActive: { backgroundColor: THEME.accentSoft, borderColor: THEME.accent },
+  tabText: { color: THEME.ink2, fontSize: 13, fontWeight: '600' },
+  tabTextActive: { color: THEME.ink },
+  tabBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
+  },
+  tabBadgeText: { color: '#1a1a19', fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
   loadingContainer: { padding: 40, alignItems: 'center' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 8 },
   statCard: {
