@@ -308,6 +308,47 @@ async def check_is_human_alive(name: str, client: httpx.AsyncClient) -> Tuple[bo
         return False, False, None, None
 
 
+# ── Bloc C (1) — Contrôle mineur : Wikidata P569 (date de naissance) ──
+
+async def fetch_birth_time(entity_id: str, client: httpx.AsyncClient) -> Optional[str]:
+    """P569 (date de naissance) → chaîne ISO Wikidata ('+1990-05-01T00:00:00Z') ou None
+    (naissance non renseignée). Un seul appel wbgetclaims, même pattern que P570."""
+    try:
+        resp = await client.get(
+            "https://www.wikidata.org/w/api.php",
+            params={"action": "wbgetclaims", "entity": entity_id,
+                    "property": "P569", "format": "json"},
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        claims = resp.json().get("claims", {}).get("P569", [])
+        if not claims:
+            return None
+        return (claims[0].get("mainsnak", {}).get("datavalue", {})
+                .get("value", {}).get("time"))
+    except Exception:
+        return None
+
+
+def age_from_wikidata_time(t: Optional[str], now: datetime) -> Tuple[Optional[int], bool]:
+    """(âge|None, known:bool). Gère l'ISO Wikidata, l'année seule, le BCE (→ adulte).
+    known=False quand la date est absente/illisible (→ âge inconnu, ne bloque pas)."""
+    if not t:
+        return None, False
+    if t.startswith("-"):
+        return 999, True  # BCE → adulte évident
+    m = re.match(r"^\+?(\d{1,4})(?:-(\d{2})(?:-(\d{2}))?)?", t)
+    if not m:
+        return None, False
+    y = int(m.group(1))
+    mo = int(m.group(2) or 7)
+    d = int(m.group(3) or 1)
+    age = now.year - y - (1 if (now.month, now.day) < (mo, d) else 0)
+    return age, True
+
+
 async def check_multi_lang_pages(name: str, client: httpx.AsyncClient) -> List[str]:
     """
     Check which Wikipedia languages have a page for this person.
@@ -547,6 +588,9 @@ async def validate_single_name(name: str) -> dict:
         "category_confidence": "low",
         "error_code": None,
         "error_message": None,
+        # Bloc C (1) — contrôle mineur (Wikidata P569)
+        "birth_year": None,
+        "age_unknown": False,
     }
 
     try:
@@ -570,6 +614,24 @@ async def validate_single_name(name: str) -> dict:
                 result["error_code"] = "deceased"
                 result["error_message"] = "Cette personnalité est décédée."
                 return result
+
+            # ── Step 2c: Reject minors (Wikidata P569 < 18 ans) — Bloc C (1) ──
+            #    P569 absent → âge inconnu : on NE bloque PAS (flag age_unknown pour
+            #    l'admin, qui garde le rappel « vérifiez la majorité »).
+            birth_time = await fetch_birth_time(wikidata_id, client) if wikidata_id else None
+            age, age_known = age_from_wikidata_time(birth_time, datetime.now(timezone.utc))
+            if age_known:
+                if birth_time and not birth_time.startswith("-"):
+                    try:
+                        result["birth_year"] = int(birth_time.lstrip("+").split("-")[0])
+                    except Exception:
+                        pass
+                if age is not None and age < 18:
+                    result["error_code"] = "minor"
+                    result["error_message"] = "Cette personnalité est mineure (moins de 18 ans)."
+                    return result
+            else:
+                result["age_unknown"] = True
 
             # ── Step 3: Wikipedia language pages + FR/EN pageviews ──
             langs = await check_multi_lang_pages(name, client)
@@ -1023,6 +1085,9 @@ async def approve_user_search_candidate(db, candidate: dict, validate_fn=None) -
         "likes": likes_final,
         "dislikes": dislikes_final,
         "total_votes": total_votes,
+        # Bloc C (1) — flag admin : âge inconnu (P569 absent) → rappel « vérifiez la majorité ».
+        "age_unknown": result.get("age_unknown", False),
+        "birth_year": result.get("birth_year"),
     }
 
 

@@ -8229,6 +8229,9 @@ async def admin_force_validate_candidate(candidate_id: str, request: Request):
             "initial_pi": outcome["initial_pi"],
             "category": outcome["category"],
             "name": outcome["name"],
+            # Bloc C (1) — âge inconnu (P569 absent) : rappel « vérifiez la majorité ».
+            "age_unknown": outcome.get("age_unknown", False),
+            "birth_year": outcome.get("birth_year"),
         }
     if outcome["status"] == "duplicate":
         return {
@@ -8238,10 +8241,16 @@ async def admin_force_validate_candidate(candidate_id: str, request: Request):
             "person_id": outcome.get("person_id"),
         }
     # rejected
+    error_code = outcome.get("error_code") or "unknown"
+    # Bloc C (1) — message explicite pour le rejet « mineur ».
+    if error_code == "minor":
+        error_message = "Rejeté : cette personnalité est mineure (moins de 18 ans, Wikidata P569)."
+    else:
+        error_message = f"Validation failed: {error_code}"
     return {
         "success": False,
-        "error_code": outcome.get("error_code") or "unknown",
-        "error_message": f"Validation failed: {outcome.get('error_code')}",
+        "error_code": error_code,
+        "error_message": error_message,
         "name": outcome.get("name"),
     }
 
