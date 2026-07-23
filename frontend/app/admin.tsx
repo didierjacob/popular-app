@@ -51,20 +51,7 @@ async function clearStoredToken(): Promise<void> {
   } catch {}
 }
 
-const PALETTE = {
-  bg: '#0F2F22',
-  card: '#1C3A2C',
-  text: '#EAEAEA',
-  subtext: '#C9D8D2',
-  accent: '#8B0000',
-  green: '#00D866',
-  gold: '#FFD700',
-  border: '#2E6148',
-};
-
-// ── Phase B — Thème « cockpit sombre » (tokens partagés) ──
-// Migration incrémentale : B1 = top bar + onglets, B2 = Stats, B3 = reste.
-// PALETTE (vert) reste utilisée par les sections non encore migrées.
+// ── Thème « cockpit sombre » (tokens partagés) ──
 const THEME = {
   plane: '#0d0d0d',            // fond écran
   surface: '#1a1a19',          // cartes
@@ -90,6 +77,22 @@ const THEME = {
   } as Record<string, string>,
   radius: { card: 12, pill: 9, btn: 8 },
 } as const;
+
+// PALETTE — REMAPPÉE sur THEME (Phase B3 : cohérence dark cockpit). Conservée telle
+// quelle car de très nombreux styles y réfèrent ; changer les valeurs recolore
+// l'ensemble des sections sans toucher au JSX. Correspondances :
+//   bg→plane, card→surface, text→ink, subtext→ink2, border→hairline,
+//   gold (primaire)→accent violet, green→good, accent (danger)→critical.
+const PALETTE = {
+  bg: THEME.plane,
+  card: THEME.surface,
+  text: THEME.ink,
+  subtext: THEME.ink2,
+  accent: THEME.critical,
+  green: THEME.good,
+  gold: THEME.accent,
+  border: THEME.hairline,
+};
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://popular-app.onrender.com';
 const API = (path: string) => `${API_BASE}/api${path.startsWith('/') ? path : `/${path}`}`;
@@ -3718,27 +3721,6 @@ const styles = StyleSheet.create({
   },
   tabBadgeText: { color: '#1a1a19', fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
   loadingContainer: { padding: 40, alignItems: 'center' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8, gap: 8 },
-  statCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: PALETTE.card,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-  },
-  statNumber: { color: PALETTE.text, fontSize: 28, fontWeight: '700', marginTop: 8 },
-  statLabel: { color: PALETTE.subtext, fontSize: 12, marginTop: 4, textAlign: 'center' },
-  // Admin A3 — avertissement revenus estimés (non vérifiés IAP)
-  revenueDisclaimer: {
-    color: PALETTE.subtext,
-    fontSize: 11,
-    fontStyle: 'italic',
-    lineHeight: 15,
-    marginTop: 10,
-    paddingHorizontal: 4,
-  },
 
   // ══════════ Phase B2 — Dashboard cockpit (THEME) ══════════
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 12, paddingTop: 12 },
@@ -3808,43 +3790,6 @@ const styles = StyleSheet.create({
 
   footerNote: { color: THEME.muted, fontSize: 11, fontStyle: 'italic', lineHeight: 15, padding: 14, marginTop: 4 },
 
-  // Vague 4 sous-tache 6 — Stats enrichie
-  dashTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
-    gap: 12,
-  },
-  dashTopRank: { color: PALETTE.gold, fontSize: 16, fontWeight: '700', width: 28 },
-  dashTopName: { color: PALETTE.text, fontSize: 15, fontWeight: '600' },
-  dashTopMeta: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
-  dashTopScore: { color: PALETTE.gold, fontSize: 16, fontWeight: '700' },
-  dashCategoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dashCategoryChip: {
-    backgroundColor: PALETTE.bg,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    minWidth: 88,
-    alignItems: 'center',
-  },
-  dashCategoryCount: { color: PALETTE.gold, fontSize: 20, fontWeight: '700' },
-  dashCategoryLabel: { color: PALETTE.subtext, fontSize: 11, marginTop: 2 },
-  dashPipelineRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
-    gap: 12,
-  },
-  dashPipelineLabel: { color: PALETTE.subtext, fontSize: 13, flex: 1 },
-  dashPipelineValue: { color: PALETTE.text, fontSize: 13, fontWeight: '600', textAlign: 'right' },
   section: { padding: 16 },
   sectionTitle: { color: PALETTE.text, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   card: {
@@ -3855,51 +3800,6 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
   },
   cardLabel: { color: PALETTE.subtext, fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 8 },
-  // Booster — recherche + liste verticale scrollable
-  boosterList: {
-    marginTop: 8,
-    maxHeight: 400,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderRadius: 8,
-    backgroundColor: PALETTE.bg,
-  },
-  boosterResultCount: { color: PALETTE.subtext, fontSize: 12, marginTop: 8 },
-  boosterEmpty: { color: PALETTE.subtext, fontSize: 14, textAlign: 'center', padding: 20 },
-  boosterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: PALETTE.border,
-    gap: 12,
-  },
-  boosterRowActive: { backgroundColor: PALETTE.gold + '20' },
-  boosterRowName: { color: PALETTE.text, fontSize: 15, fontWeight: '600' },
-  boosterRowMeta: { color: PALETTE.subtext, fontSize: 12, marginTop: 2 },
-  boosterRowScore: { color: PALETTE.gold, fontSize: 16, fontWeight: '700' },
-  selectedPerson: {
-    backgroundColor: PALETTE.gold + '20',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-  },
-  selectedPersonName: { color: PALETTE.text, fontSize: 16, fontWeight: '700' },
-  selectedPersonStats: { color: PALETTE.subtext, fontSize: 14, marginTop: 4 },
-  boostActionsRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  boostActionBtn: {
-    flex: 1,
-    backgroundColor: PALETTE.bg,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: PALETTE.border,
-    gap: 8,
-  },
-  boostActionTitle: { color: PALETTE.text, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  boostActionSubtitle: { color: PALETTE.subtext, fontSize: 12, textAlign: 'center' },
   searchInput: {
     backgroundColor: PALETTE.bg,
     borderWidth: 2,
