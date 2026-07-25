@@ -74,6 +74,7 @@
     "totalVotes": "{{count}} votos en total",
     "voteFor": "Votar por {{name}}",
     "like": "Popularoo",
+    "notPopularoo": "No Popularoo",
     "status_rising": "En alza",
     "status_falling": "En baja",
     "status_trending": "Tendencia fuerte",

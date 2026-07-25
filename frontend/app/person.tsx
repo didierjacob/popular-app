@@ -824,7 +824,7 @@ export default function Person() {
                 </Animated.View>
               </View>
             ) : (
-              <View style={[styles.voteRow, { justifyContent: "center" }]}>
+              <View style={styles.voteRow}>
                 <Animated.View
                   style={{
                     transform: [{ scale: likeScaleAnim }],
@@ -840,6 +840,18 @@ export default function Person() {
                     <Text style={styles.voteBtnText}>{t("person.like")}</Text>
                   </TouchableOpacity>
                 </Animated.View>
+                {/* Bouton négatif « Pas Popularoo » — célébrités + user_search
+                    UNIQUEMENT (jamais les Outsiders). Alimente la baisse de la cote. */}
+                <TouchableOpacity
+                  style={[styles.voteBtn, styles.voteBtnDislike]}
+                  onPress={() => like(-1)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="thumbs-down" size={20} color={PALETTE.accent2} />
+                  <Text style={[styles.voteBtnText, styles.voteBtnDislikeText]}>
+                    {t("person.notPopularoo")}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1305,6 +1317,14 @@ const styles = StyleSheet.create({
   },
   voteBtnLike: {
     backgroundColor: PALETTE.green,
+  },
+  voteBtnDislike: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: PALETTE.accent2,
+  },
+  voteBtnDislikeText: {
+    color: PALETTE.accent2,
   },
   voteBtnText: {
     color: "white",
