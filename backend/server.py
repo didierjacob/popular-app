@@ -2661,6 +2661,24 @@ async def get_credit_history(user_id: str, limit: int = Query(default=20, le=50)
     return {"transactions": transactions}
 
 
+async def _resolve_booster_country(user_id: str, explicit: Optional[str]) -> Optional[str]:
+    """
+    Pays d'un self-booster, résolu CÔTÉ SERVEUR (pas de rebuild app).
+    Priorité : payload explicite (futur, si le front l'ajoute un jour) →
+    user_settings.country par device_id (posé au onboarding via POST /user-settings) → None.
+    None => on n'invente pas de pays : le profil reste visible globalement (comportement
+    actuel). Feed la géo-restriction /outsiders ET le filtrage démos->réels par pays.
+    """
+    if explicit:
+        c = explicit.upper().strip()
+        if c in SUPPORTED_COUNTRIES:
+            return c
+    doc = await db.user_settings.find_one({"device_id": user_id})
+    if doc and doc.get("country") in SUPPORTED_COUNTRIES:
+        return doc["country"]
+    return None
+
+
 @api_router.post("/boost-myself")
 async def boost_myself(request: BoostMyselfRequest):
     """Purchase a visibility boost and appear in the Outsiders ranking (Golden: + priority placement + Home page rotation)"""
@@ -2785,6 +2803,10 @@ async def boost_myself(request: BoostMyselfRequest):
             slug = slugify(name)
         now = now_utc()
 
+        # Pays résolu côté serveur (user_settings par device_id) — persiste sur le
+        # profil + le boost pour la géo-restriction ET le filtrage démos->réels par pays.
+        booster_country = await _resolve_booster_country(request.user_id, request.country)
+
         # Check if this person already exists as an outsider
         existing = await db.persons.find_one({"slug": slug, "source": "self_boosted"})
 
@@ -2837,6 +2859,8 @@ async def boost_myself(request: BoostMyselfRequest):
                 "dislikes": 0,
                 "total_votes": 0,
                 "source": "self_boosted",
+                "primary_country": booster_country,
+                "country_tags": [booster_country] if booster_country else [],
                 "social_links": social,
                 "email": request.email or "",
                 # Auto-boost counts as a positive signal — surface an up arrow at creation.
@@ -2880,7 +2904,7 @@ async def boost_myself(request: BoostMyselfRequest):
                 "email": request.email or "",
                 "tier": request.tier,
                 "position": new_position,
-                "country": getattr(request, 'country', None),
+                "country": booster_country,
                 "start_time": now,
                 "end_time": end_time,
                 "reminder_sent": False,
@@ -2903,7 +2927,7 @@ async def boost_myself(request: BoostMyselfRequest):
                 "email": request.email or "",
                 "tier": request.tier,
                 "position": tier_info["position"],
-                "country": getattr(request, 'country', None),  # Country for geo-restriction
+                "country": booster_country,  # Country for geo-restriction
                 "start_time": now,
                 "end_time": end_time,
                 "reminder_sent": False,
