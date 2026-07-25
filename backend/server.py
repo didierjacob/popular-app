@@ -752,22 +752,18 @@ async def on_startup():
 
 
 async def auto_seed_outsiders_on_startup():
-    """Auto-seed outsiders if none exist — ensures app is never empty at launch."""
-    try:
-        active_count = await db.active_boosts.count_documents({
-            "end_time": {"$gt": now_utc()},
-            "is_seed": True,
-            "seed_active": True
-        })
-        if active_count == 0:
-            logger.info("🌱 No active seed outsiders found — auto-seeding...")
-            from seed_outsiders import create_seed_outsiders
-            result = await create_seed_outsiders(db)
-            logger.info(f"🌱 Auto-seed complete: {result.get('created', 0)} outsiders created")
-        else:
-            logger.info(f"🌱 {active_count} active seed outsiders already present")
-    except Exception as e:
-        logger.error(f"Auto-seed outsiders failed (non-fatal): {e}")
+    """
+    VERROUILLÉ — kill-switch dur « cœur honnête » (style verrou α=1.0).
+
+    Le re-seed automatique des Outsiders démo au démarrage est DÉFINITIVEMENT
+    désactivé : on ne fabrique plus de faux Outsiders. Cette fonction est un no-op
+    conservé (toujours appelée par on_startup) pour documenter le verrou et éviter
+    que le retrait des Outsiders (Lot 3) soit annulé au prochain restart Render.
+
+    Ancien comportement (supprimé) : si 0 seed actif → create_seed_outsiders(db).
+    """
+    logger.info("🔒 auto_seed_outsiders_on_startup: DÉSACTIVÉ (cœur honnête) — no-op.")
+    return
 
 
 async def migrate_raw_scores():
@@ -5776,11 +5772,16 @@ async def download_emails_review(request: Request):
 @api_router.post("/admin/seed-outsiders")
 @limiter.limit("5/15minutes")
 async def seed_outsiders_endpoint(request: Request):
-    """Admin: Create all 49 seed Outsiders. Idempotent (skips existing)."""
+    """VERROUILLÉ (cœur honnête) — la création de faux Outsiders démo est désactivée."""
     _require_admin_auth(request)
-    from seed_outsiders import create_seed_outsiders
-    result = await create_seed_outsiders(db)
-    return result
+    logger.info("🔒 /admin/seed-outsiders appelé mais DÉSACTIVÉ (cœur honnête) — no-op.")
+    return {
+        "success": False,
+        "disabled": True,
+        "reason": "Seeding des Outsiders démo désactivé (cœur honnête). Aucun faux Outsider créé.",
+        "created": 0,
+        "skipped": 0,
+    }
 
 
 # ── Chantier 1I: Social Links Management ──
@@ -5866,7 +5867,20 @@ async def calibrate_outsider_votes(request: Request):
     import random
     from bson import ObjectId
     _require_admin_auth(request)
-    
+
+    # ── VERROU « cœur honnête » (kill-switch dur, style verrou α) ──
+    # Cet endpoint FABRIQUAIT de faux votes (10-200 aléatoires) sur les Outsiders.
+    # DÉFINITIVEMENT désactivé : on ne calibre plus rien. L'ancien corps ci-dessous
+    # est conservé pour trace mais rendu inatteignable par ce return anticipé.
+    logger.info("🔒 /admin/calibrate-outsider-votes appelé mais DÉSACTIVÉ (cœur honnête) — no-op.")
+    return {
+        "success": False,
+        "disabled": True,
+        "reason": "Calibration (fabrication de faux votes) des Outsiders désactivée (cœur honnête).",
+        "updated": 0,
+        "details": [],
+    }
+
     body = await request.json()
     calibration_data = body.get("calibration", None)
     
