@@ -8034,14 +8034,22 @@ async def admin_dashboard_stats(request: Request):
     pending_deceased = await db.deceased_queue.count_documents({"status": "pending"})
     pending_cat_reviews = await db.category_reviews.count_documents({"status": "pending"})
 
+    # Signalements ouverts (KPI) = reports pending Personnalités UGC + Outsiders
+    pending_personality_reports = await db.personality_reports.count_documents({"status": "pending"})
+    pending_outsider_reports = await db.outsider_reports.count_documents({"status": "pending"})
+    open_reports = pending_personality_reports + pending_outsider_reports
+
     return {
         "total_celebrities": total,
         "category_breakdown": cat_breakdown,
         "alpha": alpha,
+        "open_reports": open_reports,
         "queues": {
             "pending_candidates": pending_candidates,
             "pending_deceased": pending_deceased,
             "pending_category_reviews": pending_cat_reviews,
+            "pending_personality_reports": pending_personality_reports,
+            "pending_outsider_reports": pending_outsider_reports,
         },
         "last_jobs": {
             "external_scores": last_ext_scores.get("timestamp") if isinstance(last_ext_scores, dict) else None,

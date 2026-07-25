@@ -113,10 +113,13 @@ interface DashboardStats {
   total_celebrities: number;
   category_breakdown: Record<string, number>;
   alpha: number;
+  open_reports: number;
   queues: {
     pending_candidates: number;
     pending_deceased: number;
     pending_category_reviews: number;
+    pending_personality_reports: number;
+    pending_outsider_reports: number;
   };
   last_jobs: {
     external_scores: string | null;
@@ -1905,6 +1908,7 @@ function DashboardTab({ stats, dashboardStats, activityData, onOpenTab }: any) {
           <Tile label="Votes totaux" value={stats.total_votes} sub="cumulés" />
           <Tile label="Actifs 24h" value={stats.active_users_24h} sub={`${stats.active_users_7d ?? '—'} sur 7 jours`} />
           <Tile label="À modérer" value={ds.queues.pending_candidates} sub="créations en attente" subColor={THEME.warning} />
+          <Tile label="Signalements" value={ds.open_reports} sub="ouverts à traiter" subColor={THEME.serious} />
           <Tile label="Décès à vérifier" value={ds.queues.pending_deceased} sub="file décédés" subColor={THEME.serious} />
           <Tile label="Revenus 24h" value={`${stats.revenue_24h}€`} sub="estimé (non vérifié IAP)" />
         </View>
