@@ -74,6 +74,15 @@ DEFAULT_CONFIG = {
     "volume_scale": 35,  # score_volume = log10(total_engagement+1) * this
     "ratio_scale": 25,  # ratio_approbation = log10(ratio_raw+1) * this
     "adaptive_ceiling": 0,  # 0 = disabled. When > 0, normalizes volume relative to this ceiling
+    # ── Moteur « cote » célébrités (effet Bourse) — cf. compute_celebrity_index ──
+    # GATE dormant par défaut : tant que False, l'indice célébrité reste = externe seul
+    # (comportement α=1.0 inchangé). Passer à True en config pour activer le mouvement.
+    "celebrity_vote_movement_enabled": False,
+    "shrinkage_k": 40,          # shrinkage bayésien : c = n / (n + K). Petit K => bouge tôt.
+    "move_cap": 15,             # décalage persistant max ± autour de l'ancre externe
+    "momentum_gain": 5,         # gain du burst : Δmom = gain * (m_now - m_24h)
+    "momentum_cap": 5,          # circuit breaker : |Δmom| borné à ± ce point/jour
+    "external_fallback_anchor": 50,  # ancre si popularity_external_score absent
 }
 
 
@@ -183,6 +192,62 @@ def compute_score_votes_users(person: Dict) -> float:
     if total <= 0:
         return 0.0
     return ((likes - dislikes) / total) * 100
+
+
+def compute_celebrity_index(
+    person: Dict,
+    config: Dict,
+    m_24h_ago: Optional[float] = None,
+) -> Tuple[float, float]:
+    """
+    Moteur « cote » célébrités (effet Bourse) — ancre externe + mouvement de votes
+    borné + momentum 24 h + shrinkage bayésien. Honnête : ne consomme que les VRAIS
+    votes (seed_votes_* soustraits par sécurité, même si les faux ont été purgés).
+
+    Formule :
+        E   = popularity_external_score (ancre, [0..100]) ; None -> external_fallback_anchor
+        L,D = vrais likes / dislikes ; n = L + D
+        r   = (L - D) / n           ∈ [-1, +1]   (0 si n == 0)
+        c   = n / (n + K)           shrinkage : peu de votes -> c≈0 -> quasi immobile
+        S   = move_cap * c * r      décalage PERSISTANT borné (± move_cap)
+        m   = c * r                 « pression » instantanée (à snapshoter pour le Δ24h)
+        Δmom= clamp(momentum_gain * (m - m_24h_ago), ±momentum_cap)   (0 si pas de 24h)
+        cote= clamp(E + S + Δmom, 0, 100)
+
+    Renvoie (cote, m_now). m_now doit être stocké dans le snapshot pour alimenter le
+    momentum du prochain recalcul. Aucun vote (n == 0) -> c=0 -> S=0, Δmom=0 -> cote = E
+    (d'où : gate ON mais 0 vote => indices strictement égaux à l'externe).
+
+    Isolation : ne lit ni n'écrit α, ne touche ni la Branche 1 (Outsiders) ni la
+    Branche 2 (user_search). Bornée par move_cap / momentum_cap (circuit breakers).
+    """
+    E = person.get("popularity_external_score")
+    if E is None:
+        E = float(config.get("external_fallback_anchor", 50))
+    E = float(E)
+
+    likes = max(0, int(person.get("likes", 0) or 0) - int(person.get("seed_votes_likes", 0) or 0))
+    dislikes = max(0, int(person.get("dislikes", 0) or 0) - int(person.get("seed_votes_dislikes", 0) or 0))
+    n = likes + dislikes
+    r = (likes - dislikes) / n if n > 0 else 0.0
+
+    K = float(config.get("shrinkage_k", 40))
+    move_cap = float(config.get("move_cap", 15))
+    mom_gain = float(config.get("momentum_gain", config.get("momentum_multiplier", 5)))
+    mom_cap = float(config.get("momentum_cap", 5))
+
+    c = n / (n + K) if (n + K) > 0 else 0.0
+    m_now = c * r
+    S = move_cap * m_now
+
+    if m_24h_ago is not None:
+        d_mom = mom_gain * (m_now - m_24h_ago)
+        d_mom = max(-mom_cap, min(mom_cap, d_mom))
+    else:
+        d_mom = 0.0
+
+    cote = max(0.0, min(100.0, E + S + d_mom))
+    return round(cote, 1), m_now
 
 
 def compute_user_search_index(
@@ -513,6 +578,22 @@ async def get_base_index_24h_ago(db, person_id) -> Optional[float]:
     return None
 
 
+async def get_vote_pressure_24h_ago(db, person_id) -> Optional[float]:
+    """Pression de vote (m = c·r) snapshotée il y a ~24 h — alimente le momentum
+    du moteur cote célébrités (compute_celebrity_index)."""
+    from bson import ObjectId
+    pid = ObjectId(str(person_id)) if not isinstance(person_id, ObjectId) else person_id
+    target_time = _utcnow() - timedelta(hours=24)
+
+    snapshot = await db.index_snapshots.find_one(
+        {"person_id": pid, "timestamp": {"$lte": target_time}},
+        sort=[("timestamp", -1)]
+    )
+    if snapshot:
+        return snapshot.get("vote_pressure", None)
+    return None
+
+
 async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Optional[float] = None) -> float:
     """
     Full recalculation of Popularoo Index for a single person.
@@ -583,7 +664,31 @@ async def recalculate_index_for_person(db, person: Dict, config: Dict, alpha: Op
         })
         return index_val
 
-    # ── Branch 3: Seeds / existing (α-blended, unchanged) ──
+    # ── Branch 3: Célébrités / seeds existants ──
+    # GATE moteur cote (effet Bourse). Dormant par défaut → comportement inchangé
+    # (externe seul, α=1.0). Passé à True en config → ancre externe + mouvement votes.
+    if bool(config.get("celebrity_vote_movement_enabled", False)):
+        m_24h_ago = await get_vote_pressure_24h_ago(db, person_id)
+        index_val, m_now = compute_celebrity_index(person, config, m_24h_ago)
+
+        await db.persons.update_one(
+            {"_id": person_id},
+            {"$set": {
+                "popularoo_index": index_val,
+                "score": index_val,
+                "last_index_calc": now,
+            }}
+        )
+        await db.index_snapshots.insert_one({
+            "person_id": person_id,
+            "base_index": index_val,
+            "popularoo_index": index_val,
+            "vote_pressure": m_now,   # base du Δ24h pour le momentum
+            "timestamp": now,
+        })
+        return index_val
+
+    # Gate OFF → α-blended (externe seul à α=1.0), strictement inchangé.
     if alpha is None:
         alpha = await get_alpha(db)
 
@@ -655,7 +760,22 @@ async def quick_recalc_index(db, person: Dict, config: Dict) -> float:
         )
         return index_val
 
-    # ── Branch 3: Seeds / existing (α-blended, unchanged) ──
+    # ── Branch 3: Célébrités / seeds existants ──
+    # GATE moteur cote. Au vote, on applique l'ancre + décalage persistant S (le vote
+    # bouge la cote TOUT DE SUITE) ; le momentum (Δ24h) est appliqué par le job 15 min
+    # qui détient l'historique des snapshots → quick_recalc reste léger (pas de lecture DB).
+    if bool(config.get("celebrity_vote_movement_enabled", False)):
+        index_val, _m_now = compute_celebrity_index(person, config, m_24h_ago=None)
+        await db.persons.update_one(
+            {"_id": person["_id"]},
+            {"$set": {
+                "popularoo_index": index_val,
+                "score": index_val,
+            }}
+        )
+        return index_val
+
+    # Gate OFF → α-blended (externe seul à α=1.0), strictement inchangé.
     alpha = await get_alpha(db)
     external_score = person.get("popularity_external_score")
     score_votes = compute_score_votes_users(person)
