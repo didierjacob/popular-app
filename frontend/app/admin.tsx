@@ -128,7 +128,17 @@ interface DashboardStats {
     deceased_check_all: string | null;
     category_review: string | null;
   };
-  top5: Array<{ name: string; category: string | null; popularoo_index: number }>;
+  top5: Array<{ name: string; category: string | null; popularoo_index: number; country?: string | null }>;
+}
+
+// Drapeau emoji dérivé d'un code pays ISO-2 (indicateurs régionaux). Générique pour
+// tous les pays ; renvoie '' si code absent/invalide (affichage gracieux, pas de drapeau).
+function flagEmoji(code?: string | null): string {
+  if (!code) return '';
+  const cc = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return '';
+  const A = 0x1F1E6; // 🇦
+  return String.fromCodePoint(A + cc.charCodeAt(0) - 65, A + cc.charCodeAt(1) - 65);
 }
 
 interface Person {
@@ -1942,6 +1952,7 @@ function DashboardTab({ stats, dashboardStats, activityData, onOpenTab }: any) {
           {ds.top5.map((p, idx) => (
             <View key={`${idx}-${p.name}`} style={[styles.top5Row, idx === 0 && { borderTopWidth: 0 }]}>
               <Text style={styles.top5Rank}>{idx + 1}</Text>
+              {flagEmoji(p.country) ? <Text style={styles.top5Flag}>{flagEmoji(p.country)}</Text> : null}
               <Text style={styles.top5Name} numberOfLines={1}>{p.name}</Text>
               {p.category && (
                 <View style={[styles.catChip, { backgroundColor: catColor(p.category) }]}>
@@ -3771,6 +3782,7 @@ const styles = StyleSheet.create({
 
   top5Row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: THEME.hairline },
   top5Rank: { color: THEME.muted, fontSize: 13, width: 16, fontVariant: ['tabular-nums'] },
+  top5Flag: { fontSize: 15 },
   top5Name: { color: THEME.ink, fontSize: 13.5, flex: 1 },
   catChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   catChipText: { color: '#fff', fontSize: 11, fontWeight: '600' },

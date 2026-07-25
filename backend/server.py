@@ -8027,6 +8027,7 @@ async def admin_dashboard_stats(request: Request):
             "name": doc.get("name"),
             "category": doc.get("category"),
             "popularoo_index": round(doc.get("popularoo_index", 0), 1),
+            "country": doc.get("primary_country") or (doc.get("country_tags") or [None])[0],
         })
 
     # Queue sizes
