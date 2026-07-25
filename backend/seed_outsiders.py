@@ -348,15 +348,20 @@ def _next_disable_threshold(real_count: int, active_seeds: int) -> str:
 
 async def auto_disable_seeds_for_country(db, country: str) -> Dict[str, Any]:
     """
-    Check if seed Outsiders should be disabled based on real outsider count.
-    Called after every real Booster purchase.
+    VERROU « cœur honnête » — NEUTRALISÉ (no-op).
 
-    Thresholds:
-      ≥20 real → disable 1 seed
-      ≥40 real → disable 1 more seed (2 total)
-      ≥60 real → disable 50% of remaining seeds
-      ≥100 real → disable ALL remaining seeds
+    Remplacé par le filtrage à l'affichage dans GET /outsiders : les démos sont des
+    bouche-trous DYNAMIQUES qui cèdent 1-pour-1 aux vrais Outsiders actifs, et
+    réapparaissent dès qu'un boost réel expire (auto-cicatrisant). On ne désactive
+    donc plus JAMAIS une démo en dur — `seed_active` reste True, aucune mutation.
+
+    Ancien comportement (paliers 20/40/60/100 + `seed_active=False` permanent, qui
+    vidait la section quand des réels transitoires expiraient) conservé ci-dessous
+    pour trace mais rendu inatteignable par ce return anticipé.
     """
+    return {"country": country, "real_count": 0, "disabled": 0, "remaining": 0,
+            "mechanism": "display_filter"}
+
     now = datetime.utcnow()
 
     # Count real (non-seed) active outsiders in this country

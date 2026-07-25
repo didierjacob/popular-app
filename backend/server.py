@@ -2175,6 +2175,19 @@ async def get_outsiders(
             else:
                 regular_outsiders.append(outsider_data)
 
+        # ── Démos = bouche-trous : chaque vrai Outsider ACTIF masque 1 démo (1-pour-1).
+        # Par pays quand `country` est fourni (déjà filtré dans la boucle ci-dessus).
+        # 100% dynamique : quand un boost réel expire, la démo réapparaît au call suivant
+        # (aucune désactivation permanente → la section ne se vide jamais). ──
+        def _yield_seeds_to_reals(items):
+            reals = [o for o in items if not o["is_seed"]]
+            seeds = [o for o in items if o["is_seed"]]
+            hide = min(len(reals), len(seeds))
+            return reals + (seeds[hide:] if hide else seeds)
+
+        golden_outsiders = _yield_seeds_to_reals(golden_outsiders)
+        regular_outsiders = _yield_seeds_to_reals(regular_outsiders)
+
         return {
             "golden": golden_outsiders[:limit],
             "regular": regular_outsiders[:limit],
