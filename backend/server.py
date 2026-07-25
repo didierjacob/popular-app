@@ -1236,12 +1236,11 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
     # superlikes on them. Outsiders = self_boosted OR category == "outsider".
     is_outsider = person.get("source") == "self_boosted" or person.get("category") == "outsider"
 
-    # Downvote retiré (build Apple 1.2) : aucun vote négatif n'est plus accepté,
-    # quel que soit le profil (célébrités, nouveaux entrants, outsiders).
-    # Protège la base même si d'anciennes versions de l'app envoient encore -1.
-    # Les champs `dislikes` existants restent intacts mais ne sont plus incrémentés.
-    if new_val == -1:
-        raise HTTPException(status_code=403, detail="Downvotes are no longer supported.")
+    # Dislikes réactivés (« Pas Popularoo ») pour CÉLÉBRITÉS + user_search : ils
+    # alimentent le mouvement de la cote (compute_celebrity_index). INTERDITS sur les
+    # Outsiders (like/superlike only — pay-to-boost).
+    if new_val == -1 and is_outsider:
+        raise HTTPException(status_code=403, detail="Downvotes are not available for Outsiders.")
 
     # Block superlikes on non-outsiders
     if new_val == 5 and not is_outsider:
@@ -1375,13 +1374,23 @@ async def vote_person(person_id: str, body: VoteIn, x_device_id: Optional[str] =
                 next_vote_time=next_vote_time,
             )
         
-        # 24h passed - can vote again
+        # 24h passed - can vote again.
+        # Fix bascule : si le device CHANGE d'avis (old_val != new_val), on DÉPLACE son
+        # vote — décrémente l'ancien compteur (s'il est > 0), incrémente le nouveau.
+        # Même avis re-voté (streak quotidien) : +1 comme avant. total_votes suit
+        # l'invariant total == likes + dislikes (= somme des incréments).
+        # Garde anti-sous-zéro : un compteur célébrité a pu être remis à 0 (purge cœur
+        # honnête) alors qu'un vieux doc `votes` subsiste → on ne décrémente pas sous 0.
         if new_val == 1:
             inc_doc["likes"] = 1
-        else:
+            if old_val == -1 and int(person.get("dislikes", 0)) > 0:
+                inc_doc["dislikes"] = -1   # bascule dislike -> like
+        else:  # new_val == -1
             inc_doc["dislikes"] = 1
-        inc_doc["total_votes"] = 1
-        
+            if old_val == 1 and int(person.get("likes", 0)) > 0:
+                inc_doc["likes"] = -1      # bascule like -> dislike
+        inc_doc["total_votes"] = inc_doc.get("likes", 0) + inc_doc.get("dislikes", 0)
+
         await db.votes.update_one(
             {"_id": existing_vote["_id"]},
             {"$set": {"value": new_val, "updated_at": now_utc()}}
