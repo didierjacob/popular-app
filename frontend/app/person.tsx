@@ -288,6 +288,9 @@ export default function Person() {
   const [name, setName] = useState(params.name || "");
   const [initialLoading, setInitialLoading] = useState(true);
   const [person, setPerson] = useState<any>(null);
+  // Variation d'indice au dernier vote de l'utilisateur (points) — pilote le Δ
+  // affiché et affine la tendance (mouvement fort => trending/freefall). null = aucun vote.
+  const [lastVoteDelta, setLastVoteDelta] = useState<number | null>(null);
   // Deep link hardening: distinguish a removed/blocklisted profile (404/400)
   // from a transient network failure, so the error screen can offer "retry".
   const [loadError, setLoadError] = useState<null | "notfound" | "network">(null);
@@ -564,6 +567,13 @@ export default function Person() {
 
       // Vote successful - update local state
       if (person) {
+        // Δ index = nouvelle cote − ancienne (pilote le mouvement affiché). Tant que
+        // le moteur cote est dormant côté backend, la cote ne bouge pas → Δ ≈ 0 (on
+        // n'affiche alors que la flèche de tendance, pas de magnitude).
+        const prevIndex = Number(person.popularoo_index ?? person.score ?? 0);
+        const newIndex = Number(result.popularoo_index ?? result.score ?? prevIndex);
+        setLastVoteDelta(Math.round((newIndex - prevIndex) * 10) / 10);
+
         const updatedPerson = {
           ...person,
           total_votes: result.total_votes,
@@ -571,6 +581,9 @@ export default function Person() {
           dislikes: result.dislikes,
           score: result.popularoo_index || result.score,
           popularoo_index: result.popularoo_index || result.score,
+          // vote_momentum n'est pas renvoyé par l'API de vote → on le déduit du sens
+          // du vote (le backend pose la même valeur en base).
+          vote_momentum: value === 1 ? "up" : "down",
         };
         setPerson(updatedPerson);
       }
@@ -671,7 +684,12 @@ export default function Person() {
     }
   };
 
-  const trendStatus = getTrendStatus({ name: person?.name || name, score: person?.score || 50 });
+  // Tendance pilotée par le VRAI signal : vote_momentum (sens du dernier vote) +
+  // Δ index (magnitude) — cf. trendUtils. null (pas de vote) => pas de badge.
+  const trendStatus = getTrendStatus({
+    momentum: person?.vote_momentum,
+    delta: lastVoteDelta ?? undefined,
+  });
 
   // Deep link hardening: a removed/blocklisted profile (or a malformed link)
   // used to render a "ghost" profile at score 0. Show a clean screen instead.
@@ -796,7 +814,22 @@ export default function Person() {
                   })}
                 </Text>
               )}
-              {!isOutsider && <TrendStatusBadge status={trendStatus} />}
+              {!isOutsider && trendStatus && <TrendStatusBadge status={trendStatus} />}
+              {/* Variation d'indice au dernier vote (mouvement de la cote). Masquée
+                  tant que |Δ| < 0.1 (moteur dormant => la cote ne bouge pas encore).
+                  Compteurs bruts likes/dislikes restent masqués (cœur honnête). */}
+              {!isOutsider && lastVoteDelta != null && Math.abs(lastVoteDelta) >= 0.1 && (
+                <Text
+                  style={[
+                    styles.voteDelta,
+                    { color: lastVoteDelta > 0 ? "#2ECC71" : "#E74C3C" },
+                  ]}
+                >
+                  {lastVoteDelta > 0
+                    ? `↑ +${lastVoteDelta.toFixed(1)}`
+                    : `↓ ${lastVoteDelta.toFixed(1)}`}
+                </Text>
+              )}
             </View>
 
             {/* Vote Buttons — Like only (Popularoo). Downvote retiré (build Apple 1.2).
@@ -1282,6 +1315,12 @@ const styles = StyleSheet.create({
     color: PALETTE.subtext,
     fontSize: 14,
     marginTop: 6,
+  },
+  voteDelta: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginTop: 4,
+    fontVariant: ["tabular-nums"],
   },
 
   // Trend Badge

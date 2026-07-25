@@ -1,36 +1,30 @@
 /**
- * Shared utility for the person page's 4-state trend status badge.
+ * Badge de tendance de la fiche personne — piloté par le VRAI signal backend.
  *
- * V1.0: deterministic hash (cosmetic "market effect").
- * V1.5 BACKLOG: replace with real backend signal.
+ * Chantier « cote qui bouge » : plus de hash cosmétique. La flèche/tendance dérive
+ * de `vote_momentum` (sens du dernier vote encaissé, posé par le backend : "up" =
+ * like, "down" = dislike) et de `delta` (variation d'indice au dernier vote, quand
+ * disponible) qui distingue un mouvement fort (trending / freefall) d'un mouvement
+ * simple (rising / falling).
+ *
+ * Renvoie null quand il n'y a pas de vrai vote (momentum absent) → pas de badge.
  */
 
 export type TrendStatus = "rising" | "falling" | "trending" | "freefall";
 
 interface TrendInput {
-  name: string;
-  score: number;
+  momentum?: "up" | "down" | null;
+  delta?: number; // variation d'indice (points) au dernier vote — optionnelle
 }
 
-function computeHash(input: TrendInput): number {
-  const nameHash = input.name
-    .split("")
-    .reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const hourFactor = new Date().getHours();
-  const scoreFactor = Math.floor((input.score || 50) / 10);
-  return (nameHash + hourFactor + scoreFactor) % 20;
-}
+// Seuil (points d'indice) au-delà duquel un mouvement est « fort ».
+const STRONG_MOVE = 3;
 
-/**
- * Returns the detailed 4-state status for the person page.
- * Distribution: trending 25% / rising 25% / falling 20% / freefall 10% / rising (neutral) 20%
- */
-export function getTrendStatus(input: TrendInput): TrendStatus {
-  const hash = computeHash(input);
+export function getTrendStatus(input: TrendInput): TrendStatus | null {
+  const { momentum, delta } = input;
+  if (momentum !== "up" && momentum !== "down") return null; // pas de vrai vote
 
-  if (hash < 5) return "trending";
-  if (hash < 10) return "rising";
-  if (hash < 14) return "falling";
-  if (hash < 16) return "freefall";
-  return "rising";
+  const strong = typeof delta === "number" && Math.abs(delta) >= STRONG_MOVE;
+  if (momentum === "up") return strong ? "trending" : "rising";
+  return strong ? "freefall" : "falling";
 }
