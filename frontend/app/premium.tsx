@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -22,7 +22,7 @@ import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import { isUserCancelledError } from 'react-native-iap';
 import type { Product, Purchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { CacheService } from '../services/cacheService';
 import { cacheKeyOutsiders } from './splash';
 import { USER_VOTE_CACHE_KEY } from './person';
@@ -112,7 +112,6 @@ export default function Premium() {
   // Position verticale de chaque carte de palier, relevée à la volée (onLayout),
   // pour pouvoir faire défiler jusqu'au palier pré-sélectionné.
   const tierOffsets = useRef<Record<string, number>>({});
-  const didAutoScroll = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -339,21 +338,30 @@ export default function Premium() {
     }
   };
 
-  // Applique le palier reçu en paramètre, UNE seule fois et seulement s'il fait
-  // partie des 3 ids connus : un lien forgé (?tier=nimportequoi) est ignoré,
-  // jamais propagé à l'achat.
-  useEffect(() => {
-    if (!tierParam || didAutoScroll.current) return;
-    if (!BOOSTER_TIERS.some((tr) => tr.id === tierParam)) return;
-    didAutoScroll.current = true;
-    setSelectedTier(tierParam);
-    // Le défilement attend que les cartes aient été mesurées (onLayout).
-    const timer = setTimeout(() => {
-      const y = tierOffsets.current[tierParam];
-      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [tierParam]);
+  // Applique le palier reçu en paramètre, À CHAQUE ARRIVÉE sur l'écran.
+  //
+  // useFocusEffect et non useEffect : /premium est un Tabs.Screen (href: null,
+  // _layout.tsx:71), donc l'écran RESTE MONTÉ une fois visité. Le garde one-shot
+  // précédent (didAutoScroll) n'était donc jamais réarmé : le premier palier
+  // deep-linké se figeait et TOUS les taps suivants sur une autre carte étaient
+  // ignorés — la carte Booster étant la première de la liste Outsiders, l'écran
+  // restait bloqué sur le boost 1 h. Une navigation = une intention : on applique.
+  //
+  // Seuls les 3 ids connus sont acceptés : un lien forgé (?tier=nimportequoi) est
+  // ignoré, jamais propagé à l'achat.
+  useFocusEffect(
+    useCallback(() => {
+      if (!tierParam) return;
+      if (!BOOSTER_TIERS.some((tr) => tr.id === tierParam)) return;
+      setSelectedTier(tierParam);
+      // Le défilement attend que les cartes aient été mesurées (onLayout).
+      const timer = setTimeout(() => {
+        const y = tierOffsets.current[tierParam];
+        if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
+      }, 350);
+      return () => clearTimeout(timer);
+    }, [tierParam])
+  );
 
   const handlePurchase = async () => {
     if (!selectedTier) {

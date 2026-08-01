@@ -700,7 +700,7 @@ export default function AccountScreen() {
                 </Text>
               </View>
               {!outsiderLoading && !myOutsider?.boost_active && (
-                <TouchableOpacity style={styles.activateBtn} onPress={() => router.push("/premium")}>
+                <TouchableOpacity style={styles.activateBtn} onPress={() => router.push({ pathname: "/premium", params: { tier: "" } })}>
                   <Text style={styles.activateBtnText}>{t("account.activateBooster")}</Text>
                 </TouchableOpacity>
               )}

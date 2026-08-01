@@ -151,7 +151,7 @@ function BoosterPromoCard({ variant }: { variant: number }) {
   return (
     <TouchableOpacity
       style={[styles.promoCard, { borderColor: promo.color }]}
-      onPress={() => router.push('/premium')}
+      onPress={() => router.push({ pathname: "/premium", params: { tier: "" } })}
       activeOpacity={0.7}
     >
       <View style={[styles.promoIcon, { backgroundColor: promo.color + '22' }]}>
@@ -273,7 +273,7 @@ export default function OutsidersScreen() {
             <Text style={styles.emptyText}>No Outsiders yet</Text>
             <TouchableOpacity
               style={styles.boostCta}
-              onPress={() => router.push('/premium')}
+              onPress={() => router.push({ pathname: "/premium", params: { tier: "" } })}
               activeOpacity={0.7}
             >
               <Text style={styles.boostCtaText}>{t('premium.title')}</Text>
@@ -298,7 +298,7 @@ export default function OutsidersScreen() {
         {outsiders.length > 0 && (
           <TouchableOpacity
             style={styles.bottomCta}
-            onPress={() => router.push('/premium')}
+            onPress={() => router.push({ pathname: "/premium", params: { tier: "" } })}
             activeOpacity={0.7}
           >
             <Ionicons name="rocket" size={20} color={PALETTE.accent} />

@@ -275,7 +275,7 @@ export default function OutsidersPage() {
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={64} color={PALETTE.cardBorder} />
             <Text style={styles.emptyText}>{t("outsiders.noOutsiders")}</Text>
-            <TouchableOpacity style={styles.boostCta} onPress={() => router.push("/premium")} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.boostCta} onPress={() => router.push({ pathname: "/premium", params: { tier: "" } })} activeOpacity={0.7}>
               <Text style={styles.boostCtaText}>{t("outsiders.beFirst")}</Text>
             </TouchableOpacity>
           </View>
