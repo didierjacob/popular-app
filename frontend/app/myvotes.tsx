@@ -43,15 +43,15 @@ export default function MyVotes() {
       const stored = await AsyncStorage.getItem(VOTES_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // STRICT (build Apple 1.2) : le downvote est retiré. On masque les
-        // anciennes entrées négatives (vote === -1) restées dans l'historique
-        // local du device — seuls les votes Popularoo (+1) sont affichés.
-        const positiveOnly = parsed.filter((v: VoteHistory) => v.vote === 1);
+        // Le downvote est réactivé : l'historique affiche les DEUX sens de vote
+        // (Popularoo +1 et « Pas Popularoo » -1). Un dislike ne doit plus
+        // disparaître de « Mes votes ».
+        const history: VoteHistory[] = parsed;
         // Sort by timestamp descending (most recent first)
-        positiveOnly.sort((a: VoteHistory, b: VoteHistory) =>
+        history.sort((a: VoteHistory, b: VoteHistory) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
-        setVotes(positiveOnly);
+        setVotes(history);
       }
       // Refresh engagement data
       await refreshEngagementData();
@@ -107,10 +107,19 @@ export default function MyVotes() {
         <Text style={styles.category} numberOfLines={1}>{item.category}</Text>
         <Text style={styles.timestamp}>{formatDate(item.timestamp)}</Text>
       </View>
-      {/* Mode STRICT (build Apple 1.2) : seules les entrées Popularoo (+1)
-          sont chargées (cf. loadVotes), donc badge positif uniquement. */}
-      <View style={[styles.voteBadge, styles.likeBadge]}>
-        <Ionicons name="thumbs-up" size={20} color="white" />
+      {/* Badge conditionnel au sens du vote : pouce haut vert (Popularoo) ou
+          pouce bas rouge (« Pas Popularoo », même rouge que le bouton /person). */}
+      <View
+        style={[
+          styles.voteBadge,
+          item.vote === 1 ? styles.likeBadge : styles.dislikeBadge,
+        ]}
+      >
+        <Ionicons
+          name={item.vote === 1 ? "thumbs-up" : "thumbs-down"}
+          size={20}
+          color="white"
+        />
       </View>
     </TouchableOpacity>
   );
@@ -480,6 +489,9 @@ const styles = StyleSheet.create({
   },
   likeBadge: {
     backgroundColor: PALETTE.green,
+  },
+  dislikeBadge: {
+    backgroundColor: PALETTE.accent2,
   },
   // Phase 3 - Statistics
   statsCard: {

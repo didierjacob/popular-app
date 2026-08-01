@@ -226,14 +226,15 @@ function LiveVoteItem({
     timeStr = t("person.timeAgo_min", { count: Math.floor(elapsed / 60) });
   }
 
-  // Downvote retiré (build Apple 1.2) : le feed n'affiche plus que des votes
-  // Popularoo (+1). Une éventuelle entrée « disliked » persistée legacy (< 24h)
-  // retombe sur le libellé positif — aucun libellé négatif n'est plus rendu.
-  const actionColor = "#2ECC71";
+  // Le feed reflète le SENS réel du vote. Le downvote étant réactivé, une entrée
+  // « disliked » (fraîche ou restaurée du cache 24h) doit rendre le libellé
+  // négatif et le rouge du bouton « Pas Popularoo » (PALETTE.accent2).
+  const isDislike = entry.action === "disliked";
+  const actionColor = isDislike ? PALETTE.accent2 : "#2ECC71";
 
   const actionText = entry.isUser
-    ? t("person.userLike")
-    : t("person.liked");
+    ? t(isDislike ? "person.userDislike" : "person.userLike")
+    : t(isDislike ? "person.disliked" : "person.liked");
 
   const hasCountry = !!entry.country;
   const rowStyle = entry.isUser
@@ -832,7 +833,7 @@ export default function Person() {
               )}
             </View>
 
-            {/* Vote Buttons — Like only (Popularoo). Downvote retiré (build Apple 1.2).
+            {/* Vote Buttons — Popularoo (+1) et, hors Outsiders, « Pas Popularoo » (-1).
                 Outsiders : libellé « voteFor » ; Célébrités : libellé « like ». */}
             {isOutsider ? (
               <View style={[styles.voteRow, { justifyContent: "center" }]}>

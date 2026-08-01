@@ -83,6 +83,8 @@
     "liveActivityEmpty": "No votes yet — be the first to vote!",
     "liked": "voted Popularoo",
     "userLike": "You voted Popularoo",
+    "disliked": "voted Not Popularoo",
+    "userDislike": "You voted Not Popularoo",
     "userSuperlike": "You added a Superlike",
     "inCountry": "-",
     "timeAgo_now": "just now",
