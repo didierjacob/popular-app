@@ -663,9 +663,33 @@ export default function Person() {
     link: profileLink,
   });
 
-  const shareToTwitter = async () => {
-    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`;
-    await Linking.openURL(url);
+  const shareToX = async () => {
+    const url = `https://x.com/intent/post?text=${encodeURIComponent(shareMessage)}`;
+    await Linking.openURL(url).catch(() => {});
+  };
+
+  // Instagram n'expose AUCUNE URL web de partage pré-rempli (contrairement à X) :
+  // on ne peut pas amorcer un post avec un lien. Approche honnête retenue —
+  // copier le message (lien inclus), prévenir l'utilisateur, puis ouvrir l'app :
+  // il n'a plus qu'à coller. On utilise openURL + catch plutôt que canOpenURL,
+  // ce qui évite d'avoir à déclarer un schéma supplémentaire dans app.json.
+  const shareToInstagram = async () => {
+    try {
+      await Clipboard.setStringAsync(shareMessage);
+    } catch (error) {
+      // Presse-papiers indisponible : on ouvre Instagram quand même.
+    }
+    Alert.alert(t("person.copyTitle"), t("person.instagramCopied"), [
+      {
+        text: "OK",
+        onPress: () => {
+          Linking.openURL("instagram://app").catch(() => {
+            // App absente → repli navigateur.
+            Linking.openURL("https://www.instagram.com/").catch(() => {});
+          });
+        },
+      },
+    ]);
   };
 
   const copyShareText = async () => {
@@ -1015,12 +1039,21 @@ export default function Person() {
                 <Text style={styles.sectionTitle}>{t("person.share")}</Text>
                 <View style={styles.shareGrid}>
                   <TouchableOpacity
-                    style={[styles.shareButton, { backgroundColor: "#1DA1F2" }]}
-                    onPress={shareToTwitter}
+                    style={[styles.shareButton, { backgroundColor: "#000000" }]}
+                    onPress={shareToX}
                   >
-                    <Ionicons name="logo-twitter" size={22} color="white" />
+                    {/* Glyphe 𝕏 (U+1D54F) — même rendu que le bouton « suivre sur X »
+                        plus bas ; Ionicons ne fournit que l'ancien oiseau Twitter. */}
+                    <Text style={styles.shareGlyphX}>{"\uD835\uDD4F"}</Text>
+                    <Text style={styles.shareText}>{t("person.x")}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.shareButton, { backgroundColor: "#E1306C" }]}
+                    onPress={shareToInstagram}
+                  >
+                    <Ionicons name="logo-instagram" size={22} color="white" />
                     <Text style={styles.shareText}>
-                      {t("person.twitter")}
+                      {t("person.instagram")}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -1477,6 +1510,11 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 13,
+  },
+  shareGlyphX: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 20,
   },
 
   // Follow buttons (Outsiders)
