@@ -408,10 +408,20 @@
     "booster_7d_desc": "Absolute Top-Platzierung"
   },
   "search": {
-    "queued_message": "Danke für Ihre Stimme! Sie wird innerhalb von 24 Stunden erscheinen. Bis bald!",
+    "queued_message": "Danke! Diese Persönlichkeit wird geprüft. Sie erscheint innerhalb von 24 Std.",
     "already_exists": "Diese Persönlichkeit existiert bereits auf Popularoo.",
     "already_pending": "Diese Persönlichkeit wartet bereits auf Validierung.",
-    "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut."
+    "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut.",
+    "network_error": "Keine Verbindung. Prüfe deine Verbindung und versuche es erneut.",
+    "not_found_title": "Wir haben sie nicht automatisch gefunden",
+    "not_found_body": "Füge einen Link zu einem ihrer Konten hinzu, um sie vorzuschlagen — ein Moderator prüft das.",
+    "name_label": "Name",
+    "social_label": "Link oder Benutzername",
+    "more_platforms": "Andere",
+    "social_placeholder": "@name oder Profil-Link",
+    "social_required": "Füge mindestens einen Link hinzu, um diese Persönlichkeit vorzuschlagen.",
+    "submit_button": "Vorschlagen",
+    "cancel": "Abbrechen"
   },
   "reportProfile": {
     "button": "Dieses Profil melden",

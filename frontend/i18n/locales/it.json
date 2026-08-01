@@ -408,10 +408,20 @@
     "booster_7d_desc": "7 Premiums, posizione premium"
   },
   "search": {
-    "queued_message": "Grazie per il tuo voto! Apparirà entro 24 ore. A presto!",
+    "queued_message": "Grazie! Questa personalità è in fase di verifica. Apparirà entro 24 h.",
     "already_exists": "Questa personalità esiste già su Popularoo.",
     "already_pending": "Questa personalità è già in attesa di convalida.",
-    "queue_error": "Si è verificato un errore. Riprova tra un momento."
+    "queue_error": "Si è verificato un errore. Riprova tra un momento.",
+    "network_error": "Connessione assente. Controlla la tua connessione e riprova.",
+    "not_found_title": "Non l'abbiamo trovata automaticamente",
+    "not_found_body": "Aggiungi un link a uno dei suoi account per proporla — un moderatore la esaminerà.",
+    "name_label": "Nome",
+    "social_label": "Link o nome utente",
+    "more_platforms": "Altro",
+    "social_placeholder": "@nomeutente o link del profilo",
+    "social_required": "Aggiungi almeno un link per proporre questa personalità.",
+    "submit_button": "Proponi",
+    "cancel": "Annulla"
   },
   "reportProfile": {
     "button": "Segnala questo profilo",

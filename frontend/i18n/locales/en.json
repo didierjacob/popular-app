@@ -408,10 +408,20 @@
     "booster_7d_desc": "Top priority placement"
   },
   "search": {
-    "queued_message": "Thanks for your vote! It will appear within 24 hours. See you soon!",
+    "queued_message": "Thanks! This personality is under review. They'll appear within 24h.",
     "already_exists": "This personality already exists on Popularoo.",
     "already_pending": "This personality is already pending validation.",
-    "queue_error": "An error occurred. Please try again in a moment."
+    "queue_error": "An error occurred. Please try again in a moment.",
+    "network_error": "Can't connect. Check your connection and try again.",
+    "not_found_title": "We couldn't find them automatically",
+    "not_found_body": "Add a link to one of their accounts to suggest them — a moderator will review it.",
+    "name_label": "Name",
+    "social_label": "Link or handle",
+    "more_platforms": "Other",
+    "social_placeholder": "@handle or profile link",
+    "social_required": "Add at least one link to suggest this personality.",
+    "submit_button": "Suggest",
+    "cancel": "Cancel"
   },
   "reportProfile": {
     "button": "Report this profile",

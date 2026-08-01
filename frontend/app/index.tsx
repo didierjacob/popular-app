@@ -50,6 +50,27 @@ const PALETTE = {
   gold: "#FFD700",
 };
 
+// Les 7 plateformes acceptées par le backend (CREATION_SOCIAL_PLATFORMS) sont
+// toutes proposées : le repli sert justement aux personnes que Wikipédia ne
+// trouve pas, et un profil Twitch ou LinkedIn peut être exactement ce qu'on veut
+// ajouter. Les 4 principales sont visibles d'emblée, les 3 autres se déplient
+// derrière « Autre » pour garder le formulaire lisible.
+// Libellés = noms de marque, identiques dans les 6 langues → aucune clé i18n.
+const SOCIAL_PLATFORMS_MAIN = [
+  { key: "instagram", label: "Instagram" },
+  { key: "tiktok", label: "TikTok" },
+  { key: "x", label: "X" },
+  { key: "youtube", label: "YouTube" },
+] as const;
+const SOCIAL_PLATFORMS_MORE = [
+  { key: "facebook", label: "Facebook" },
+  { key: "twitch", label: "Twitch" },
+  { key: "linkedin", label: "LinkedIn" },
+] as const;
+type SocialPlatform =
+  | (typeof SOCIAL_PLATFORMS_MAIN)[number]["key"]
+  | (typeof SOCIAL_PLATFORMS_MORE)[number]["key"];
+
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -283,6 +304,15 @@ export default function HomeScreen() {
   // Recherche en cours (résolution Wikidata comprise) : pilote le spinner ET la
   // désactivation du bouton, cf. garde anti-double-tap dans handleSearch.
   const [searchLoading, setSearchLoading] = useState(false);
+  // Formulaire de repli, ouvert quand Wikipédia ne résout pas la personne.
+  const [fallbackVisible, setFallbackVisible] = useState(false);
+  const [fallbackName, setFallbackName] = useState("");
+  const [fallbackPlatform, setFallbackPlatform] = useState<SocialPlatform>("instagram");
+  const [fallbackHandle, setFallbackHandle] = useState("");
+  const [fallbackSubmitting, setFallbackSubmitting] = useState(false);
+  // « Autre » déplié : le chip disparaît alors au profit des 3 plateformes
+  // secondaires — impossible de masquer une sélection déjà faite.
+  const [showMorePlatforms, setShowMorePlatforms] = useState(false);
   const searchMsgTimer = useRef<NodeJS.Timeout | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
@@ -516,6 +546,9 @@ export default function HomeScreen() {
     if (!rawText) return;
     const query = rawText.toLowerCase();
     setSearchMessage(null);
+    // Une nouvelle recherche referme le formulaire de repli d'une recherche
+    // précédente : sinon il resterait ouvert sur le nom d'avant.
+    setFallbackVisible(false);
 
     // FAST PATH: Check locally loaded people first for instant navigation
     const localMatch = people.find(p =>
@@ -539,7 +572,7 @@ export default function HomeScreen() {
         if (!response.ok) throw new Error(`search HTTP ${response.status}`);
         results = await response.json();
       } catch (error) {
-        setSearchMessage(t("search.queue_error"));
+        setSearchMessage(t("search.network_error"));
         scheduleSearchClear();
         return;
       }
@@ -576,42 +609,71 @@ export default function HomeScreen() {
       }
 
       // ── SLOW PATH 3 : repli modéré ──
-      // TODO (commit 5) : remplacer ce bloc par le FORMULAIRE de repli (nom +
-      // lien social obligatoire). En l'état, le POST part sans `social_links` et
-      // le backend répond 400 depuis le 21/07 — c'est le bug qui reste à réparer.
-      try {
-        const response = await fetch(API("/submit-celebrity-request"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: rawText, device_id: did }),
-        });
-
-        if (!response.ok) {
-          setSearchMessage(t("search.queue_error"));
-          scheduleSearchClear();
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.status === "already_exists" && data.person_id) {
-          // Typo that still matched an existing profile → redirect to it
-          goToPerson(data.person_id);
-          setSearchMessage(null);
-          return;
-        } else if (data.status === "already_pending") {
-          setSearchMessage(t("search.already_pending"));
-        } else {
-          // "queued" — also covers "rejected" (masked by the backend)
-          setSearchMessage(t("search.queued_message"));
-        }
-        scheduleSearchClear();
-      } catch {
-        setSearchMessage(t("search.queue_error"));
-        scheduleSearchClear();
-      }
+      // not_found / rejected / unavailable → formulaire. On n'affiche JAMAIS la
+      // raison du rejet renvoyée par le backend : dire d'une personne nommée
+      // qu'elle est mineure, décédée ou « pas assez connue » divulguerait une
+      // information sur un tiers. Message neutre unique.
+      setFallbackName(rawText);
+      setFallbackHandle("");
+      setFallbackPlatform("instagram");
+      setShowMorePlatforms(false);
+      setFallbackVisible(true);
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  // Repli modéré : nom + AU MOINS UN lien social → /submit-celebrity-request.
+  // Le lien social est obligatoire côté backend depuis le 21/07 (Bloc 2) ; c'est
+  // son absence qui cassait l'ajout depuis l'accueil.
+  const submitFallback = async () => {
+    if (fallbackSubmitting) return;
+    const name = fallbackName.trim();
+    const handle = fallbackHandle.trim();
+    if (!name || !handle) return;
+
+    setFallbackSubmitting(true);
+    try {
+      const did = await ensureDeviceId();
+      const response = await fetch(API("/submit-celebrity-request"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // `social_links` : le backend accepte un pseudo nu OU une URL complète
+        // et extrait le handle lui-même (_extract_social_handle).
+        body: JSON.stringify({
+          name,
+          device_id: did,
+          social_links: { [fallbackPlatform]: handle },
+        }),
+      });
+
+      if (!response.ok) {
+        setSearchMessage(t("search.queue_error"));
+        scheduleSearchClear();
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.status === "already_exists" && data.person_id) {
+        // Faute de frappe qui correspond malgré tout à un profil existant.
+        setFallbackVisible(false);
+        goToPerson(data.person_id);
+        setSearchMessage(null);
+        return;
+      }
+      setSearchMessage(
+        data.status === "already_pending"
+          ? t("search.already_pending")
+          : t("search.queued_message")
+      );
+      scheduleSearchClear();
+    } catch {
+      setSearchMessage(t("search.queue_error"));
+      scheduleSearchClear();
+    } finally {
+      setFallbackSubmitting(false);
+      setFallbackVisible(false);
     }
   };
 
@@ -674,6 +736,98 @@ export default function HomeScreen() {
           {searchMessage && (
             <View style={styles.searchBanner}>
               <Text style={styles.searchBannerText}>{searchMessage}</Text>
+            </View>
+          )}
+
+          {/* Formulaire de repli — Wikipédia n'a pas résolu la personne.
+              Le lien social est OBLIGATOIRE (exigence backend Bloc 2). */}
+          {fallbackVisible && (
+            <View style={styles.fallbackCard}>
+              <Text style={styles.fallbackTitle}>{t("search.not_found_title")}</Text>
+              <Text style={styles.fallbackBody}>{t("search.not_found_body")}</Text>
+
+              <Text style={styles.fallbackLabel}>{t("search.name_label")}</Text>
+              <TextInput
+                style={styles.fallbackInput}
+                value={fallbackName}
+                onChangeText={setFallbackName}
+                placeholderTextColor={PALETTE.subtext}
+                autoCapitalize="words"
+              />
+
+              <Text style={styles.fallbackLabel}>{t("search.social_label")}</Text>
+              <View style={styles.platformRow}>
+                {[
+                  ...SOCIAL_PLATFORMS_MAIN,
+                  ...(showMorePlatforms ? SOCIAL_PLATFORMS_MORE : []),
+                ].map((p) => (
+                  <TouchableOpacity
+                    key={p.key}
+                    style={[
+                      styles.platformChip,
+                      fallbackPlatform === p.key && styles.platformChipActive,
+                    ]}
+                    onPress={() => setFallbackPlatform(p.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.platformChipText,
+                        fallbackPlatform === p.key && styles.platformChipTextActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {!showMorePlatforms && (
+                  <TouchableOpacity
+                    style={[styles.platformChip, styles.platformChipMore]}
+                    onPress={() => setShowMorePlatforms(true)}
+                  >
+                    <Text style={styles.platformChipText}>
+                      {t("search.more_platforms")}
+                    </Text>
+                    <Ionicons name="chevron-down" size={13} color={PALETTE.subtext} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TextInput
+                style={styles.fallbackInput}
+                value={fallbackHandle}
+                onChangeText={setFallbackHandle}
+                placeholder={t("search.social_placeholder")}
+                placeholderTextColor={PALETTE.subtext}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {!fallbackHandle.trim() && (
+                <Text style={styles.fallbackHint}>{t("search.social_required")}</Text>
+              )}
+
+              <View style={styles.fallbackActions}>
+                <TouchableOpacity
+                  style={styles.fallbackCancel}
+                  onPress={() => setFallbackVisible(false)}
+                  disabled={fallbackSubmitting}
+                >
+                  <Text style={styles.fallbackCancelText}>{t("search.cancel")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.fallbackSubmit,
+                    (!fallbackName.trim() || !fallbackHandle.trim() || fallbackSubmitting) &&
+                      styles.fallbackSubmitDisabled,
+                  ]}
+                  onPress={submitFallback}
+                  disabled={!fallbackName.trim() || !fallbackHandle.trim() || fallbackSubmitting}
+                >
+                  {fallbackSubmitting ? (
+                    <ActivityIndicator size="small" color={PALETTE.text} />
+                  ) : (
+                    <Text style={styles.fallbackSubmitText}>{t("search.submit_button")}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           {/* Auto-complete suggestions */}
@@ -893,6 +1047,70 @@ const styles = StyleSheet.create({
   // Le libellé « Go » et le spinner ont la même largeur → aucun saut de layout.
   searchButtonBusy: { opacity: 0.6 },
   searchButtonText: { color: PALETTE.text, fontWeight: "700", fontSize: 16 },
+
+  // Formulaire de repli (Wikipédia n'a pas résolu la personne)
+  fallbackCard: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: PALETTE.bg,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  fallbackTitle: { color: PALETTE.text, fontWeight: "700", fontSize: 15 },
+  fallbackBody: { color: PALETTE.subtext, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  fallbackLabel: {
+    color: PALETTE.subtext,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  fallbackInput: {
+    backgroundColor: PALETTE.card,
+    color: PALETTE.text,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  platformRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  platformChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PALETTE.card,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  platformChipActive: { borderColor: PALETTE.gold, backgroundColor: PALETTE.accent },
+  platformChipMore: { flexDirection: "row", gap: 4, borderStyle: "dashed" },
+  platformChipText: { color: PALETTE.subtext, fontSize: 13, fontWeight: "600" },
+  platformChipTextActive: { color: PALETTE.text },
+  fallbackHint: { color: PALETTE.subtext, fontSize: 12, marginTop: 6, fontStyle: "italic" },
+  fallbackActions: { flexDirection: "row", gap: 8, marginTop: 14 },
+  fallbackCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  fallbackCancelText: { color: PALETTE.subtext, fontWeight: "600", fontSize: 14 },
+  fallbackSubmit: {
+    flex: 2,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PALETTE.accent,
+  },
+  fallbackSubmitDisabled: { opacity: 0.45 },
+  fallbackSubmitText: { color: PALETTE.text, fontWeight: "700", fontSize: 14 },
 
   // Personality of the Day
   potdCard: {
