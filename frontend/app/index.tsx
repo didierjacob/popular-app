@@ -50,27 +50,6 @@ const PALETTE = {
   gold: "#FFD700",
 };
 
-// Les 7 plateformes acceptées par le backend (CREATION_SOCIAL_PLATFORMS) sont
-// toutes proposées : le repli sert justement aux personnes que Wikipédia ne
-// trouve pas, et un profil Twitch ou LinkedIn peut être exactement ce qu'on veut
-// ajouter. Les 4 principales sont visibles d'emblée, les 3 autres se déplient
-// derrière « Autre » pour garder le formulaire lisible.
-// Libellés = noms de marque, identiques dans les 6 langues → aucune clé i18n.
-const SOCIAL_PLATFORMS_MAIN = [
-  { key: "instagram", label: "Instagram" },
-  { key: "tiktok", label: "TikTok" },
-  { key: "x", label: "X" },
-  { key: "youtube", label: "YouTube" },
-] as const;
-const SOCIAL_PLATFORMS_MORE = [
-  { key: "facebook", label: "Facebook" },
-  { key: "twitch", label: "Twitch" },
-  { key: "linkedin", label: "LinkedIn" },
-] as const;
-type SocialPlatform =
-  | (typeof SOCIAL_PLATFORMS_MAIN)[number]["key"]
-  | (typeof SOCIAL_PLATFORMS_MORE)[number]["key"];
-
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
@@ -307,12 +286,7 @@ export default function HomeScreen() {
   // Formulaire de repli, ouvert quand Wikipédia ne résout pas la personne.
   const [fallbackVisible, setFallbackVisible] = useState(false);
   const [fallbackName, setFallbackName] = useState("");
-  const [fallbackPlatform, setFallbackPlatform] = useState<SocialPlatform>("instagram");
-  const [fallbackHandle, setFallbackHandle] = useState("");
   const [fallbackSubmitting, setFallbackSubmitting] = useState(false);
-  // « Autre » déplié : le chip disparaît alors au profit des 3 plateformes
-  // secondaires — impossible de masquer une sélection déjà faite.
-  const [showMorePlatforms, setShowMorePlatforms] = useState(false);
   const searchMsgTimer = useRef<NodeJS.Timeout | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
@@ -614,23 +588,21 @@ export default function HomeScreen() {
       // qu'elle est mineure, décédée ou « pas assez connue » divulguerait une
       // information sur un tiers. Message neutre unique.
       setFallbackName(rawText);
-      setFallbackHandle("");
-      setFallbackPlatform("instagram");
-      setShowMorePlatforms(false);
       setFallbackVisible(true);
     } finally {
       setSearchLoading(false);
     }
   };
 
-  // Repli modéré : nom + AU MOINS UN lien social → /submit-celebrity-request.
-  // Le lien social est obligatoire côté backend depuis le 21/07 (Bloc 2) ; c'est
-  // son absence qui cassait l'ajout depuis l'accueil.
+  // Repli modéré : le NOM SEUL suffit → /submit-celebrity-request, puis modération
+  // admin. Le lien social n'est plus exigé côté backend (cf. 65e6f28) : l'ajout
+  // Wikipédia couvre désormais les personnalités publiques réelles, ce formulaire
+  // ne traite plus que les cas résiduels. Le nom reste éditable en amont — c'est
+  // le seul filtre anti-faute de frappe avant la file de modération humaine.
   const submitFallback = async () => {
     if (fallbackSubmitting) return;
     const name = fallbackName.trim();
-    const handle = fallbackHandle.trim();
-    if (!name || !handle) return;
+    if (!name) return;
 
     setFallbackSubmitting(true);
     try {
@@ -638,13 +610,7 @@ export default function HomeScreen() {
       const response = await fetch(API("/submit-celebrity-request"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // `social_links` : le backend accepte un pseudo nu OU une URL complète
-        // et extrait le handle lui-même (_extract_social_handle).
-        body: JSON.stringify({
-          name,
-          device_id: did,
-          social_links: { [fallbackPlatform]: handle },
-        }),
+        body: JSON.stringify({ name, device_id: did }),
       });
 
       if (!response.ok) {
@@ -755,55 +721,6 @@ export default function HomeScreen() {
                 autoCapitalize="words"
               />
 
-              <Text style={styles.fallbackLabel}>{t("search.social_label")}</Text>
-              <View style={styles.platformRow}>
-                {[
-                  ...SOCIAL_PLATFORMS_MAIN,
-                  ...(showMorePlatforms ? SOCIAL_PLATFORMS_MORE : []),
-                ].map((p) => (
-                  <TouchableOpacity
-                    key={p.key}
-                    style={[
-                      styles.platformChip,
-                      fallbackPlatform === p.key && styles.platformChipActive,
-                    ]}
-                    onPress={() => setFallbackPlatform(p.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.platformChipText,
-                        fallbackPlatform === p.key && styles.platformChipTextActive,
-                      ]}
-                    >
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-                {!showMorePlatforms && (
-                  <TouchableOpacity
-                    style={[styles.platformChip, styles.platformChipMore]}
-                    onPress={() => setShowMorePlatforms(true)}
-                  >
-                    <Text style={styles.platformChipText}>
-                      {t("search.more_platforms")}
-                    </Text>
-                    <Ionicons name="chevron-down" size={13} color={PALETTE.subtext} />
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TextInput
-                style={styles.fallbackInput}
-                value={fallbackHandle}
-                onChangeText={setFallbackHandle}
-                placeholder={t("search.social_placeholder")}
-                placeholderTextColor={PALETTE.subtext}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {!fallbackHandle.trim() && (
-                <Text style={styles.fallbackHint}>{t("search.social_required")}</Text>
-              )}
-
               <View style={styles.fallbackActions}>
                 <TouchableOpacity
                   style={styles.fallbackCancel}
@@ -815,11 +732,10 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={[
                     styles.fallbackSubmit,
-                    (!fallbackName.trim() || !fallbackHandle.trim() || fallbackSubmitting) &&
-                      styles.fallbackSubmitDisabled,
+                    (!fallbackName.trim() || fallbackSubmitting) && styles.fallbackSubmitDisabled,
                   ]}
                   onPress={submitFallback}
-                  disabled={!fallbackName.trim() || !fallbackHandle.trim() || fallbackSubmitting}
+                  disabled={!fallbackName.trim() || fallbackSubmitting}
                 >
                   {fallbackSubmitting ? (
                     <ActivityIndicator size="small" color={PALETTE.text} />
@@ -1074,22 +990,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  platformRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  platformChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: PALETTE.card,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  platformChipActive: { borderColor: PALETTE.gold, backgroundColor: PALETTE.accent },
-  platformChipMore: { flexDirection: "row", gap: 4, borderStyle: "dashed" },
-  platformChipText: { color: PALETTE.subtext, fontSize: 13, fontWeight: "600" },
-  platformChipTextActive: { color: PALETTE.text },
-  fallbackHint: { color: PALETTE.subtext, fontSize: 12, marginTop: 6, fontStyle: "italic" },
   fallbackActions: { flexDirection: "row", gap: 8, marginTop: 14 },
   fallbackCancel: {
     flex: 1,
