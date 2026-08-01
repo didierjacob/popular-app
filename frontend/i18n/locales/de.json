@@ -419,12 +419,8 @@
     "already_exists": "Diese Persönlichkeit existiert bereits auf Popularoo.",
     "already_pending": "Diese Persönlichkeit wartet bereits auf Validierung.",
     "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut.",
-    "network_error": "Keine Verbindung. Prüfe deine Verbindung und versuche es erneut.",
-    "not_found_title": "Wir haben sie nicht automatisch gefunden",
-    "not_found_body": "Du kannst sie vorschlagen — ein Moderator prüft das.",
-    "name_label": "Name",
-    "submit_button": "Vorschlagen",
-    "cancel": "Abbrechen"
+    "quota_reached": "Du hast dein Vorschlagslimit erreicht. Versuche es später erneut.",
+    "network_error": "Keine Verbindung. Prüfe deine Verbindung und versuche es erneut."
   },
   "reportProfile": {
     "button": "Dieses Profil melden",

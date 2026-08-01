@@ -419,12 +419,8 @@
     "already_exists": "This personality already exists on Popularoo.",
     "already_pending": "This personality is already pending validation.",
     "queue_error": "An error occurred. Please try again in a moment.",
-    "network_error": "Can't connect. Check your connection and try again.",
-    "not_found_title": "We couldn't find them automatically",
-    "not_found_body": "You can suggest them — a moderator will review it.",
-    "name_label": "Name",
-    "submit_button": "Suggest",
-    "cancel": "Cancel"
+    "quota_reached": "You've reached your suggestion limit. Try again later.",
+    "network_error": "Can't connect. Check your connection and try again."
   },
   "reportProfile": {
     "button": "Report this profile",

@@ -419,12 +419,8 @@
     "already_exists": "Esta personalidad ya existe en Popularoo.",
     "already_pending": "Esta personalidad ya está pendiente de validación.",
     "queue_error": "Se produjo un error. Inténtalo de nuevo en un momento.",
-    "network_error": "Sin conexión. Comprueba tu conexión e inténtalo de nuevo.",
-    "not_found_title": "No la hemos encontrado automáticamente",
-    "not_found_body": "Puedes proponerla: un moderador la revisará.",
-    "name_label": "Nombre",
-    "submit_button": "Proponer",
-    "cancel": "Cancelar"
+    "quota_reached": "Has alcanzado tu límite de propuestas. Inténtalo más tarde.",
+    "network_error": "Sin conexión. Comprueba tu conexión e inténtalo de nuevo."
   },
   "reportProfile": {
     "button": "Reportar este perfil",
