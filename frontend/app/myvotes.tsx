@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, Text, TouchableOpacity, View, ScrollView, FlatList, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, ScrollView, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -155,7 +155,15 @@ export default function MyVotes() {
           <Text style={styles.emptySubtext}>{t("myvotes.emptySubtitle")}</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            // 100 px s'ajoutaient à la hauteur de la barre d'onglets (non déclarée
+            // dans _layout.tsx, donc valeur par défaut d'expo-router), d'où le vide
+            // anormal sous le dernier élément. 24 px suffisent à aérer.
+            paddingBottom: 24,
+          }}
+        >
           {/* Streak Card */}
           <View style={styles.streakCard}>
             <View style={styles.streakHeader}>
@@ -271,14 +279,20 @@ export default function MyVotes() {
             <Text style={styles.historyTitle}>{t("myvotes.history")}</Text>
           </View>
           
-          <View style={{ height: votes.length * 80 + 24 }}>
-            <FlatList
-              data={votes}
-              keyExtractor={(item, index) => `${item.personId}-${index}`}
-              renderItem={renderItem}
-              scrollEnabled={false}
-            />
-          </View>
+          {/* Rendu direct plutôt qu'une FlatList imbriquée : avec
+              scrollEnabled={false} dans une ScrollView, elle n'apportait aucune
+              virtualisation (tous les items sont montés de toute façon) mais
+              imposait un conteneur à hauteur calculée à la main — 80 px par item,
+              alors qu'une carte en fait ~88 (paddingVertical 16×2 + trois lignes
+              de texte). Le déficit d'environ 9 px par item rognait le bas de
+              l'historique, d'autant plus que la liste était longue, et empirait si
+              l'utilisateur agrandissait la police système. Ici le conteneur prend
+              sa hauteur naturelle : le bug ne peut plus revenir. */}
+          {votes.map((v, index) => (
+            <React.Fragment key={`${v.personId}-${index}`}>
+              {renderItem({ item: v })}
+            </React.Fragment>
+          ))}
         </ScrollView>
       )}
       </View>
