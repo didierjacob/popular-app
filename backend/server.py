@@ -1730,8 +1730,21 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 # ── Bloc C (3) — anti-flood création : compteur par device (réglable en code) ──
 #    Limite le nb de créations qu'un même appareil peut soumettre (candidate_queue).
 #    Le @limiter IP ci-dessous est une défense-en-profondeur (anti-hammer brut).
-RATE_CREATE_PER_HOUR = 5
-RATE_CREATE_PER_DAY = 20
+#
+#    Plafond JOURNALIER resserré 20 → 3 : le lien social obligatoire disparaît (voir
+#    plus bas), et avec lui la friction qui limitait naturellement les soumissions.
+#    La file de modération étant traitée à la main, le quota device devient le
+#    principal rempart contre le bruit. Le chemin Wikipédia absorbe désormais les
+#    personnalités publiques réelles, donc 3/jour reste large pour les cas résiduels.
+#
+#    Les deux plafonds sont alignés à 3 : le journalier commandant, un horaire plus
+#    élevé n'aurait jamais pu se déclencher. Effet de bord assumé — 3 soumissions
+#    en moins d'une heure déclenchent désormais la garde HORAIRE (« réessaie dans
+#    une heure ») là où l'ancien réglage laissait passer jusqu'à la garde
+#    journalière, plus juste (« réessaie demain »). Le blocage est le même à la
+#    4e tentative dans les deux cas ; seul le libellé diffère.
+RATE_CREATE_PER_HOUR = 3
+RATE_CREATE_PER_DAY = 3
 
 
 @api_router.post("/submit-celebrity-request")
@@ -1740,17 +1753,24 @@ async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
     """
     Création UGC d'une Personnalité (Bloc 2) — conforme Google.
 
-    Lien social obligatoire + filtre auto + modération admin AVANT publication.
-    RIEN n'est public sans clic admin : le doc entre en candidate_queue avec
-    moderation_status="unreviewed" et n'est publié qu'à l'approbation admin
-    (approve_user_search_candidate). Le job process_user_submissions ne dépile
-    plus que les docs moderation_status="approved".
+    Filtre auto + modération admin AVANT publication. RIEN n'est public sans clic
+    admin : le doc entre en candidate_queue avec moderation_status="unreviewed" et
+    n'est publié qu'à l'approbation admin (approve_user_search_candidate). Le job
+    process_user_submissions ne dépile plus que les docs moderation_status="approved".
 
-    Ordre runtime : device banni → anti-flood (device) → lien social → already_exists
+    LIEN SOCIAL : n'est PLUS obligatoire. Il servait de preuve de notoriété quand ce
+    formulaire était le seul chemin de création ; l'ajout Wikipédia à la demande
+    (POST /people/from-wikipedia) joue désormais ce rôle pour les personnalités
+    publiques réelles, et ce formulaire ne traite plus que les cas résiduels. Le
+    champ reste ACCEPTÉ et stocké s'il est fourni (l'admin l'affiche à la
+    modération), simplement il ne bloque plus. En contrepartie, RATE_CREATE_PER_DAY
+    est resserré à 3.
+
+    Ordre runtime : device banni → anti-flood (device) → already_exists
     → already_pending → nom → insultes → blocklist → enqueue.
     Anti-flood secondaire : @limiter IP (10/min).
 
-    Body: { "name": str, "device_id": str, "social_links": {plateforme: str} }.
+    Body: { "name": str, "device_id": str, "social_links": {plateforme: str} (FACULTATIF) }.
     """
     from candidate_detection import process_celebrity_request
 
@@ -1788,8 +1808,11 @@ async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
             detail="Limite quotidienne de créations atteinte pour cet appareil. Réessaie demain.",
         )
 
-    # ── Lien social obligatoire (≥1), allowlist 7 réseaux. Option 3B : la
-    #    présence suffit à accepter ; le format tague la qualité, ne bloque pas. ──
+    # ── Liens sociaux : FACULTATIFS (allowlist 7 réseaux). L'exigence « ≥ 1 lien »
+    #    du Bloc 2 est levée — cf. docstring. La lecture est CONSERVÉE : un client
+    #    qui en fournit les voit stockés et affichés à la modération (admin.tsx gère
+    #    déjà l'absence : « Aucun lien social fourni »). Option 3B inchangée : le
+    #    format tague la qualité, il n'a jamais bloqué. ──
     raw_social = body.get("social_links") or {}
     if not isinstance(raw_social, dict):
         raw_social = {}
@@ -1802,13 +1825,6 @@ async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
         social_links[platform] = handle
         pattern = CREATION_SOCIAL_REGEX.get(platform)
         social_links_format_ok[platform] = bool(pattern and pattern.match(handle))
-
-    if not social_links:
-        raise HTTPException(
-            status_code=400,
-            detail="Au moins un lien vers un réseau social (Instagram, TikTok, X, "
-                   "YouTube, Facebook, Twitch ou LinkedIn) est requis pour créer un profil.",
-        )
 
     # ── Bloc C (4) : IP de la soumission (X-Forwarded-For derrière le proxy Render,
     #    fallback client.host). Stockée pour INFO admin ; le ban reste device-primary
