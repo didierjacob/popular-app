@@ -280,6 +280,9 @@ export default function HomeScreen() {
   const [searchSuggestions, setSearchSuggestions] = useState<Person[]>([]);
   // Vague 4: feedback banner shown after a celebrity request is submitted
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  // Recherche en cours (résolution Wikidata comprise) : pilote le spinner ET la
+  // désactivation du bouton, cf. garde anti-double-tap dans handleSearch.
+  const [searchLoading, setSearchLoading] = useState(false);
   const searchMsgTimer = useRef<NodeJS.Timeout | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
@@ -484,7 +487,28 @@ export default function HomeScreen() {
     }, 3000);
   };
 
+  const ensureDeviceId = async () => {
+    let did = await AsyncStorage.getItem("popularity_device_id");
+    if (!did) {
+      did = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      await AsyncStorage.setItem("popularity_device_id", did);
+    }
+    return did;
+  };
+
+  const goToPerson = (id: string, name?: string) => {
+    router.push({ pathname: "/person", params: name ? { id, name } : { id } });
+    setSearchName("");
+    setSearchSuggestions([]);
+  };
+
+  // Parcours « Wikipédia d'abord, modération en repli » :
+  //   match local → GET /search → POST /people/from-wikipedia → (commit 5) formulaire.
   const handleSearch = async (overrideText?: string) => {
+    // Garde anti-double-tap. La résolution Wikidata prend 1 à 2,7 s (mesuré en
+    // prod) : sans ce verrou, deux taps enverraient deux créations concurrentes.
+    if (searchLoading) return;
+
     // iOS predictive-text commits the final character together with the Go event,
     // so reading `searchName` from state can miss the last char on the first tap.
     // Prefer the synchronous nativeEvent.text when available; fall back to state.
@@ -494,73 +518,100 @@ export default function HomeScreen() {
     setSearchMessage(null);
 
     // FAST PATH: Check locally loaded people first for instant navigation
-    const localMatch = people.find(p => 
-      p.name.toLowerCase() === query || 
+    const localMatch = people.find(p =>
+      p.name.toLowerCase() === query ||
       p.name.toLowerCase().includes(query)
     );
     if (localMatch) {
-      router.push({ pathname: "/person", params: { id: localMatch.id, name: localMatch.name } });
-      setSearchName("");
-      setSearchSuggestions([]);
+      goToPerson(localMatch.id, localMatch.name);
       return;
     }
 
-    // SLOW PATH: Query backend search (Wikipedia fallback etc.)
+    setSearchLoading(true);
     try {
-      const response = await fetch(API(`/search?query=${encodeURIComponent(rawText)}`));
-      if (response.ok) {
-        const results = await response.json();
-        if (results.length > 0) {
-          // Prioritize exact name match over partial
-          const exactMatch = results.find((r: any) => r.name.toLowerCase() === query);
-          const best = exactMatch || results[0];
-          router.push({ pathname: "/person", params: { id: best.id, name: best.name } });
-          setSearchName("");
-          setSearchSuggestions([]);
-          return;
-        }
-      }
-    } catch {}
-
-    // Vague 4: no match anywhere → submit a celebrity request, show a banner
-    try {
-      let did = await AsyncStorage.getItem("popularity_device_id");
-      if (!did) {
-        did = `device_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        await AsyncStorage.setItem("popularity_device_id", did);
-      }
-      const response = await fetch(API("/submit-celebrity-request"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: rawText, device_id: did }),
-      });
-
-      if (!response.ok) {
+      // ── SLOW PATH 1 : recherche serveur ──
+      // Une PANNE et un « zéro résultat » ne veulent pas dire la même chose : le
+      // catch vide d'avant enchaînait sur une création alors que la personne était
+      // peut-être déjà en base (utilisateur dans le métro). On s'arrête net.
+      let results: any[];
+      try {
+        const response = await fetch(API(`/search?query=${encodeURIComponent(rawText)}`));
+        if (!response.ok) throw new Error(`search HTTP ${response.status}`);
+        results = await response.json();
+      } catch (error) {
         setSearchMessage(t("search.queue_error"));
         scheduleSearchClear();
         return;
       }
 
-      const data = await response.json();
-
-      if (data.status === "already_exists" && data.person_id) {
-        // Typo that still matched an existing profile → redirect to it
-        setSearchMessage(t("search.already_exists"));
-        router.push({ pathname: "/person", params: { id: data.person_id } });
-        setSearchName("");
-        setSearchSuggestions([]);
-        setSearchMessage(null);
+      if (Array.isArray(results) && results.length > 0) {
+        // Prioritize exact name match over partial
+        const exactMatch = results.find((r: any) => r.name.toLowerCase() === query);
+        const best = exactMatch || results[0];
+        goToPerson(best.id, best.name);
         return;
-      } else if (data.status === "already_pending") {
-        setSearchMessage(t("search.already_pending"));
-      } else {
-        // "queued" — also covers "rejected" (masked by the backend)
-        setSearchMessage(t("search.queued_message"));
       }
-      scheduleSearchClear();
-    } catch {
-      setSearchMessage(t("search.queue_error"));
-      scheduleSearchClear();
+
+      const did = await ensureDeviceId();
+
+      // ── SLOW PATH 2 : ajout automatique via Wikipédia ──
+      // L'endpoint ne lève jamais : il répond created / exists / not_found /
+      // rejected / unavailable. Une panne réseau côté client est traitée comme
+      // « pas de résultat » — on bascule sur le chemin modéré, jamais d'erreur sèche.
+      let wiki: any = null;
+      try {
+        const response = await fetch(API("/people/from-wikipedia"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: rawText, device_id: did }),
+        });
+        if (response.ok) wiki = await response.json();
+      } catch (error) {
+        wiki = null;
+      }
+
+      if (wiki?.person_id && (wiki.status === "created" || wiki.status === "exists")) {
+        goToPerson(wiki.person_id, wiki.name || rawText);
+        return;
+      }
+
+      // ── SLOW PATH 3 : repli modéré ──
+      // TODO (commit 5) : remplacer ce bloc par le FORMULAIRE de repli (nom +
+      // lien social obligatoire). En l'état, le POST part sans `social_links` et
+      // le backend répond 400 depuis le 21/07 — c'est le bug qui reste à réparer.
+      try {
+        const response = await fetch(API("/submit-celebrity-request"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: rawText, device_id: did }),
+        });
+
+        if (!response.ok) {
+          setSearchMessage(t("search.queue_error"));
+          scheduleSearchClear();
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === "already_exists" && data.person_id) {
+          // Typo that still matched an existing profile → redirect to it
+          goToPerson(data.person_id);
+          setSearchMessage(null);
+          return;
+        } else if (data.status === "already_pending") {
+          setSearchMessage(t("search.already_pending"));
+        } else {
+          // "queued" — also covers "rejected" (masked by the backend)
+          setSearchMessage(t("search.queued_message"));
+        }
+        scheduleSearchClear();
+      } catch {
+        setSearchMessage(t("search.queue_error"));
+        scheduleSearchClear();
+      }
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -607,8 +658,16 @@ export default function HomeScreen() {
               }}
               onSubmitEditing={(e) => handleSearch(e.nativeEvent?.text)}
             />
-            <TouchableOpacity style={styles.searchButton} onPress={() => handleSearch()}>
-              <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
+            <TouchableOpacity
+              style={[styles.searchButton, searchLoading && styles.searchButtonBusy]}
+              onPress={() => handleSearch()}
+              disabled={searchLoading}
+            >
+              {searchLoading ? (
+                <ActivityIndicator size="small" color={PALETTE.text} />
+              ) : (
+                <Text style={styles.searchButtonText}>{t("home.searchButton")}</Text>
+              )}
             </TouchableOpacity>
           </View>
           {/* Vague 4: celebrity-request feedback banner */}
@@ -830,6 +889,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // Pendant la résolution : bouton grisé + non cliquable (cf. `disabled`).
+  // Le libellé « Go » et le spinner ont la même largeur → aucun saut de layout.
+  searchButtonBusy: { opacity: 0.6 },
   searchButtonText: { color: PALETTE.text, fontWeight: "700", fontSize: 16 },
 
   // Personality of the Day
