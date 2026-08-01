@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ActivityIndicator, LayoutAnimation, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, UIManager, View, FlatList, useWindowDimensions, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { categoryLabel } from "../utils/categoryLabel";
 import * as Localization from "expo-localization";
 import { fetchSWR } from "../services/cacheService";
 import RankDeltaBadge from "../components/RankDeltaBadge";
@@ -29,8 +30,6 @@ const PALETTE = {
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
-// Helper to capitalize first letter
-const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
 // Helper to format numbers without decimals
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
@@ -163,7 +162,7 @@ export default function List() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">
-            {t(`categories.${item.category}`) || capitalize(item.category || 'other')}{showVoteCounts ? ` • ${formatNumber(item.total_votes)} ${item.total_votes <= 1 ? 'vote' : 'votes'}` : ""}
+            {categoryLabel(t, item.category)}{showVoteCounts ? ` • ${formatNumber(item.total_votes)} ${item.total_votes <= 1 ? 'vote' : 'votes'}` : ""}
           </Text>
         </View>
         <View style={styles.deltaContainer}>

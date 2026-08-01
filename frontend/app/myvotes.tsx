@@ -7,6 +7,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useUserEngagement } from "../hooks/useUserEngagement";
 import { useTranslation } from "react-i18next";
+import { categoryLabel } from "../utils/categoryLabel";
 
 const PALETTE = {
   bg: "#0F2F22",
@@ -104,7 +105,7 @@ export default function MyVotes() {
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.personName} numberOfLines={1}>{item.personName}</Text>
-        <Text style={styles.category} numberOfLines={1}>{item.category}</Text>
+        <Text style={styles.category} numberOfLines={1}>{categoryLabel(t, item.category)}</Text>
         <Text style={styles.timestamp}>{formatDate(item.timestamp)}</Text>
       </View>
       {/* Badge conditionnel au sens du vote : pouce haut vert (Popularoo) ou
@@ -238,7 +239,7 @@ export default function MyVotes() {
               {/* Favorite Category */}
               <View style={styles.statRow}>
                 <Text style={styles.statLabel}>{t("myvotes.favoriteCategory")}</Text>
-                <Text style={[styles.statValue, { fontWeight: '700' }]}>{voteStats.favoriteCategory}</Text>
+                <Text style={[styles.statValue, { fontWeight: '700' }]}>{categoryLabel(t, voteStats.favoriteCategory)}</Text>
               </View>
 
               {/* Most Voted Person */}
@@ -255,7 +256,7 @@ export default function MyVotes() {
               <Text style={[styles.statLabel, { marginTop: 12, marginBottom: 8 }]}>{t("myvotes.byCategory")}</Text>
               {voteStats.categoriesBreakdown.map((cat) => (
                 <View key={cat.category} style={styles.categoryBar}>
-                  <Text style={styles.categoryName}>{cat.category}</Text>
+                  <Text style={styles.categoryName}>{categoryLabel(t, cat.category)}</Text>
                   <View style={styles.categoryBarContainer}>
                     <View style={[styles.categoryBarFill, { width: `${cat.percentage}%` }]} />
                   </View>

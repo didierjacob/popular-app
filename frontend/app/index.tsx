@@ -31,6 +31,7 @@ import FlashOverlay from "../components/FlashOverlay";
 import { fetchSWR } from "../services/cacheService";
 import { useRankFlash } from "../hooks/useRankFlash";
 import { useShowVoteCounts } from "../hooks/useShowVoteCounts";
+import { categoryLabel } from "../utils/categoryLabel";
 import { cacheKeyPeopleHome, cacheKeyOutsiders } from "./splash";
 
 // Enable LayoutAnimation on Android
@@ -53,7 +54,6 @@ const PALETTE = {
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onrender.com";
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 
-const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 const formatNumber = (num: number) => Math.round(num).toLocaleString();
 
 interface Person {
@@ -707,7 +707,7 @@ export default function HomeScreen() {
                 >
                   <Ionicons name="person-outline" size={14} color={PALETTE.subtext} />
                   <Text style={styles.suggestionText}>{suggestion.name}</Text>
-                  <Text style={styles.suggestionMeta}>{capitalize(suggestion.category || 'other')}</Text>
+                  <Text style={styles.suggestionMeta}>{categoryLabel(t, suggestion.category)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -728,7 +728,7 @@ export default function HomeScreen() {
               <View style={styles.potdInfo}>
                 <Text style={styles.potdName}>{personOfTheDay.name}</Text>
                 <Text style={styles.potdMeta}>
-                  {t(`categories.${personOfTheDay.category}`) || capitalize(personOfTheDay.category)}{showVoteCounts ? ` • ${formatNumber(personOfTheDay.total_votes)} votes` : ""}
+                  {categoryLabel(t, personOfTheDay.category)}{showVoteCounts ? ` • ${formatNumber(personOfTheDay.total_votes)} votes` : ""}
                 </Text>
                 <Text style={styles.potdIndex}>
                   Popularoo Index: {personOfTheDay.popularoo_index || Math.round(personOfTheDay.score)}
@@ -805,7 +805,7 @@ export default function HomeScreen() {
                   <View style={styles.personInfo}>
                     <Text style={styles.personName}>{person.name}</Text>
                     <Text style={styles.personMeta}>
-                      {t(`categories.${person.category}`) || capitalize(person.category)}{showVoteCounts ? ` • ${formatNumber(person.total_votes)} ${person.total_votes <= 1 ? t("common.vote") : t("common.votes")}` : ""}
+                      {categoryLabel(t, person.category)}{showVoteCounts ? ` • ${formatNumber(person.total_votes)} ${person.total_votes <= 1 ? t("common.vote") : t("common.votes")}` : ""}
                     </Text>
                   </View>
                   <View style={[styles.gaugeContainer, { flexDirection: 'row', alignItems: 'center' }]}>
