@@ -1846,6 +1846,216 @@ async def submit_celebrity_request(request: Request, body: Dict[str, Any]):
     }
 
 
+# ============ « WIKIPÉDIA D'ABORD, MODÉRATION EN REPLI » — ajout à la demande ============
+#
+# Répare le parcours d'ajout depuis l'accueil : un nom absent de la base est d'abord
+# résolu contre Wikidata (création immédiate s'il passe les garde-fous) ; seul un
+# échec renvoie l'utilisateur vers le formulaire modéré de /submit-celebrity-request.
+#
+# ⚠️  CE CHEMIN PUBLIE DIRECTEMENT (approved=true), contrairement au Bloc 2 dont la
+#     règle est « RIEN n'est public sans clic admin ». C'est assumé et délimité :
+#     le contenu ne vient PAS de l'utilisateur — il ne fournit qu'un nom — mais de
+#     Wikidata, filtré humain + vivant + majeur + notoire + catégorie reconnue
+#     (cf. wikidata_resolve). Ce n'est pas de l'UGC, c'est un import éditorial
+#     déclenché par un utilisateur. Les fiches PROPOSÉES par l'utilisateur (nom +
+#     liens sociaux) restent, elles, 100 % modérées avant publication.
+#
+# Le tag `source` est DISTINCT de "wikidata_import" pour deux raisons : le rollback
+# documenté des 608 (delete_many({"source":"wikidata_import"})) ne doit pas emporter
+# ces fiches-ci, et ce flux public doit rester auditable à part.
+
+# Anti-flood propre à ce chemin — volontairement séparé de RATE_CREATE_PER_*, qui
+# gouverne des soumissions modérées : ici chaque succès publie une fiche.
+RATE_WIKIDATA_PER_HOUR = 10
+RATE_WIKIDATA_PER_DAY = 30
+
+WIKIDATA_ONDEMAND_SOURCE = "wikidata_ondemand"
+
+
+async def _wikidata_ondemand_floor() -> int:
+    """Plancher de notoriété (sitelinks), réglable en base SANS redéploiement.
+
+    Clé app_settings.global.wikidata_ondemand_sitelinks_floor. Le défaut est celui
+    de l'import des 608 (wikidata_common.DEFAULT_SITELINKS_FLOOR = 45), calibré pour
+    du top-20 par pays : il est volontairement haut, donc beaucoup de recherches
+    tomberont sur le formulaire modéré. C'est le prix des « mêmes garde-fous », et
+    la raison pour laquelle ce réglage est externalisé.
+    """
+    from wikidata_common import DEFAULT_SITELINKS_FLOOR
+    try:
+        settings = await db.app_settings.find_one({"_id": "global"}) or {}
+        return int(settings.get("wikidata_ondemand_sitelinks_floor", DEFAULT_SITELINKS_FLOOR))
+    except Exception as e:
+        logger.warning(f"[from-wikipedia] plancher illisible ({e}) → défaut {DEFAULT_SITELINKS_FLOOR}")
+        return DEFAULT_SITELINKS_FLOOR
+
+
+@api_router.post("/people/from-wikipedia")
+@limiter.limit("20/minute")   # défense-en-profondeur IP ; le vrai gate = compteur device
+async def create_person_from_wikipedia(request: Request, body: Dict[str, Any]):
+    """
+    Ajout d'une Personnalité à la demande, sourcé Wikidata.
+
+    Body: { "name": str, "device_id": str }
+
+    Réponses (toujours HTTP 200, sauf ban/quota/entrée invalide) :
+      {"status": "created",     "person_id", "name"}   → le front navigue vers la fiche
+      {"status": "exists",      "person_id", "name"}   → dédup, navigation aussi
+      {"status": "not_found"}                          → le front affiche le formulaire
+      {"status": "rejected",    "reason": ...}         → idem  (raison = LOGS uniquement)
+      {"status": "unavailable"}                        → idem  (Wikidata lent/en panne)
+
+    `reason` ne doit JAMAIS être affiché : annoncer « mineure », « décédée » ou
+    « pas assez connue » à propos d'une personne nommée divulgue une information
+    sur un tiers depuis une app publique. Le front montre un message neutre unique.
+
+    Ordre runtime : device banni → nom → insultes (saisie) → anti-flood device →
+    dédup pré-résolution → résolution Wikidata → dédup post-résolution →
+    blocklist anti-fantôme → insertion.
+    """
+    from wikidata_resolve import (
+        STATUS_RESOLVED,
+        wikidata_resolve_by_name,
+    )
+    from wordlist_profanity import contains_profanity
+
+    device_id = (body.get("device_id") or "").strip()
+    # ── Première ligne : un device banni ne peut RIEN créer (403). ──
+    await _check_device_not_banned(device_id)
+
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required")
+
+    # Insultes sur la SAISIE : court-circuite avant de dépenser un aller-retour
+    # Wikidata. Le libellé RÉSOLU est filtré une seconde fois dans le résolveur.
+    if contains_profanity(name):
+        logger.info(f"[from-wikipedia] saisie rejetée (profanity): '{name}'")
+        return {"status": "rejected", "reason": "profanity"}
+
+    # NOTE : passes_name_filter n'est délibérément PAS appliqué ici. Il exige ≥ 2 mots
+    # et rejetterait les mononymes (Madonna, Zidane, Stromae) que Wikidata résout
+    # parfaitement. Les garde-fous Wikidata (P31/P569/P570/P106/sitelinks) sont un
+    # contrôle bien plus fort que cette heuristique de forme.
+
+    # ── Anti-flood par device : ce chemin PUBLIE, il a son propre plafond. ──
+    _now = now_utc()
+    recent_h = await db.persons.count_documents({
+        "source": WIKIDATA_ONDEMAND_SOURCE,
+        "requested_by_device_id": device_id,
+        "created_at": {"$gte": _now - timedelta(hours=1)},
+    })
+    if recent_h >= RATE_WIKIDATA_PER_HOUR:
+        raise HTTPException(
+            status_code=429,
+            detail="Trop d'ajouts récents depuis cet appareil. Réessaie dans une heure.",
+        )
+    recent_d = await db.persons.count_documents({
+        "source": WIKIDATA_ONDEMAND_SOURCE,
+        "requested_by_device_id": device_id,
+        "created_at": {"$gte": _now - timedelta(days=1)},
+    })
+    if recent_d >= RATE_WIKIDATA_PER_DAY:
+        raise HTTPException(
+            status_code=429,
+            detail="Limite quotidienne d'ajouts atteinte pour cet appareil. Réessaie demain.",
+        )
+
+    # ── Dédup niveau 1 : sur la SAISIE, avant tout appel réseau. ──
+    existing = await find_existing_person(db, name, slugify(name))
+    if existing:
+        return {"status": "exists", "person_id": str(existing["_id"]), "name": existing.get("name", name)}
+
+    # ── Résolution Wikidata (2 appels API Action, jamais WDQS ; ne lève jamais). ──
+    floor = await _wikidata_ondemand_floor()
+    resolved = await wikidata_resolve_by_name(name, floor=floor)
+    if resolved["status"] != STATUS_RESOLVED:
+        # not_found / rejected / unavailable → le front bascule sur le formulaire.
+        return resolved
+
+    person = resolved["person"]
+    label = person["name"]
+    wikidata_id = person["wikidata_id"]
+    slug = slugify(label)
+    name_norm = normalize_person_name(label)
+
+    # ── Dédup niveau 2 : wikidata_id (insensible aux variantes d'orthographe). ──
+    dup = await db.persons.find_one({"wikidata_id": wikidata_id}, {"_id": 1, "name": 1})
+    if dup:
+        return {"status": "exists", "person_id": str(dup["_id"]), "name": dup.get("name", label)}
+
+    # ── Dédup niveau 3 : sur le LIBELLÉ RÉSOLU, qui diffère souvent de la saisie
+    #    (« adjani isabelle » → « Isabelle Adjani »). ──
+    existing = await find_existing_person(db, label, slug)
+    if existing:
+        return {"status": "exists", "person_id": str(existing["_id"]), "name": existing.get("name", label)}
+
+    # ── Anti-fantôme : une fiche supprimée par un admin ne doit pas pouvoir être
+    #    recréée en boucle par la recherche. ──
+    if await is_person_blocklisted(name_normalized=name_norm, wikidata_id=wikidata_id, slug=slug):
+        logger.info(f"🚫 [from-wikipedia] '{label}' ({wikidata_id}) bloqué (anti-fantôme)")
+        return {"status": "rejected", "reason": "blocklisted"}
+
+    # ── Insertion. Indice de départ = popularity_external_score (α verrouillé à 1.0,
+    #    « cœur honnête ») ; ZÉRO vote fabriqué ; aucune image. Mêmes champs que
+    #    l'import des 608, au tag `source` près. ──
+    prov = person["provisional_score"]
+    pc = person.get("primary_country") or ""
+    person_doc = {
+        "name": label,
+        "name_normalized": name_norm,
+        "slug": slug,
+        "category": person["category"],
+        "source": WIKIDATA_ONDEMAND_SOURCE,
+        "wikidata_id": wikidata_id,
+        "wiki_langs": [],
+        "wiki_score_brut": 0,
+        "wiki_score_norm": prov,
+        "wiki_description": person.get("description", ""),
+        "popularity_external_score": prov,
+        "popularoo_index": prov,
+        "score": prov,
+        "initial_pi": prov,
+        "primary_country": pc,
+        "country_tags": ([pc] if pc else []) + ["international"],
+        "likes": 0, "dislikes": 0, "total_votes": 0, "superlikes": 0,
+        "approved": True,
+        "visible_in_rankings": True,
+        "created_at": _now,
+        "updated_at": _now,
+        # Traçabilité du chemin public (audit + anti-flood ci-dessus).
+        "requested_by_device_id": device_id,
+        "requested_ip": (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                         or (request.client.host if request.client else None)),
+    }
+
+    from pymongo.errors import DuplicateKeyError
+    try:
+        result = await db.persons.insert_one(person_doc)
+    except DuplicateKeyError:
+        # Course entre deux utilisateurs ajoutant le même nom : l'index unique sur
+        # `slug` tranche. Le perdant récupère la fiche du gagnant, pas une erreur.
+        winner = await db.persons.find_one({"slug": slug}, {"_id": 1, "name": 1})
+        if winner:
+            return {"status": "exists", "person_id": str(winner["_id"]), "name": winner.get("name", label)}
+        raise
+
+    await db.person_ticks.insert_one({
+        "person_id": result.inserted_id,
+        "score": prov,
+        "total_votes": 0,
+        "created_at": _now,
+    })
+
+    logger.info(
+        f"✨ [from-wikipedia] '{label}' ({wikidata_id}) créé — {person['category']}, "
+        f"{person['sitelinks']} sitelinks, indice {prov}, pays {pc or '—'}"
+    )
+    return {"status": "created", "person_id": str(result.inserted_id), "name": label}
+
+
 import unicodedata
 import httpx
 
