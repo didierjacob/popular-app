@@ -100,20 +100,29 @@ class FakeResponse:
 
 
 class FakeClient:
-    """Rejoue wbsearchentities puis wbgetentities. `boom` simule une panne."""
+    """Rejoue wbsearchentities puis wbgetentities. `boom` simule une panne.
+
+    `hits` accepte une liste (mêmes résultats quelle que soit la requête) ou un
+    dict {chaîne recherchée: résultats}, pour tester les replis langue/permutation.
+    `searches` conserve les chaînes réellement envoyées à wbsearchentities.
+    """
 
     def __init__(self, hits, entities, boom=None):
         self.hits = hits
         self.entities = entities
         self.boom = boom
         self.calls = []
+        self.searches = []
 
     async def get(self, url, params=None, headers=None):
         self.calls.append(params.get("action"))
         if self.boom:
             raise self.boom
         if params["action"] == "wbsearchentities":
-            return FakeResponse({"search": self.hits})
+            term = params["search"]
+            self.searches.append(term)
+            hits = self.hits.get(term, []) if isinstance(self.hits, dict) else self.hits
+            return FakeResponse({"search": hits})
         return FakeResponse({"entities": self.entities})
 
 
@@ -252,6 +261,52 @@ print("\n14. Plancher configurable (clé de config du commit 3)")
 hits, ents = [{"id": "Q106383", "label": "Isabelle Adjani"}], {"Q106383": entity(sitelinks=30)}
 check("30 sitelinks, plancher 45 → rejeté", resolve(hits, ents, floor=45)["status"], "rejected")
 check("30 sitelinks, plancher 25 → accepté", resolve(hits, ents, floor=25)["status"], "resolved")
+
+
+# ──────────── 15. Repli « ordre des mots inversé » (strictement 2 mots) ────────────
+print("\n15. Repli permutation — « Adjani Isabelle » → « Isabelle Adjani »")
+
+
+def resolve_named(saisie, hits_par_requete, entities=None):
+    client = FakeClient(hits_par_requete, entities or {"Q106383": ADJANI})
+    res = asyncio.run(wikidata_resolve_by_name(saisie, floor=45, now=NOW, client=client))
+    return res, client
+
+
+# Seule « Isabelle Adjani » ramène quelque chose : c'est le cas réel constaté en
+# prod, où « adjani isabelle » renvoie 0 résultat chez Wikidata lui-même.
+TABLE = {"Isabelle Adjani": [{"id": "Q106383", "label": "Isabelle Adjani"}]}
+
+res, cli = resolve_named("Adjani Isabelle", TABLE)
+check("2 mots inversés → resolved", res["status"], "resolved")
+check("bonne personne retenue", res["person"]["wikidata_id"], "Q106383")
+check("3 recherches : fr, en, puis permutation",
+      cli.searches, ["Adjani Isabelle", "Adjani Isabelle", "Isabelle Adjani"])
+
+res, cli = resolve_named("Isabelle Adjani", TABLE)
+check("succès du 1er coup → resolved", res["status"], "resolved")
+check("AUCUN appel supplémentaire (repli gratuit)", cli.searches, ["Isabelle Adjani"])
+
+res, cli = resolve_named("Jean Michel Dupont", {})
+check("3 mots → pas de permutation", cli.searches, ["Jean Michel Dupont"] * 2)
+check("3 mots → not_found", res["status"], "not_found")
+
+res, cli = resolve_named("Madonna", {})
+check("1 mot (mononyme) → pas de permutation", cli.searches, ["Madonna"] * 2)
+
+res, cli = resolve_named("Ali Ali", {})
+check("2 mots identiques → pas de permutation", cli.searches, ["Ali Ali"] * 2)
+
+# La permutation ne doit pas fausser le classement « libellé identique d'abord » :
+# il compare désormais à la requête EFFECTIVE, pas à la saisie d'origine.
+res, cli = resolve_named(
+    "Adjani Isabelle",
+    {"Isabelle Adjani": [{"id": "Q11831704", "label": "Autre chose"},
+                         {"id": "Q106383", "label": "Isabelle Adjani"}]},
+    {"Q11831704": ALBUM, "Q106383": ADJANI},
+)
+check("classement sur la requête effective (exact match d'abord)",
+      res["person"]["wikidata_id"], "Q106383")
 
 
 # ──────────────────────────── Bilan ────────────────────────────

@@ -10,6 +10,12 @@ un endpoint de lecture caché, en DEUX appels :
     2. wbgetentities     → claims + sitelinks + labels des candidats, EN UN SEUL appel
 WDQS n'est jamais sollicité ici.
 
+wbsearchentities cherche par PRÉFIXE sur libellés et alias, sans tolérance à
+l'ordre des mots. D'où deux replis, tous deux GRATUITS dans le cas nominal (ils ne
+partent qu'après un échec) : langue (fr → en), puis permutation si la saisie fait
+exactement 2 mots (« Adjani Isabelle » → « Isabelle Adjani »). Une seule tentative
+chacun.
+
 POURQUOI PAS search_wikipedia_person (server.py) : cette fonction devine tout à
 partir du *snippet* de recherche en.wikipedia (décès détecté par la présence de
 « was a », catégorie par mots-clés). Aucun P569/P570/P106/sitelinks. Elle ne peut
@@ -285,15 +291,45 @@ def _order_candidates(hits: List[Dict[str, Any]], name: str) -> List[Dict[str, A
     return exact + rest
 
 
+def _swapped_words(name: str) -> Optional[str]:
+    """« Adjani Isabelle » → « Isabelle Adjani ». None si ça n'a pas de sens.
+
+    wbsearchentities cherche par PRÉFIXE sur les libellés et alias : ce n'est pas
+    une recherche floue, et l'ordre inversé ne renvoie RIEN (vérifié le 2026-08-01,
+    « adjani isabelle » → 0 résultat). Or « Nom Prénom » est une saisie courante.
+
+    Strictement 2 mots : au-delà, le nombre de permutations n'est plus justifiable
+    et le risque de résoudre vers une autre personne augmente.
+    """
+    parts = name.split()
+    if len(parts) != 2:
+        return None
+    swapped = f"{parts[1]} {parts[0]}"
+    # Deux mots identiques (« Ali Ali ») : la permutation ne changerait rien.
+    return swapped if swapped != name else None
+
+
 async def _resolve(name: str, floor: int, now: datetime, client: httpx.AsyncClient) -> Dict[str, Any]:
+    # La requête qui a effectivement produit les résultats — sert au classement
+    # « libellé identique d'abord » plus bas, qui doit comparer à la BONNE chaîne.
+    effective_query = name
+
     hits = await _search_entities(client, name, "fr")
     if not hits:
         # Nom probablement anglophone : une seconde chance, puis on abandonne.
         hits = await _search_entities(client, name, "en")
     if not hits:
+        # Dernier recours, gratuit dans le cas nominal : on n'arrive ici qu'après
+        # deux recherches infructueuses. Une seule tentative, jamais davantage.
+        swapped = _swapped_words(name)
+        if swapped:
+            hits = await _search_entities(client, swapped, "fr")
+            if hits:
+                effective_query = swapped
+    if not hits:
         return {"status": STATUS_NOT_FOUND}
 
-    ordered = _order_candidates(hits, name)[:DETAIL_LIMIT]
+    ordered = _order_candidates(hits, effective_query)[:DETAIL_LIMIT]
     qids = [h["id"] for h in ordered if h.get("id")]
     if not qids:
         return {"status": STATUS_NOT_FOUND}
