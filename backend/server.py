@@ -1731,20 +1731,15 @@ async def record_search(body: SearchIn, x_device_id: Optional[str] = Header(defa
 #    Limite le nb de créations qu'un même appareil peut soumettre (candidate_queue).
 #    Le @limiter IP ci-dessous est une défense-en-profondeur (anti-hammer brut).
 #
-#    Plafond JOURNALIER resserré 20 → 3 : le lien social obligatoire disparaît (voir
-#    plus bas), et avec lui la friction qui limitait naturellement les soumissions.
-#    La file de modération étant traitée à la main, le quota device devient le
-#    principal rempart contre le bruit. Le chemin Wikipédia absorbe désormais les
-#    personnalités publiques réelles, donc 3/jour reste large pour les cas résiduels.
-#
-#    Les deux plafonds sont alignés à 3 : le journalier commandant, un horaire plus
-#    élevé n'aurait jamais pu se déclencher. Effet de bord assumé — 3 soumissions
-#    en moins d'une heure déclenchent désormais la garde HORAIRE (« réessaie dans
-#    une heure ») là où l'ancien réglage laissait passer jusqu'à la garde
-#    journalière, plus juste (« réessaie demain »). Le blocage est le même à la
-#    4e tentative dans les deux cas ; seul le libellé diffère.
-RATE_CREATE_PER_HOUR = 3
-RATE_CREATE_PER_DAY = 3
+#    Le lien social obligatoire a disparu (voir plus bas), et avec lui la friction
+#    qui limitait naturellement les soumissions : la file de modération étant
+#    traitée à la main, le quota device est devenu le principal rempart contre le
+#    bruit. Réglage retenu après test sur appareil — 5/h autorise une rafale
+#    normale (on cherche plusieurs noms d'affilée), 10/j borne le total.
+#    Les deux plafonds mordent donc pour de vrai : l'horaire sur une session
+#    intensive, le journalier sur la durée.
+RATE_CREATE_PER_HOUR = 5
+RATE_CREATE_PER_DAY = 10
 
 
 @api_router.post("/submit-celebrity-request")
