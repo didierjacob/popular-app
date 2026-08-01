@@ -2357,19 +2357,21 @@ async def get_outsiders(
         ]
         boosts_with_person = await db.active_boosts.aggregate(pipeline).to_list(length=100)
 
-        golden_outsiders = []
-        regular_outsiders = []
+        # On construit TOUS les outsiders d'abord, en mémorisant le pays résolu de
+        # chacun. Le filtre pays s'applique ensuite, en un second temps, parce qu'il
+        # a besoin de connaître le résultat complet pour décider s'il doit se replier
+        # (cf. plus bas) — ce qu'un `continue` dans la boucle ne permettait pas.
+        entries: List[Dict[str, Any]] = []
 
         user_country = country.upper().strip() if country else None
 
         for boost in boosts_with_person:
             person = boost["person"]
 
-            # Country restriction: outsiders visible only to same-country users
-            if user_country:
-                boost_country = boost.get("country") or person.get("primary_country")
-                if boost_country and boost_country.upper() != user_country:
-                    continue
+            # Pays de rattachement : celui du boost, sinon celui de la personne.
+            # None = « pas de pays » → visible partout (comportement d'origine).
+            raw_country = boost.get("country") or person.get("primary_country") or ""
+            entry_country = raw_country.upper().strip() or None
 
             time_remaining = (boost["end_time"] - now).total_seconds()
             hours_remaining = max(0, time_remaining / 3600)
@@ -2400,13 +2402,40 @@ async def get_outsiders(
                 "vote_momentum": person.get("vote_momentum") if person.get("vote_momentum") in ("up", "down") else None,
             }
 
-            if boost.get("position") == "top":
-                golden_outsiders.append(outsider_data)
+            entries.append({
+                "position": boost.get("position"),
+                "country": entry_country,
+                "data": outsider_data,
+            })
+
+        # ── Restriction pays, AVEC REPLI SUR LES DÉMOS. Un outsider sans pays reste
+        # visible partout (comportement d'origine). Nouveauté : si le filtre ne laisse
+        # RIEN, on sert les DÉMOS du monde entier plutôt qu'une section vide.
+        # Les démos ne couvrent que 10 pays (FR, US, GB, DE, CA, ES, BR, BE, CH, IT) :
+        # sans ce repli, un utilisateur marocain, néerlandais ou portugais voyait
+        # « Aucun Outsider pour l'instant » de façon parfaitement déterministe.
+        #
+        # DÉMOS UNIQUEMENT, jamais les vrais boosts d'autres pays : un boost PAYANT
+        # porte une promesse de visibilité limitée à son pays (CGU art. 21). L'élargir
+        # à l'insu de l'acheteur, même dans un cas de repli, romprait cet engagement.
+        # Les démos sont des bouche-trous éditoriaux, sans cette contrainte. ──
+        selected = entries
+        if user_country:
+            filtered = [e for e in entries if e["country"] is None or e["country"] == user_country]
+            if filtered:
+                selected = filtered
             else:
-                regular_outsiders.append(outsider_data)
+                selected = [e for e in entries if e["data"]["is_seed"]]
+                logger.info(
+                    f"[outsiders] aucun outsider pour {user_country} → repli sur les démos globales "
+                    f"({len(selected)} démos, {len(entries) - len(selected)} vrais boosts non élargis)"
+                )
+
+        golden_outsiders = [e["data"] for e in selected if e["position"] == "top"]
+        regular_outsiders = [e["data"] for e in selected if e["position"] != "top"]
 
         # ── Démos = bouche-trous : chaque vrai Outsider ACTIF masque 1 démo (1-pour-1).
-        # Par pays quand `country` est fourni (déjà filtré dans la boucle ci-dessus).
+        # Par pays quand `country` est fourni (déjà filtré juste au-dessus).
         # 100% dynamique : quand un boost réel expire, la démo réapparaît au call suivant
         # (aucune désactivation permanente → la section ne se vide jamais). ──
         def _yield_seeds_to_reals(items):
