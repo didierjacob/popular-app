@@ -27,7 +27,6 @@ Usage (Render Shell, APRÈS fetch_wikidata.py) :
 import argparse
 import asyncio
 import json
-import math
 import os
 import re
 from collections import Counter
@@ -36,8 +35,11 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from unidecode import unidecode
 
+# Calculs PARTAGÉS avec l'ajout à la demande (cf. wikidata_common.py) : indice de
+# départ et lecture de P569 identiques des deux côtés, par construction.
+from wikidata_common import SITELINKS_REF, age_from_birth, provisional_score  # noqa: F401
+
 CANDIDATES_FILE = "wikidata_candidates.json"
-SITELINKS_REF = 300      # réf pour l'échelle log (max Wikidata figures majeures)
 BATCH = 50               # lots d'insertion (--apply)
 CATEGORY_SOFT_CAP = 0.35 # info dry-run : aucune catégorie ne devrait dépasser 35%
 
@@ -55,29 +57,6 @@ def slugify(name: str) -> str:
 def normalize_person_name(name: str) -> str:
     collapsed = re.sub(r"\s+", " ", (name or "").strip())
     return unidecode(collapsed).lower().strip()
-
-
-def provisional_score(sitelinks: int) -> float:
-    if sitelinks <= 0:
-        return 0.0
-    val = math.log10(sitelinks + 1) / math.log10(SITELINKS_REF) * 100.0
-    return round(min(100.0, max(0.0, val)), 1)
-
-
-def age_from_birth(birth_iso, now):
-    """Renvoie (age|None, known:bool). Gère les dates ISO Wikidata et l'année seule."""
-    if not birth_iso:
-        return None, False
-    m = re.match(r"^-?(\d{1,4})(?:-(\d{2})(?:-(\d{2}))?)?", birth_iso.lstrip("+"))
-    if not m:
-        return None, False
-    if birth_iso.startswith("-"):
-        return 999, True  # BCE → adulte évident
-    y = int(m.group(1))
-    mo = int(m.group(2) or 7)
-    d = int(m.group(3) or 1)
-    age = now.year - y - (1 if (now.month, now.day) < (mo, d) else 0)
-    return age, True
 
 
 async def find_existing(db, name, slug):

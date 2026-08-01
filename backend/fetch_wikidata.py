@@ -28,12 +28,16 @@ import time
 import urllib.parse
 import urllib.request
 
+# Tables de décision PARTAGÉES avec l'ajout à la demande (cf. wikidata_common.py) :
+# une seule source de vérité pour le plancher de notoriété et la catégorie P106.
+from wikidata_common import CAT, PRIO, cat_of, DEFAULT_SITELINKS_FLOOR  # noqa: F401
+
 UA = "PopularooImport/1.0 (didier@coffeeandfilms.com)"
 SPARQL = "https://query.wikidata.org/sparql"
 
-TOPK = 20          # top-K par pays (requête A)
-FLOOR = 45         # plancher de notoriété (sitelinks)
-BATCH_B = 50       # taille des lots VALUES (requête B)
+TOPK = 20                          # top-K par pays (requête A)
+FLOOR = DEFAULT_SITELINKS_FLOOR    # plancher de notoriété (sitelinks) — défaut 45
+BATCH_B = 50                       # taille des lots VALUES (requête B)
 
 PANEL = {
     "FR": "Q142", "UK": "Q145", "DE": "Q183", "IT": "Q38", "ES": "Q29", "RU": "Q159",
@@ -42,49 +46,6 @@ PANEL = {
     "TR": "Q43", "IR": "Q794", "EG": "Q79",
     "NG": "Q1033", "ZA": "Q258", "MA": "Q1028", "AU": "Q408",
 }
-
-PRIO = ["politics", "sport", "influencer", "culture", "business", "other"]
-
-CAT = {
-    # sport
-    "Q937857": "sport", "Q628099": "sport", "Q10833314": "sport", "Q2066131": "sport",
-    "Q3665646": "sport", "Q11338576": "sport", "Q10843402": "sport", "Q19204627": "sport",
-    "Q11774891": "sport", "Q13381863": "sport", "Q12299841": "sport", "Q10841764": "sport",
-    "Q2309784": "sport", "Q13141064": "sport", "Q11513337": "sport", "Q18515558": "sport",
-    # politics
-    "Q82955": "politics", "Q193391": "politics", "Q2285706": "politics", "Q83307": "politics",
-    "Q30461": "politics", "Q48352": "politics", "Q372436": "politics", "Q116": "politics",
-    "Q212238": "politics", "Q1084784": "politics", "Q4164871": "politics",
-    # business
-    "Q43845": "business", "Q131524": "business", "Q484876": "business", "Q806798": "business",
-    "Q12362622": "business",
-    # culture
-    "Q33999": "culture", "Q10800557": "culture", "Q177220": "culture", "Q10798782": "culture",
-    "Q36180": "culture", "Q3282637": "culture", "Q2526255": "culture", "Q4610556": "culture",
-    "Q639669": "culture", "Q28389": "culture", "Q36834": "culture", "Q2405480": "culture",
-    "Q753110": "culture", "Q2259451": "culture", "Q3455803": "culture", "Q578109": "culture",
-    "Q1930187": "culture", "Q55960555": "culture", "Q488205": "culture", "Q183945": "culture",
-    "Q5716684": "culture", "Q6625963": "culture", "Q947873": "culture", "Q482980": "culture",
-    "Q855091": "culture", "Q18814623": "culture", "Q69423232": "culture", "Q1028181": "culture",
-    "Q47541952": "culture", "Q49757": "culture", "Q245068": "culture", "Q11774202": "culture",
-    "Q158852": "culture", "Q214917": "culture", "Q33231": "culture", "Q1281618": "culture",
-    "Q483501": "culture", "Q2643890": "culture", "Q177467": "culture", "Q486748": "culture",
-    "Q3357567": "culture", "Q266569": "culture", "Q15980158": "culture", "Q2914170": "culture",
-    # influencer
-    "Q17125263": "influencer", "Q2882257": "influencer", "Q108460070": "influencer",
-    # other (académiques / droit / science → EXCLUS à l'import)
-    "Q1622272": "other", "Q40348": "other", "Q188094": "other", "Q185351": "other",
-    "Q81096": "other", "Q82594": "other", "Q169470": "other", "Q901": "other",
-    "Q170790": "other", "Q593644": "other", "Q205375": "other",
-}
-
-
-def cat_of(occ_qids):
-    cats = {CAT[o] for o in occ_qids if o in CAT}
-    for c in PRIO:
-        if c in cats:
-            return c
-    return "other"
 
 
 def run(query, timeout=90, retries=4):
