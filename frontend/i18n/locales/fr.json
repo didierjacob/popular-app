@@ -421,12 +421,8 @@
     "queue_error": "Une erreur s'est produite. Réessayez dans un instant.",
     "network_error": "Connexion impossible. Vérifie ta connexion et réessaie.",
     "not_found_title": "On ne l'a pas trouvée automatiquement",
-    "not_found_body": "Ajoute un lien vers l'un de ses comptes pour la proposer — un modérateur validera.",
+    "not_found_body": "Tu peux la proposer : un modérateur validera.",
     "name_label": "Nom",
-    "social_label": "Lien ou pseudo",
-    "more_platforms": "Autre",
-    "social_placeholder": "@pseudo ou lien du profil",
-    "social_required": "Ajoute au moins un lien pour proposer cette personnalité.",
     "submit_button": "Proposer",
     "cancel": "Annuler"
   },

@@ -421,12 +421,8 @@
     "queue_error": "Ocorreu um erro. Tente novamente em um instante.",
     "network_error": "Sem conexão. Verifique sua conexão e tente novamente.",
     "not_found_title": "Não a encontramos automaticamente",
-    "not_found_body": "Adicione um link para uma das contas dela para propô-la — um moderador vai revisar.",
+    "not_found_body": "Você pode propô-la: um moderador vai revisar.",
     "name_label": "Nome",
-    "social_label": "Link ou usuário",
-    "more_platforms": "Outro",
-    "social_placeholder": "@usuário ou link do perfil",
-    "social_required": "Adicione pelo menos um link para propor esta personalidade.",
     "submit_button": "Propor",
     "cancel": "Cancelar"
   },

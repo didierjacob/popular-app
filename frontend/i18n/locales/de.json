@@ -421,12 +421,8 @@
     "queue_error": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es gleich erneut.",
     "network_error": "Keine Verbindung. Prüfe deine Verbindung und versuche es erneut.",
     "not_found_title": "Wir haben sie nicht automatisch gefunden",
-    "not_found_body": "Füge einen Link zu einem ihrer Konten hinzu, um sie vorzuschlagen — ein Moderator prüft das.",
+    "not_found_body": "Du kannst sie vorschlagen — ein Moderator prüft das.",
     "name_label": "Name",
-    "social_label": "Link oder Benutzername",
-    "more_platforms": "Andere",
-    "social_placeholder": "@name oder Profil-Link",
-    "social_required": "Füge mindestens einen Link hinzu, um diese Persönlichkeit vorzuschlagen.",
     "submit_button": "Vorschlagen",
     "cancel": "Abbrechen"
   },

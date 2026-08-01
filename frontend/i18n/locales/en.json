@@ -421,12 +421,8 @@
     "queue_error": "An error occurred. Please try again in a moment.",
     "network_error": "Can't connect. Check your connection and try again.",
     "not_found_title": "We couldn't find them automatically",
-    "not_found_body": "Add a link to one of their accounts to suggest them — a moderator will review it.",
+    "not_found_body": "You can suggest them — a moderator will review it.",
     "name_label": "Name",
-    "social_label": "Link or handle",
-    "more_platforms": "Other",
-    "social_placeholder": "@handle or profile link",
-    "social_required": "Add at least one link to suggest this personality.",
     "submit_button": "Suggest",
     "cancel": "Cancel"
   },
