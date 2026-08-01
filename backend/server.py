@@ -2423,9 +2423,18 @@ async def get_outsiders(
             "regular": regular_outsiders[:limit],
             "total_active": len(golden_outsiders) + len(regular_outsiders),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to get outsiders: {e}")
-        return {"golden": [], "regular": [], "total_active": 0}
+        # NE PLUS renvoyer 200 + liste vide. Une panne interne devenait alors
+        # INDISCERNABLE d'un « aucun Outsider » : le client recevait un 200
+        # parfaitement valide, le mettait en cache, et affichait une section vide
+        # durablement (incident du 2026-08-01, page vide après un achat, rétablie
+        # au rafraîchissement suivant — les 48 démos n'avaient jamais bougé).
+        # Avec un vrai 500, le client part dans sa branche d'erreur et CONSERVE
+        # son cache précédent au lieu de l'écraser avec du vide.
+        logger.exception(f"Failed to get outsiders: {e}")
+        raise HTTPException(status_code=500, detail="outsiders_unavailable")
 
 
 @api_router.get("/onboarding/top3")
