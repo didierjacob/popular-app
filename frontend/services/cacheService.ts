@@ -120,6 +120,17 @@ export async function fetchWithCache<T>(
  *
  * Si le fetch échoue, le callback `onError` est appelé. Si aucun cache
  * n'existait, l'appelant doit gérer l'état de chargement initial.
+ *
+ * `isEmpty` (OPT-IN) — quand l'appelant le fournit, une réponse jugée vide n'est
+ * ni mise en cache ni affichée depuis le cache. Voir l'incident du 2026-08-01 :
+ * /outsiders renvoyait 200 + liste vide sur panne interne, l'app le mettait en
+ * cache, et l'affichait ensuite indéfiniment puisque le cache est relu MÊME
+ * EXPIRÉ (point 1 ci-dessous). Une panne d'une seconde se figeait en section vide.
+ *
+ * Volontairement OPT-IN et non global : un tableau vide est un état parfaitement
+ * légitime pour les autres appelants (index.tsx, list.tsx — recherche sans
+ * résultat, catégorie sans personnalité). Seul l'appelant sait si le vide est
+ * un état normal ou le symptôme d'une panne.
  */
 export async function fetchSWR<T>(
   cacheKey: string,
@@ -130,6 +141,7 @@ export async function fetchSWR<T>(
     onError?: (err: any) => void;
   } = {},
   ttl: number = DEFAULT_TTL,
+  isEmpty?: (data: T) => boolean,
 ): Promise<{ hadCache: boolean }> {
   let hadCache = false;
 
@@ -138,8 +150,12 @@ export async function fetchSWR<T>(
     const raw = await AsyncStorage.getItem(`${CACHE_PREFIX}${cacheKey}`);
     if (raw) {
       const entry: CacheEntry<T> = JSON.parse(raw);
-      hadCache = true;
-      callbacks.onCached?.(entry.data);
+      // Un cache vide (hérité d'avant ce correctif, ou d'une panne) n'est jamais
+      // affiché : mieux vaut le spinner puis les vraies données que du vide figé.
+      if (!isEmpty?.(entry.data)) {
+        hadCache = true;
+        callbacks.onCached?.(entry.data);
+      }
     }
   } catch {
     // Ignore — on tombera sur le fetch frais
@@ -148,6 +164,12 @@ export async function fetchSWR<T>(
   // 2) Fetch frais en arrière-plan
   try {
     const fresh = await fetchFn();
+    if (isEmpty?.(fresh)) {
+      // Réponse vide alors que l'appelant ne l'attend pas : on la traite comme une
+      // panne. On NE l'écrit PAS en cache — le cache précédent, lui, reste valide.
+      callbacks.onError?.(new Error(`fetchSWR: réponse vide rejetée (${cacheKey})`));
+      return { hadCache };
+    }
     await CacheService.set(cacheKey, fresh, ttl);
     callbacks.onFresh?.(fresh);
   } catch (err) {

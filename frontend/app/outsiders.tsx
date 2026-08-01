@@ -162,6 +162,12 @@ export default function OutsidersPage() {
         onError: (err) => console.error("Failed to load outsiders:", err),
       },
       60 * 1000,
+      // Opt-in anti-vide : la section Outsiders n'est JAMAIS légitimement vide —
+      // les démos servent précisément de bouche-trous, et le backend se replie
+      // désormais dessus quand le pays de l'utilisateur n'en a aucune. Une réponse
+      // vide ne peut donc être qu'une panne : on ne la met pas en cache et on
+      // n'affiche pas un cache vide hérité. L'écran garde les données précédentes.
+      (data) => ((data?.golden?.length || 0) + (data?.regular?.length || 0)) === 0,
     );
 
     setLoading(false);
