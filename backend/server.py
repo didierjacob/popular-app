@@ -6631,6 +6631,19 @@ async def admin_test_email(request: Request):
                 duration_label="7 jours",
                 price="€49.99",
             )
+        elif template == "diploma":
+            # Envoi DIRECT, sans passer par send_boost_diploma : ce sender déduit la
+            # langue de user_settings via user_id, or "test_user_admin" n'y existe
+            # pas — le `lang` demandé serait silencieusement ignoré et tous les tests
+            # partiraient en anglais. Ici on rend le gabarit dans la langue voulue.
+            from email_templates import render_diploma_html
+            subject, html = render_diploma_html(
+                lang,
+                body.get("name", "Alex Martin"),
+                body.get("tier", "super_booster"),
+                now_utc(),
+            )
+            await email_service.send_email(to_email, subject, html)
         elif template == "raw":
             # Simplest test: just send a raw HTML email directly
             html = """
