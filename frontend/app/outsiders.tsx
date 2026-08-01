@@ -46,30 +46,61 @@ const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://popular-app.onr
 const API = (path: string) => `${API_BASE}/api${path.startsWith("/") ? path : `/${path}`}`;
 const DEVICE_KEY = "popularity_device_id";
 
-// ---- Booster Promo Card (injected every 10 outsiders) ----
+// ---- Cartes CTA de boost ----
+// Une accroche par palier, cyclées dans l'ordre Booster → Super → Golden. Chaque
+// carte deep-linke vers SON palier (cf. premium.tsx, param `tier`).
+// Les libellés passent tous par t() : les variantes 2 et 3 étaient auparavant
+// écrites en anglais EN DUR, donc non traduites pour fr/es/pt/it/de.
+const BOOST_PROMOS = [
+  {
+    tierId: "booster",
+    icon: "flash" as const,
+    titleKey: "outsiders.promo_booster_title",
+    subKey: "outsiders.promo_booster_sub",
+    color: PALETTE.accent2,
+  },
+  {
+    tierId: "super_booster",
+    icon: "rocket" as const,
+    titleKey: "outsiders.promo_super_title",
+    subKey: "outsiders.promo_super_sub",
+    color: "#9B59B6",
+  },
+  {
+    tierId: "golden_booster",
+    icon: "trophy" as const,
+    titleKey: "outsiders.promo_golden_title",
+    subKey: "outsiders.promo_golden_sub",
+    color: PALETTE.gold,
+  },
+] as const;
+
+// Positions d'insertion : après le Nᵉ Outsider. Écarts CROISSANTS (4, 5, 6, 7)
+// pour aérer à mesure qu'on descend, et plafond à 5 cartes quelle que soit la
+// longueur de la liste — au-delà, la liste se lirait comme un mur de pub.
+// 32 Outsiders en prod → 5 cartes ; 10 → 2 ; 5 → 1 ; 200 → toujours 5.
+const PROMO_AFTER = [3, 7, 12, 18, 25];
+
 function BoosterPromoCard({ variant }: { variant: number }) {
   const router = useRouter();
   const { t } = useTranslation();
 
-  const promos = [
-    { icon: "rocket" as const, title: t("premium.title"), sub: t("premium.subtitle"), color: PALETTE.accent },
-    { icon: "trophy" as const, title: "Golden Booster", sub: "Top ranking position", color: PALETTE.gold },
-    { icon: "star" as const, title: "Super Booster", sub: "Accelerate your rise", color: "#9B59B6" },
-  ];
-  const promo = promos[variant % promos.length];
+  const promo = BOOST_PROMOS[variant % BOOST_PROMOS.length];
 
   return (
     <TouchableOpacity
       style={[styles.promoCard, { borderColor: promo.color }]}
-      onPress={() => router.push("/premium")}
+      onPress={() =>
+        router.push({ pathname: "/premium", params: { tier: promo.tierId } })
+      }
       activeOpacity={0.7}
     >
       <View style={[styles.promoIcon, { backgroundColor: promo.color + "22" }]}>
         <Ionicons name={promo.icon} size={28} color={promo.color} />
       </View>
       <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={[styles.promoTitle, { color: promo.color }]}>{promo.title}</Text>
-        <Text style={styles.promoSub}>{promo.sub}</Text>
+        <Text style={[styles.promoTitle, { color: promo.color }]}>{t(promo.titleKey)}</Text>
+        <Text style={styles.promoSub}>{t(promo.subKey)}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={promo.color} />
     </TouchableOpacity>
@@ -249,20 +280,24 @@ export default function OutsidersPage() {
             </TouchableOpacity>
           </View>
         ) : (
-          outsiders.map((outsider, idx) => (
-            <React.Fragment key={outsider.id}>
-              <View style={{ marginBottom: 12 }}>
-                <OutsiderCard
-                  outsider={outsider}
-                  onLike={handleLikeOutsider}
-                  pulsingHeart={false}
-                />
-                <FlashOverlay direction={flashMap.get(outsider.id)} borderRadius={12} />
-              </View>
-              {/* Inject promo card every 10 items */}
-              {(idx + 1) % 10 === 0 && <BoosterPromoCard variant={Math.floor(idx / 10)} />}
-            </React.Fragment>
-          ))
+          outsiders.map((outsider, idx) => {
+            // -1 si aucune carte à cette position. L'index dans PROMO_AFTER pilote
+            // aussi le palier : 0→Booster, 1→Super, 2→Golden, 3→Booster, 4→Super.
+            const promoIndex = PROMO_AFTER.indexOf(idx + 1);
+            return (
+              <React.Fragment key={outsider.id}>
+                <View style={{ marginBottom: 12 }}>
+                  <OutsiderCard
+                    outsider={outsider}
+                    onLike={handleLikeOutsider}
+                    pulsingHeart={false}
+                  />
+                  <FlashOverlay direction={flashMap.get(outsider.id)} borderRadius={12} />
+                </View>
+                {promoIndex >= 0 && <BoosterPromoCard variant={promoIndex} />}
+              </React.Fragment>
+            );
+          })
         )}
         </View>
       </ScrollView>
