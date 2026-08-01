@@ -629,3 +629,193 @@ def render_email(template: dict, variables: dict) -> tuple:
         body = body.replace("{{" + key + "}}", str(val))
 
     return subject, body
+
+
+# ──────────────────────────────────────────────────────────
+# EMAIL 6 — Diplôme Popularoo (confirmation d'achat de Boost)
+#
+# Remplace, sur le parcours d'achat, l'ancien texte brut « Welcome to Popularoo —
+# the world's stock market of fame » (EMAIL_WELCOME) et ses défauts : mention d'un
+# « premier Booster » qui ne valait qu'au tout premier achat, et « les personnalités
+# les plus célèbres du monde » qui sur-promettait.
+#
+# CONTRAINTES E-MAIL respectées : styles 100 % EN LIGNE (aucun bloc <style>, que
+# beaucoup de clients suppriment), mise en page par tableaux, pile de polices
+# web-safe avec repli Arial/Helvetica. border-radius est ignoré par Outlook — le
+# certificat s'y affichera à angles droits, sans casse.
+#
+# Les noms de paliers (Booster / Super Booster / Golden Booster) restent en anglais
+# dans les 6 langues : ce sont des noms de marque.
+# ──────────────────────────────────────────────────────────
+
+DIPLOMA_TIER_BADGES = {
+    "booster": "⚡ Booster",              # ⚡
+    "super_booster": "\U0001F680 Super Booster",   # 🚀
+    "golden_booster": "\U0001F451 Golden Booster",  # 👑
+}
+
+# Mois par langue, pour formater la date sans dépendance externe (pas de babel).
+DIPLOMA_MONTHS = {
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre"],
+    "en": ["January", "February", "March", "April", "May", "June", "July", "August",
+           "September", "October", "November", "December"],
+    "de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+           "September", "Oktober", "November", "Dezember"],
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+           "septiembre", "octubre", "noviembre", "diciembre"],
+    "it": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+           "settembre", "ottobre", "novembre", "dicembre"],
+    "pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+           "setembro", "outubro", "novembro", "dezembro"],
+}
+
+
+def format_diploma_date(dt, lang: str = "en") -> str:
+    """Date d'achat formatée selon les usages de chaque langue.
+
+    fr « 1ᵉʳ août 2026 » (ordinal au 1er seulement) · en « August 1, 2026 »
+    de « 1. August 2026 » · es « 1 de agosto de 2026 »
+    it « 1º agosto 2026 » (ordinal au 1er seulement) · pt « 1 de agosto de 2026 »
+    """
+    months = DIPLOMA_MONTHS.get(lang, DIPLOMA_MONTHS["en"])
+    d, m, y = dt.day, months[dt.month - 1], dt.year
+    if lang == "fr":
+        return f"{'1ᵉʳ' if d == 1 else d} {m} {y}"
+    if lang == "it":
+        return f"{'1º' if d == 1 else d} {m} {y}"
+    if lang == "de":
+        return f"{d}. {m} {y}"
+    if lang == "es":
+        return f"{d} de {m} de {y}"
+    if lang == "pt":
+        return f"{d} de {m} de {y}"
+    return f"{m} {d}, {y}"
+
+
+# `tips` contient volontairement du HTML (<b>) : le gras porte sur des segments
+# différents selon la langue, impossible à déduire côté rendu.
+EMAIL_DIPLOMA = {
+    "fr": {
+        "subject": "\U0001F3C6 Ton diplôme d'Outsider Popularoo",
+        "label": "Outsider officiel",
+        "declaration": "est officiellement un Outsider de Popularoo.",
+        "datePrefix": "Depuis le {{date}}",
+        "punch": "Ta cote est lancée. À toi de la faire grimper.",
+        "tips": "<b>Partage</b> ton profil pour rallier des votes &middot; "
+                "<b>Surveille le classement</b> : ta position peut bouger à tout moment.",
+        "signature": "— L'équipe Popularoo",
+    },
+    "en": {
+        "subject": "\U0001F3C6 Your Popularoo Outsider certificate",
+        "label": "Official Outsider",
+        "declaration": "is officially a Popularoo Outsider.",
+        "datePrefix": "Since {{date}}",
+        "punch": "Your score is live. Now make it climb.",
+        "tips": "<b>Share</b> your profile to rally votes &middot; "
+                "<b>Watch the leaderboard</b>: your position can change any moment.",
+        "signature": "— The Popularoo Team",
+    },
+    "de": {
+        "subject": "\U0001F3C6 Dein Popularoo-Outsider-Diplom",
+        "label": "Offizieller Outsider",
+        "declaration": "ist offiziell ein Popularoo-Outsider.",
+        "datePrefix": "Seit dem {{date}}",
+        "punch": "Dein Kurs läuft. Jetzt bring ihn nach oben.",
+        "tips": "<b>Teile</b> dein Profil, um Stimmen zu sammeln &middot; "
+                "<b>Behalte das Ranking im Auge</b>: deine Position kann sich jederzeit ändern.",
+        "signature": "— Das Popularoo-Team",
+    },
+    "es": {
+        "subject": "\U0001F3C6 Tu diploma de Outsider Popularoo",
+        "label": "Outsider oficial",
+        "declaration": "es oficialmente un Outsider de Popularoo.",
+        "datePrefix": "Desde el {{date}}",
+        "punch": "Tu cotización está en marcha. Ahora hazla subir.",
+        "tips": "<b>Comparte</b> tu perfil para reunir votos &middot; "
+                "<b>Vigila la clasificación</b>: tu posición puede cambiar en cualquier momento.",
+        "signature": "— El equipo Popularoo",
+    },
+    "it": {
+        "subject": "\U0001F3C6 Il tuo diploma di Outsider Popularoo",
+        "label": "Outsider ufficiale",
+        "declaration": "è ufficialmente un Outsider di Popularoo.",
+        "datePrefix": "Dal {{date}}",
+        "punch": "La tua quotazione è lanciata. Ora falla salire.",
+        "tips": "<b>Condividi</b> il tuo profilo per raccogliere voti &middot; "
+                "<b>Tieni d'occhio la classifica</b>: la tua posizione può cambiare da un momento all'altro.",
+        "signature": "— Il team Popularoo",
+    },
+    "pt": {
+        "subject": "\U0001F3C6 Seu diploma de Outsider Popularoo",
+        "label": "Outsider oficial",
+        "declaration": "é oficialmente um Outsider do Popularoo.",
+        "datePrefix": "Desde {{date}}",
+        "punch": "Sua cotação está no ar. Agora faça-a subir.",
+        "tips": "<b>Compartilhe</b> seu perfil para juntar votos &middot; "
+                "<b>Fique de olho no ranking</b>: sua posição pode mudar a qualquer momento.",
+        "signature": "— A equipe Popularoo",
+    },
+}
+
+_DIPLOMA_FONT = ("-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,"
+                 "Helvetica,Arial,sans-serif")
+
+
+def render_diploma_html(lang: str, name: str, tier_id: str, purchased_at) -> tuple:
+    """Construit (sujet, html) du diplôme. Styles entièrement en ligne.
+
+    `name` est échappé : il vient d'une saisie utilisateur et ne doit jamais
+    pouvoir injecter de balise dans l'e-mail.
+    """
+    import html as _html
+
+    tpl = get_template(EMAIL_DIPLOMA, lang)
+    safe_name = _html.escape(name or "Outsider")
+    badge = DIPLOMA_TIER_BADGES.get(tier_id, DIPLOMA_TIER_BADGES["booster"])
+    date_line = tpl["datePrefix"].replace("{{date}}", format_diploma_date(purchased_at, lang))
+    year = purchased_at.year
+    f = _DIPLOMA_FONT
+
+    body = f"""<body style="margin:0;padding:0;background:#0B2A1E;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0B2A1E;">
+<tr><td align="center" style="padding:32px 16px;">
+
+  <!-- Certificat -->
+  <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background:#0F2F22;border:2px solid #FFD700;border-radius:20px;">
+    <tr><td align="center" style="padding:40px 36px 32px;font-family:{f};">
+      <div style="font-size:64px;line-height:1;margin-bottom:10px;">&#127942;</div>
+      <div style="font-size:34px;font-weight:800;color:#FFD700;letter-spacing:0.5px;margin:0 0 6px;">Popularoo</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 20px;"><tr>
+        <td style="width:60px;height:3px;background:#FFD700;border-radius:2px;line-height:3px;font-size:0;">&nbsp;</td>
+      </tr></table>
+      <div style="font-size:12px;font-weight:700;letter-spacing:3px;color:#2ECC71;text-transform:uppercase;margin-bottom:18px;">{tpl['label']}</div>
+      <div style="font-size:30px;font-weight:800;color:#FFFFFF;margin:0 0 10px;">{safe_name}</div>
+      <div style="font-size:16px;color:#C9D8D2;line-height:1.6;margin:0 auto 24px;max-width:380px;">{tpl['declaration']}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;"><tr>
+        <td style="background:#1A3A2A;border:1px solid #FFD700;border-radius:999px;padding:9px 20px;color:#FFD700;font-weight:700;font-size:15px;font-family:{f};white-space:nowrap;">{badge}</td>
+      </tr></table>
+      <div style="color:#8FB3A2;font-size:13px;margin-top:12px;letter-spacing:0.5px;">{date_line}</div>
+    </td></tr>
+  </table>
+
+  <!-- Accroche + astuces -->
+  <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;">
+    <tr><td align="center" style="padding:26px 16px 0;font-family:{f};">
+      <div style="color:#EAEAEA;font-size:16px;font-weight:600;margin:0 0 18px;">{tpl['punch']}</div>
+      <div style="color:#A8C3B7;font-size:14px;line-height:1.7;margin:0 auto;max-width:420px;">{tpl['tips']}</div>
+    </td></tr>
+  </table>
+
+  <!-- Signature + mentions -->
+  <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;">
+    <tr><td align="center" style="padding:20px 16px 0;border-top:1px solid #1F4A36;font-family:{f};">
+      <div style="color:#C9D8D2;font-size:14px;font-weight:600;margin:4px 0;">{tpl['signature']}</div>
+      <div style="color:#6B8B7B;font-size:12px;margin:4px 0;">&copy; {year} Popularoo</div>
+    </td></tr>
+  </table>
+
+</td></tr>
+</table>
+</body>"""
+    return tpl["subject"], body

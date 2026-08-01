@@ -3238,25 +3238,17 @@ async def boost_myself(request: BoostMyselfRequest):
         # Send confirmation email if email provided
         if request.email:
             try:
-                from email_sender import send_welcome, send_booster_confirmation
-                duration_text = "1 hour" if tier_info["duration_hours"] == 1 else \
-                    "24 hours" if tier_info["duration_hours"] == 24 else "1 week"
-                is_golden = (request.tier == "golden_booster")
-
-                # Check if this is the user's first purchase → Welcome email
-                prev_purchases = await db.credit_transactions.count_documents({
-                    "user_id": request.user_id,
-                    "type": "purchase",
-                    "status": "completed",
-                })
-                # prev_purchases includes the one we just inserted above, so first purchase = 1
-                if prev_purchases <= 1:
-                    await send_welcome(db, email_service, request.email, request.user_id, name)
-                else:
-                    await send_booster_confirmation(
-                        db, email_service, request.email, request.user_id,
-                        name, tier_info["name"], duration_text, is_golden=is_golden
-                    )
+                # Diplôme Popularoo — un seul e-mail pour TOUS les achats.
+                # Avant : le 1er achat recevait EMAIL_WELCOME (« your first Booster »,
+                # « the world's most famous people »), les suivants
+                # EMAIL_BOOSTER_CONFIRMATION. Le diplôme est générique — il n'affirme
+                # rien sur le rang de l'achat — donc la distinction n'a plus lieu
+                # d'être, et le comptage `prev_purchases` qui la portait disparaît.
+                from email_sender import send_boost_diploma
+                await send_boost_diploma(
+                    db, email_service, request.email, request.user_id,
+                    name, request.tier, purchased_at=now,
+                )
             except Exception as email_err:
                 logger.warning(f"Failed to send confirmation email: {email_err}")
 

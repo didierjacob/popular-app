@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 from email_templates import (
     EMAIL_BOOSTER_CONFIRMATION,
+    render_diploma_html,
     EMAIL_DAILY_RUN_VICTORY,
     EMAIL_STRIKE_GOING_VIRAL,
     EMAIL_STRIKE_LEGEND_MODE,
@@ -130,6 +131,24 @@ async def send_booster_confirmation(db, email_service, email: str, user_id: str,
 
     await email_service.send_email(email, subject, html)
     logger.info(f"[Email 1] Booster confirmation sent to {email} ({lang})")
+
+
+async def send_boost_diploma(db, email_service, email: str, user_id: str,
+                             name: str, tier_id: str, purchased_at=None):
+    """Email 6 : Diplôme Popularoo — confirmation d'achat de Boost.
+
+    Remplace, sur le parcours d'achat, EMAIL_WELCOME (1er achat) ET
+    EMAIL_BOOSTER_CONFIRMATION (achats suivants) : le diplôme est générique, il
+    n'affirme plus rien sur le rang de l'achat.
+
+    Le HTML est déjà complet et stylé en ligne — pas de passage par
+    _text_to_html, qui est réservé aux gabarits en texte brut.
+    """
+    lang = await _get_user_language(db, user_id)
+    subject, html = render_diploma_html(lang, name, tier_id, purchased_at or datetime.utcnow())
+
+    await email_service.send_email(email, subject, html)
+    logger.info(f"[Email 6] Diplôme sent to {email} ({lang}, {tier_id})")
 
 
 async def send_welcome(db, email_service, email: str, user_id: str, name: str):
