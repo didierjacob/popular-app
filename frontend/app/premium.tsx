@@ -22,7 +22,7 @@ import { iapService, IAP_PRODUCT_IDS } from '../services/iapService';
 import { isUserCancelledError } from 'react-native-iap';
 import type { Product, Purchase } from 'react-native-iap';
 import { useTranslation } from "react-i18next";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { CacheService } from '../services/cacheService';
 import { cacheKeyOutsiders } from './splash';
 import { USER_VOTE_CACHE_KEY } from './person';
@@ -104,6 +104,15 @@ export default function Premium() {
   const { t } = useTranslation();
   const router = useRouter();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
+  // Deep-link palier : /premium?tier=booster|super_booster|golden_booster.
+  // Sans paramètre (les 6 points d'entrée historiques), selectedTier reste null
+  // et l'écran se comporte exactement comme avant.
+  const { tier: tierParam } = useLocalSearchParams<{ tier?: string }>();
+  const scrollRef = useRef<ScrollView | null>(null);
+  // Position verticale de chaque carte de palier, relevée à la volée (onLayout),
+  // pour pouvoir faire défiler jusqu'au palier pré-sélectionné.
+  const tierOffsets = useRef<Record<string, number>>({});
+  const didAutoScroll = useRef(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -330,6 +339,22 @@ export default function Premium() {
     }
   };
 
+  // Applique le palier reçu en paramètre, UNE seule fois et seulement s'il fait
+  // partie des 3 ids connus : un lien forgé (?tier=nimportequoi) est ignoré,
+  // jamais propagé à l'achat.
+  useEffect(() => {
+    if (!tierParam || didAutoScroll.current) return;
+    if (!BOOSTER_TIERS.some((tr) => tr.id === tierParam)) return;
+    didAutoScroll.current = true;
+    setSelectedTier(tierParam);
+    // Le défilement attend que les cartes aient été mesurées (onLayout).
+    const timer = setTimeout(() => {
+      const y = tierOffsets.current[tierParam];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [tierParam]);
+
   const handlePurchase = async () => {
     if (!selectedTier) {
       Alert.alert(t('premium.selectBooster'), t('premium.selectBoosterMsg'));
@@ -496,7 +521,11 @@ export default function Premium() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+        >
           <View style={styles.contentWrapper}>
           {/* Back button */}
           <TouchableOpacity
@@ -553,6 +582,9 @@ export default function Premium() {
             return (
               <TouchableOpacity
                 key={tier.id}
+                onLayout={(e) => {
+                  tierOffsets.current[tier.id] = e.nativeEvent.layout.y;
+                }}
                 style={[
                   styles.tierCard,
                   isSelected && { borderColor: color, borderWidth: 2 },
