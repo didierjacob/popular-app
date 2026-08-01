@@ -105,9 +105,13 @@ export default function Premium() {
   const router = useRouter();
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   // Deep-link palier : /premium?tier=booster|super_booster|golden_booster.
-  // Sans paramètre (les 6 points d'entrée historiques), selectedTier reste null
-  // et l'écran se comporte exactement comme avant.
+  // Une entrée sans palier réel (tier:"") REMET la sélection à zéro — cf. l'effet.
   const { tier: tierParam } = useLocalSearchParams<{ tier?: string }>();
+  // Lu dans un ref pour que l'effet de focus ne dépende PAS du paramètre : il ne
+  // doit se déclencher qu'à l'arrivée sur l'écran, pas à chaque changement de
+  // param (sinon la consommation du param ci-dessous se rappellerait elle-même).
+  const tierParamRef = useRef<string | undefined>(tierParam);
+  tierParamRef.current = tierParam;
   const scrollRef = useRef<ScrollView | null>(null);
   // Position verticale de chaque carte de palier, relevée à la volée (onLayout),
   // pour pouvoir faire défiler jusqu'au palier pré-sélectionné.
@@ -338,29 +342,44 @@ export default function Premium() {
     }
   };
 
-  // Applique le palier reçu en paramètre, À CHAQUE ARRIVÉE sur l'écran.
+  // Applique le palier reçu en paramètre À CHAQUE ARRIVÉE sur l'écran, et REMET À
+  // ZÉRO quand l'arrivée n'en porte pas.
   //
-  // useFocusEffect et non useEffect : /premium est un Tabs.Screen (href: null,
-  // _layout.tsx:71), donc l'écran RESTE MONTÉ une fois visité. Le garde one-shot
-  // précédent (didAutoScroll) n'était donc jamais réarmé : le premier palier
-  // deep-linké se figeait et TOUS les taps suivants sur une autre carte étaient
-  // ignorés — la carte Booster étant la première de la liste Outsiders, l'écran
-  // restait bloqué sur le boost 1 h. Une navigation = une intention : on applique.
+  // /premium est un Tabs.Screen (href: null, _layout.tsx:71) : l'écran reste monté
+  // une fois visité, donc `selectedTier` SURVIT à la navigation. Ne rien faire en
+  // l'absence de palier laissait la sélection précédente en place — arriver depuis
+  // Compte après un deep-link Golden ouvrait sur Golden présélectionné (constaté
+  // sur l'APK af0ed8c1). Sur un écran persistant, « pas de palier » doit vouloir
+  // dire « efface », pas « ne touche à rien ».
   //
-  // Seuls les 3 ids connus sont acceptés : un lien forgé (?tier=nimportequoi) est
-  // ignoré, jamais propagé à l'achat.
+  // DÉPENDANCES VIDES, param lu dans un ref : l'effet ne doit se déclencher qu'au
+  // FOCUS, jamais à un changement de paramètre — sinon la consommation ci-dessous
+  // (setParams) le relancerait et effacerait aussitôt ce qu'on vient d'appliquer.
+  // Une navigation = une décision.
+  //
+  // Le setParams final consomme le palier une fois appliqué. C'est la ceinture en
+  // plus des bretelles : si expo-router conserve les params d'une navigation à
+  // l'autre au lieu de les remplacer, le param resterait sinon collé à l'écran et
+  // se réappliquerait à chaque arrivée ultérieure.
+  //
+  // Seuls les 3 ids connus sont acceptés : un lien forgé (?tier=nimportequoi) ne
+  // sélectionne rien et n'est jamais propagé à l'achat.
   useFocusEffect(
     useCallback(() => {
-      if (!tierParam) return;
-      if (!BOOSTER_TIERS.some((tr) => tr.id === tierParam)) return;
-      setSelectedTier(tierParam);
+      const raw = tierParamRef.current;
+      if (!raw || !BOOSTER_TIERS.some((tr) => tr.id === raw)) {
+        setSelectedTier(null);
+        return;
+      }
+      setSelectedTier(raw);
+      router.setParams({ tier: "" });
       // Le défilement attend que les cartes aient été mesurées (onLayout).
       const timer = setTimeout(() => {
-        const y = tierOffsets.current[tierParam];
+        const y = tierOffsets.current[raw];
         if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
       }, 350);
       return () => clearTimeout(timer);
-    }, [tierParam])
+    }, [router])
   );
 
   const handlePurchase = async () => {
