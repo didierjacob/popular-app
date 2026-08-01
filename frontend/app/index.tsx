@@ -283,10 +283,6 @@ export default function HomeScreen() {
   // Recherche en cours (résolution Wikidata comprise) : pilote le spinner ET la
   // désactivation du bouton, cf. garde anti-double-tap dans handleSearch.
   const [searchLoading, setSearchLoading] = useState(false);
-  // Formulaire de repli, ouvert quand Wikipédia ne résout pas la personne.
-  const [fallbackVisible, setFallbackVisible] = useState(false);
-  const [fallbackName, setFallbackName] = useState("");
-  const [fallbackSubmitting, setFallbackSubmitting] = useState(false);
   const searchMsgTimer = useRef<NodeJS.Timeout | null>(null);
   const titleTapCount = useRef(0);
   const titleTapTimer = useRef<NodeJS.Timeout | null>(null);
@@ -520,9 +516,6 @@ export default function HomeScreen() {
     if (!rawText) return;
     const query = rawText.toLowerCase();
     setSearchMessage(null);
-    // Une nouvelle recherche referme le formulaire de repli d'une recherche
-    // précédente : sinon il resterait ouvert sur le nom d'avant.
-    setFallbackVisible(false);
 
     // FAST PATH: Check locally loaded people first for instant navigation
     const localMatch = people.find(p =>
@@ -582,64 +575,58 @@ export default function HomeScreen() {
         return;
       }
 
-      // ── SLOW PATH 3 : repli modéré ──
-      // not_found / rejected / unavailable → formulaire. On n'affiche JAMAIS la
-      // raison du rejet renvoyée par le backend : dire d'une personne nommée
-      // qu'elle est mineure, décédée ou « pas assez connue » divulguerait une
-      // information sur un tiers. Message neutre unique.
-      setFallbackName(rawText);
-      setFallbackVisible(true);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+      // ── SLOW PATH 3 : repli modéré, SOUMISSION DIRECTE ──
+      // not_found / rejected / unavailable → on enfile la demande sans étape
+      // intermédiaire. La raison du rejet renvoyée par le backend n'est JAMAIS
+      // affichée : dire d'une personne nommée qu'elle est mineure, décédée ou
+      // « pas assez connue » divulguerait une information sur un tiers.
+      //
+      // Anti-double-submit : assuré par `searchLoading`, dont la fenêtre englobe
+      // ce POST — il couvre aussi bien le bouton Go que le clavier
+      // (onSubmitEditing), que le `disabled` du bouton ne protégeait pas.
+      try {
+        const response = await fetch(API("/submit-celebrity-request"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: rawText, device_id: did }),
+        });
 
-  // Repli modéré : le NOM SEUL suffit → /submit-celebrity-request, puis modération
-  // admin. Le lien social n'est plus exigé côté backend (cf. 65e6f28) : l'ajout
-  // Wikipédia couvre désormais les personnalités publiques réelles, ce formulaire
-  // ne traite plus que les cas résiduels. Le nom reste éditable en amont — c'est
-  // le seul filtre anti-faute de frappe avant la file de modération humaine.
-  const submitFallback = async () => {
-    if (fallbackSubmitting) return;
-    const name = fallbackName.trim();
-    if (!name) return;
+        // 429 = quota atteint (horaire ou journalier device, ou rate-limit IP).
+        // Message dédié : « réessaie » est actionnable, là où l'erreur générique
+        // laisserait croire à une panne.
+        if (response.status === 429) {
+          setSearchMessage(t("search.quota_reached"));
+          scheduleSearchClear();
+          return;
+        }
+        // 400 (filtre nom / insultes / blocklist) et 403 (device banni) restent
+        // volontairement génériques — la raison exacte n'existe que dans les logs.
+        if (!response.ok) {
+          setSearchMessage(t("search.queue_error"));
+          scheduleSearchClear();
+          return;
+        }
 
-    setFallbackSubmitting(true);
-    try {
-      const did = await ensureDeviceId();
-      const response = await fetch(API("/submit-celebrity-request"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, device_id: did }),
-      });
+        const data = await response.json();
 
-      if (!response.ok) {
+        if (data.status === "already_exists" && data.person_id) {
+          // Faute de frappe qui correspond malgré tout à un profil existant.
+          goToPerson(data.person_id);
+          setSearchMessage(null);
+          return;
+        }
+        setSearchMessage(
+          data.status === "already_pending"
+            ? t("search.already_pending")
+            : t("search.queued_message")
+        );
+        scheduleSearchClear();
+      } catch {
         setSearchMessage(t("search.queue_error"));
         scheduleSearchClear();
-        return;
       }
-
-      const data = await response.json();
-
-      if (data.status === "already_exists" && data.person_id) {
-        // Faute de frappe qui correspond malgré tout à un profil existant.
-        setFallbackVisible(false);
-        goToPerson(data.person_id);
-        setSearchMessage(null);
-        return;
-      }
-      setSearchMessage(
-        data.status === "already_pending"
-          ? t("search.already_pending")
-          : t("search.queued_message")
-      );
-      scheduleSearchClear();
-    } catch {
-      setSearchMessage(t("search.queue_error"));
-      scheduleSearchClear();
     } finally {
-      setFallbackSubmitting(false);
-      setFallbackVisible(false);
+      setSearchLoading(false);
     }
   };
 
@@ -705,47 +692,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Formulaire de repli — Wikipédia n'a pas résolu la personne.
-              Le lien social est OBLIGATOIRE (exigence backend Bloc 2). */}
-          {fallbackVisible && (
-            <View style={styles.fallbackCard}>
-              <Text style={styles.fallbackTitle}>{t("search.not_found_title")}</Text>
-              <Text style={styles.fallbackBody}>{t("search.not_found_body")}</Text>
-
-              <Text style={styles.fallbackLabel}>{t("search.name_label")}</Text>
-              <TextInput
-                style={styles.fallbackInput}
-                value={fallbackName}
-                onChangeText={setFallbackName}
-                placeholderTextColor={PALETTE.subtext}
-                autoCapitalize="words"
-              />
-
-              <View style={styles.fallbackActions}>
-                <TouchableOpacity
-                  style={styles.fallbackCancel}
-                  onPress={() => setFallbackVisible(false)}
-                  disabled={fallbackSubmitting}
-                >
-                  <Text style={styles.fallbackCancelText}>{t("search.cancel")}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.fallbackSubmit,
-                    (!fallbackName.trim() || fallbackSubmitting) && styles.fallbackSubmitDisabled,
-                  ]}
-                  onPress={submitFallback}
-                  disabled={!fallbackName.trim() || fallbackSubmitting}
-                >
-                  {fallbackSubmitting ? (
-                    <ActivityIndicator size="small" color={PALETTE.text} />
-                  ) : (
-                    <Text style={styles.fallbackSubmitText}>{t("search.submit_button")}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
           {/* Auto-complete suggestions */}
           {searchSuggestions.length > 0 && searchName.length >= 2 && (
             <View style={styles.suggestionsContainer}>
@@ -963,54 +909,6 @@ const styles = StyleSheet.create({
   // Le libellé « Go » et le spinner ont la même largeur → aucun saut de layout.
   searchButtonBusy: { opacity: 0.6 },
   searchButtonText: { color: PALETTE.text, fontWeight: "700", fontSize: 16 },
-
-  // Formulaire de repli (Wikipédia n'a pas résolu la personne)
-  fallbackCard: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: PALETTE.bg,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  fallbackTitle: { color: PALETTE.text, fontWeight: "700", fontSize: 15 },
-  fallbackBody: { color: PALETTE.subtext, fontSize: 13, marginTop: 4, lineHeight: 18 },
-  fallbackLabel: {
-    color: PALETTE.subtext,
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  fallbackInput: {
-    backgroundColor: PALETTE.card,
-    color: PALETTE.text,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  fallbackActions: { flexDirection: "row", gap: 8, marginTop: 14 },
-  fallbackCancel: {
-    flex: 1,
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-  },
-  fallbackCancelText: { color: PALETTE.subtext, fontWeight: "600", fontSize: 14 },
-  fallbackSubmit: {
-    flex: 2,
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: PALETTE.accent,
-  },
-  fallbackSubmitDisabled: { opacity: 0.45 },
-  fallbackSubmitText: { color: PALETTE.text, fontWeight: "700", fontSize: 14 },
 
   // Personality of the Day
   potdCard: {
