@@ -216,6 +216,15 @@ export default function List() {
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           ListHeaderComponent={renderFilters}
+          // Prévention du crash Android ReactClippingViewManager.addView
+          // (IllegalStateException). Le clipping, actif par DÉFAUT sur Android,
+          // détache et rattache des vues pendant que LayoutAnimation (:101) en
+          // déplace d'autres, sur des lignes qui se réordonnent à chaque refresh
+          // et qui montent un FlashOverlay conditionnel (:171). Ce cumul est le
+          // seul de l'app. Coût nul : le clipping ne gagne quelque chose qu'au-delà
+          // de plusieurs centaines de lignes hors écran, or cette liste est bornée.
+          // La virtualisation (windowSize, maxToRenderPerBatch) reste active.
+          removeClippedSubviews={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />
           }

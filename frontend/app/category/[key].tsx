@@ -106,6 +106,12 @@ export default function CategoryList() {
           data={items}
           keyExtractor={(it) => it.id}
           renderItem={renderItem}
+          // Même prévention que list.tsx (crash ReactClippingViewManager.addView).
+          // Cette liste-ci ne cumule pas les facteurs aggravants — pas de
+          // LayoutAnimation, pas d'overlay conditionnel — mais aucune liste de
+          // l'app n'est assez longue pour que le clipping apporte quoi que ce soit :
+          // on l'aligne plutôt que de laisser deux comportements différents.
+          removeClippedSubviews={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PALETTE.accent2} />}
           contentContainerStyle={{ paddingBottom: 24 }}
         />
